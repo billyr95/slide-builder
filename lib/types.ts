@@ -1,4 +1,4 @@
-export type FontFamily = 'serif' | 'sans'
+export type TheinhardtWeight = 'regular' | 'bold' | 'heavy'
 export type Orientation = 'landscape' | 'portrait'
 
 export interface SlideTemplate {
@@ -9,21 +9,47 @@ export interface SlideTemplate {
   data: SlideData
 }
 
+export interface LogoItem {
+  id: string
+  url: string   // base64 data URL
+  alt: string
+}
+
 export interface SlideData {
   // Content
-  label: string           // e.g. "TONIGHT"
-  title: string           // e.g. "Wuthering Heights through the Ages"
-  titleItalic: boolean    // render title in italic
-  subtitle: string        // e.g. "with"
-  presenters: string      // e.g. "Vinson Cunningham,\nNaomi Fry\n& Alexandra Schwartz"
+  label: string
+  labelWeight: TheinhardtWeight
+  title: string
+  titleItalic: boolean
+  titleSize: number
+  subtitle: string
+  subtitleWeight: TheinhardtWeight
+  subtitleSize: number
+  subtitleInline: boolean
+  subtitle2: string
+  subtitle2Weight: TheinhardtWeight
+  subtitle2Size: number
+  presenters: string
+  presentersWeight: TheinhardtWeight
+  presentersSize: number
 
   // Style
   backgroundColor: string
   textColor: string
-  accentColor: string     // for title / label
-  fontFamily: FontFamily
+  accentColor: string
 
   // Image
-  imageUrl: string        // base64 or URL
+  imageUrl: string
   imageAlt: string
+  imageSize: number
+
+  // Logos (between content and footer)
+  logos: LogoItem[]
+  logoSize: number
+
+  // Footer
+  showSeriesName: boolean
+  seriesName: string
+  showListeningCredit: boolean
+  listeningCredit: string
 }

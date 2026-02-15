@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { SlideData, SlideTemplate, Orientation } from '@/lib/types'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import SlideCanvas from '@/components/SlideCanvas'
@@ -21,9 +21,6 @@ export default function Home() {
   const [savedData, setSavedData] = useState<SlideData>(DEFAULT_SLIDE_DATA)
   const [exporting, setExporting] = useState<Orientation | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-
-  const landscapeRef = useRef<HTMLDivElement>(null)
-  const portraitRef = useRef<HTMLDivElement>(null)
 
   const isDirty = JSON.stringify(data) !== JSON.stringify(savedData)
 
@@ -89,21 +86,23 @@ export default function Home() {
 
   async function handleExport(orient: Orientation) {
     setExporting(orient)
-    // Brief delay to allow re-render at full scale
-    await new Promise(r => setTimeout(r, 100))
-    const ref = orient === 'landscape' ? landscapeRef : portraitRef
-    if (!ref.current) { setExporting(null); return }
     const title = data.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().slice(0, 40)
     const filename = `slide_${orient}_${title}.jpg`
-    await exportSlideAsJpeg(ref.current, orient, filename)
-    setExporting(null)
-    showToast(`Exported ${orient} JPEG`)
+    try {
+      await exportSlideAsJpeg(orient, data, filename)
+      showToast(`Exported ${orient} JPEG`)
+    } catch (e) {
+      console.error(e)
+      showToast('Export failed')
+    } finally {
+      setExporting(null)
+    }
   }
 
   const scale = PREVIEW_SCALES[orientation]
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ fontFamily: "'Theinhardt', sans-serif" }}>
 
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 bg-zinc-950 flex-shrink-0">
@@ -196,7 +195,7 @@ export default function Home() {
                 }}
               >
                 <div style={{ transform: `scale(${PREVIEW_SCALES.landscape})`, transformOrigin: 'top left' }}>
-                  <SlideCanvas ref={landscapeRef} data={data} orientation="landscape" scale={1} />
+                  <SlideCanvas data={data} orientation="landscape" scale={1} />
                 </div>
               </div>
             ) : (
@@ -208,7 +207,7 @@ export default function Home() {
                 }}
               >
                 <div style={{ transform: `scale(${PREVIEW_SCALES.portrait})`, transformOrigin: 'top left' }}>
-                  <SlideCanvas ref={portraitRef} data={data} orientation="portrait" scale={1} />
+                  <SlideCanvas data={data} orientation="portrait" scale={1} />
                 </div>
               </div>
             )}
@@ -225,20 +224,6 @@ export default function Home() {
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Edit</p>
           <EditorPanel data={data} onChange={setData} />
         </aside>
-      </div>
-
-      {/* Hidden full-res canvases for export */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '-99999px',
-          left: '-99999px',
-          visibility: 'hidden',
-          pointerEvents: 'none',
-        }}
-      >
-        <SlideCanvas ref={landscapeRef} data={data} orientation="landscape" scale={1} />
-        <SlideCanvas ref={portraitRef} data={data} orientation="portrait" scale={1} />
       </div>
 
       {/* Toast */}

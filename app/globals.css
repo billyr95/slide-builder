@@ -1,12 +1,52 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+@font-face {
+  font-family: '92NY';
+  src: url('/fonts/92NY_Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Theinhardt';
+  src: url('/fonts/Theinhardt-Pan-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Theinhardt';
+  src: url('/fonts/Theinhardt-Pan-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Theinhardt';
+  src: url('/fonts/Theinhardt-Pan-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Theinhardt';
+  src: url('/fonts/Theinhardt-Pan-Bold-Italic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'Theinhardt';
+  src: url('/fonts/Theinhardt-Pan-Heavy.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+}
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --font-serif: 'Playfair Display', Georgia, serif;
-  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-title: '92NY', sans-serif;
+  --font-body: 'Theinhardt', sans-serif;
 }
 
 * {
@@ -14,11 +54,7 @@
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: var(--font-body);
   background: #0f0f0f;
   color: #f5f5f5;
 }
-
-/* Slide canvas font classes */
-.font-serif-slide { font-family: 'Playfair Display', Georgia, serif; }
-.font-sans-slide { font-family: 'DM Sans', system-ui, sans-serif; }
