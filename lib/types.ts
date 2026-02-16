@@ -1,5 +1,6 @@
 export type TheinhardtWeight = 'regular' | 'bold' | 'heavy'
 export type Orientation = 'landscape' | 'portrait'
+export type ImageMode = 'single' | 'two-stagger'
 
 export interface SlideTemplate {
   id: string
@@ -11,7 +12,7 @@ export interface SlideTemplate {
 
 export interface LogoItem {
   id: string
-  url: string   // base64 data URL
+  url: string
   alt: string
 }
 
@@ -38,12 +39,21 @@ export interface SlideData {
   textColor: string
   accentColor: string
 
-  // Image
+  // Images
+  imageMode: ImageMode
   imageUrl: string
   imageAlt: string
   imageSize: number
+  image2Url: string
+  image2Alt: string
+  imageOverlap: number  // 0–60, percentage overlap of image2 over image1
+  staggerSize: number   // pixels, width of each image in stagger layout
+  image1Y: number       // vertical offset for image 1 (px)
+  image2Y: number       // vertical offset for image 2 (px)
+  image1Scale: number   // individual scale for image 1 (px width)
+  image2Scale: number   // individual scale for image 2 (px width)
 
-  // Logos (between content and footer)
+  // Logos
   logos: LogoItem[]
   logoSize: number
 

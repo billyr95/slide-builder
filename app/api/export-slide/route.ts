@@ -68,12 +68,50 @@ export async function POST(req: NextRequest) {
   }
 
   if (orientation === 'landscape') {
-    const imgColW = w * 0.4
-    const textColX = imgColW + 20 + PAD
+    // For stagger mode, image col width is driven by the image group size
+    const colPad = 60
+    let imgColW: number
+    let textColX: number
+
+    if (data.imageMode === 'two-stagger') {
+      const overlapPct = (data.imageOverlap ?? 30) / 100
+      const baseW = data.staggerSize ?? 250
+      const img1W = data.image1Scale || baseW
+      const img2W = data.image2Scale || baseW
+      const offsetX = baseW * (1 - overlapPct)
+      const groupW = offsetX + Math.max(img1W, img2W)
+      imgColW = groupW + colPad * 2
+      textColX = imgColW + 20
+    } else {
+      imgColW = w * 0.4
+      textColX = imgColW + 20 + PAD
+    }
     const textColMaxW = w - textColX - PAD
 
-    // Image
-    if (data.imageUrl) {
+    // Image(s)
+    if (data.imageMode === 'two-stagger' && (data.imageUrl || data.image2Url)) {
+      try {
+        const overlapPct = (data.imageOverlap ?? 30) / 100
+        const baseW = data.staggerSize ?? 250
+        const img1W = data.image1Scale || baseW
+        const img2W = data.image2Scale || baseW
+        const offsetX = baseW * (1 - overlapPct)
+        const shift = baseW * 0.12
+
+        const img1 = data.imageUrl ? await loadImg(data.imageUrl) : null
+        const img2 = data.image2Url ? await loadImg(data.image2Url) : null
+
+        const img1H = img1 ? (img1W / img1.width) * img1.height : img1W * 1.35
+        const img2H = img2 ? (img2W / img2.width) * img2.height : img2W * 1.35
+
+        const totalH = Math.max(img1H + (data.image1Y ?? 0), shift + img2H + (data.image2Y ?? 0))
+        const startX = colPad
+        const startY = (h - totalH) / 2
+
+        if (img1) ctx.drawImage(img1, startX, startY + (data.image1Y ?? 0), img1W, img1H)
+        if (img2) ctx.drawImage(img2, startX + offsetX, startY + shift + (data.image2Y ?? 0), img2W, img2H)
+      } catch (e) { console.warn('Stagger image error', e) }
+    } else if (data.imageUrl) {
       try {
         const img = await loadImg(data.imageUrl)
         const imgSizePct = (data.imageSize ?? 100) / 100
@@ -140,7 +178,7 @@ export async function POST(req: NextRequest) {
       ctx.fillText(data.subtitle, textColX, y)
       y += subSize * 1.2 + GAP
     }
-// weee
+
     // Subtitle 2
     if (data.subtitle2) {
       ctx.fillStyle = data.textColor
@@ -234,7 +272,35 @@ export async function POST(req: NextRequest) {
     ctx.textBaseline = 'top'
     ctx.textAlign = 'center'
 
-    if (data.imageUrl) {
+    let portraitStaggerBottom = 0
+    if (data.imageMode === 'two-stagger' && (data.imageUrl || data.image2Url)) {
+      try {
+        const overlapPct = (data.imageOverlap ?? 30) / 100
+        const baseW = data.staggerSize ?? 250
+        const img1W = data.image1Scale || baseW
+        const img2W = data.image2Scale || baseW
+        const offsetX = baseW * (1 - overlapPct)
+        const groupW = offsetX + Math.max(img1W, img2W)
+        const shift = baseW * 0.12
+
+        const img1 = data.imageUrl ? await loadImg(data.imageUrl) : null
+        const img2 = data.image2Url ? await loadImg(data.image2Url) : null
+        const img1H = img1 ? (img1W / img1.width) * img1.height : img1W * 1.35
+        const img2H = img2 ? (img2W / img2.width) * img2.height : img2W * 1.35
+
+        const startX = (w - groupW) / 2
+        const startY = PAD + 80
+
+        if (img1) ctx.drawImage(img1, startX, startY + (data.image1Y ?? 0), img1W, img1H)
+        if (img2) ctx.drawImage(img2, startX + offsetX, startY + shift + (data.image2Y ?? 0), img2W, img2H)
+
+        // Track the actual bottom of images to push text down
+        portraitStaggerBottom = startY + Math.max(
+          img1H + (data.image1Y ?? 0),
+          shift + img2H + (data.image2Y ?? 0)
+        ) + 40
+      } catch (e) { console.warn('Portrait stagger error', e) }
+    } else if (data.imageUrl) {
       try {
         const img = await loadImg(data.imageUrl)
         const imgSizePct = (data.imageSize ?? 100) / 100
@@ -255,7 +321,10 @@ export async function POST(req: NextRequest) {
       ctx.fillText(data.label, w / 2, PAD)
     }
 
-    const imgBottom = data.imageUrl ? PAD + 80 + h * 0.45 + 20 : PAD + labelSize + GAP * 2
+    const hasStaggerPortrait = data.imageMode === 'two-stagger' && (data.imageUrl || data.image2Url)
+    const imgBottom = hasStaggerPortrait
+      ? portraitStaggerBottom
+      : data.imageUrl ? PAD + 80 + h * 0.45 + 20 : PAD + labelSize + GAP * 2
     let y = imgBottom
 
     if (data.title) {

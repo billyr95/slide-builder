@@ -193,17 +193,22 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 
 export default function EditorPanel({ data, onChange }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const image2InputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [cropTarget, setCropTarget] = useState<'image1' | 'image2'>('image1')
 
   function set<K extends keyof SlideData>(key: K, value: SlideData[K]) {
     onChange({ ...data, [key]: value })
   }
 
-  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, target: 'image1' | 'image2' = 'image1') {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => setCropSrc(ev.target?.result as string)
+    reader.onload = (ev) => {
+      setCropTarget(target)
+      setCropSrc(ev.target?.result as string)
+    }
     reader.readAsDataURL(file)
     e.target.value = ''
   }
@@ -214,7 +219,11 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
   }
 
   function handleCropComplete(croppedUrl: string) {
-    set('imageUrl', croppedUrl)
+    if (cropTarget === 'image2') {
+      set('image2Url', croppedUrl)
+    } else {
+      set('imageUrl', croppedUrl)
+    }
     setCropSrc(null)
   }
 
@@ -282,11 +291,29 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
         {/* Image */}
         <div className={sectionCls}>
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Image</p>
-          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+
+          {/* Mode selector */}
+          <div className="flex gap-1.5 mb-4">
+            {(['single', 'two-stagger'] as const).map(mode => (
+              <button key={mode}
+                onClick={() => set('imageMode', mode)}
+                className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                  data.imageMode === mode
+                    ? 'bg-white text-black border-white font-medium'
+                    : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                }`}>
+                {mode === 'single' ? '1 image' : '2 staggered'}
+              </button>
+            ))}
+          </div>
+
+          {/* Image 1 */}
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'image1')} />
+          <p className="text-xs text-zinc-500 mb-1.5">{data.imageMode === 'two-stagger' ? 'Image 1 (back)' : 'Image'}</p>
           <div className="flex gap-2">
             <button onClick={() => imageInputRef.current?.click()}
               className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white text-sm py-2 px-3 rounded-lg transition-colors">
-              {data.imageUrl ? 'Replace image' : 'Upload image'}
+              {data.imageUrl ? 'Replace' : 'Upload'}
             </button>
             {data.imageUrl && (
               <button onClick={clearImage} className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
@@ -296,22 +323,64 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
           </div>
           {data.imageUrl && (
             <div className="mt-2 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-900 group relative cursor-pointer"
-              onClick={() => setCropSrc(data.imageUrl)}>
-              <img src={data.imageUrl} alt="Preview" className="max-h-24 mx-auto object-contain p-2" />
+              onClick={() => { setCropTarget('image1'); setCropSrc(data.imageUrl) }}>
+              <img src={data.imageUrl} alt="Preview" className="max-h-20 mx-auto object-contain p-2" />
               <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <span className="text-white text-xs font-medium">Edit crop</span>
               </div>
             </div>
           )}
-          {data.imageUrl && (
+          {data.imageMode === 'single' && data.imageUrl && (
             <div className="mt-2">
               <FontSizeSlider label="Image size" value={data.imageSize ?? 100} onChange={v => set('imageSize', v)} min={20} max={100} />
             </div>
           )}
-          <div className="mt-2">
-            <label className={labelCls}>Alt text</label>
-            <input className={inputCls} value={data.imageAlt} onChange={e => set('imageAlt', e.target.value)} placeholder="Image description" />
-          </div>
+
+          {/* Image 2 — only in two-stagger mode */}
+          {data.imageMode === 'two-stagger' && (
+            <div className="mt-4">
+              <input ref={image2InputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'image2')} />
+              <p className="text-xs text-zinc-500 mb-1.5">Image 2 (front)</p>
+              <div className="flex gap-2">
+                <button onClick={() => image2InputRef.current?.click()}
+                  className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white text-sm py-2 px-3 rounded-lg transition-colors">
+                  {data.image2Url ? 'Replace' : 'Upload'}
+                </button>
+                {data.image2Url && (
+                  <button onClick={() => set('image2Url', '')} className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
+                    Remove
+                  </button>
+                )}
+              </div>
+              {data.image2Url && (
+                <div className="mt-2 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-900 group relative cursor-pointer"
+                  onClick={() => { setCropTarget('image2'); setCropSrc(data.image2Url) }}>
+                  <img src={data.image2Url} alt="Preview" className="max-h-20 mx-auto object-contain p-2" />
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-white text-xs font-medium">Edit crop</span>
+                  </div>
+                </div>
+              )}
+              <div className="mt-3">
+                <FontSizeSlider label="Image width" value={data.staggerSize ?? 250} onChange={v => set('staggerSize', v)} min={80} max={800} />
+              </div>
+              <div className="mt-2">
+                <FontSizeSlider label="Overlap" value={data.imageOverlap ?? 30} onChange={v => set('imageOverlap', v)} min={0} max={60} />
+              </div>
+              <div className="mt-2">
+                <FontSizeSlider label="Image 1 size (override)" value={data.image1Scale || data.staggerSize || 250} onChange={v => set('image1Scale', v)} min={80} max={800} />
+              </div>
+              <div className="mt-2">
+                <FontSizeSlider label="Image 1 Y" value={data.image1Y ?? 0} onChange={v => set('image1Y', v)} min={-600} max={600} />
+              </div>
+              <div className="mt-3">
+                <FontSizeSlider label="Image 2 size (override)" value={data.image2Scale || data.staggerSize || 250} onChange={v => set('image2Scale', v)} min={80} max={800} />
+              </div>
+              <div className="mt-2">
+                <FontSizeSlider label="Image 2 Y" value={data.image2Y ?? 0} onChange={v => set('image2Y', v)} min={-600} max={600} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Style */}
