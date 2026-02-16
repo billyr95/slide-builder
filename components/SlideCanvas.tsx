@@ -438,4 +438,4 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 )
 
 SlideCanvas.displayName = 'SlideCanvas'
-export default SlideCanvas 
+export default SlideCanvas
