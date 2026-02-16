@@ -1,369 +1,441 @@
-import { NextRequest, NextResponse } from 'next/server'
-import path from 'path'
-import fs from 'fs'
-import { SlideData, TheinhardtWeight } from '@/lib/types'
+'use client'
 
-const DIMS = {
-  landscape: { w: 1920, h: 1080 },
-  portrait: { w: 1080, h: 1920 },
+import React, { forwardRef } from 'react'
+import { SlideData, Orientation } from '@/lib/types'
+
+interface SlideCanvasProps {
+  data: SlideData
+  orientation: Orientation
+  scale?: number
 }
 
-function tw(w: TheinhardtWeight): string {
-  if (w === 'heavy') return '900'
-  if (w === 'bold') return '700'
-  return '400'
+type TheinhardtWeight = 'regular' | 'bold' | 'heavy'
+
+const THEINHARDT = "'Theinhardt', sans-serif"
+const NY92 = "'92NY', sans-serif"
+
+function theinhardtWeight(w: TheinhardtWeight): number {
+  if (w === 'heavy') return 900
+  if (w === 'bold') return 700
+  return 400
 }
 
-function wrapText(ctx: any, text: string, maxWidth: number): string[] {
-  const lines: string[] = []
-  for (const rawLine of text.split('\n')) {
-    const words = rawLine.split(' ')
-    let current = ''
-    for (const word of words) {
-      const test = current ? current + ' ' + word : word
-      if (ctx.measureText(test).width > maxWidth && current) {
-        lines.push(current)
-        current = word
-      } else {
-        current = test
-      }
-    }
-    if (current) lines.push(current)
-  }
-  return lines
-}
+const LANDSCAPE = { w: 1920, h: 1080 }
+const PORTRAIT = { w: 1080, h: 1920 }
 
-export async function POST(req: NextRequest) {
-  const { createCanvas, GlobalFonts, Image } = await import('@napi-rs/canvas') as any
+const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
+  ({ data, orientation, scale = 1 }, ref) => {
+    const dim = orientation === 'landscape' ? LANDSCAPE : PORTRAIT
 
-  const fontsDir = path.join(process.cwd(), 'public', 'fonts')
-  GlobalFonts.registerFromPath(path.join(fontsDir, '92NY_Variable.woff2'), '92NY')
-  GlobalFonts.registerFromPath(path.join(fontsDir, 'Theinhardt-Pan-Regular.woff2'), 'Theinhardt')
-  GlobalFonts.registerFromPath(path.join(fontsDir, 'Theinhardt-Pan-Bold.woff2'), 'Theinhardt')
-  GlobalFonts.registerFromPath(path.join(fontsDir, 'Theinhardt-Pan-Heavy.woff2'), 'Theinhardt')
-  GlobalFonts.registerFromPath(path.join(fontsDir, 'Theinhardt-Pan-Italic.woff2'), 'Theinhardt')
-  GlobalFonts.registerFromPath(path.join(fontsDir, 'Theinhardt-Pan-Bold-Italic.woff2'), 'Theinhardt')
-
-  const body = await req.json()
-  const { orientation, data }: { orientation: 'landscape' | 'portrait'; data: SlideData } = body
-
-  const { w, h } = DIMS[orientation]
-  const canvas = createCanvas(w, h)
-  const ctx = canvas.getContext('2d')
-
-  const PAD = 80
-  const GAP = 16
-
-  // Background
-  ctx.fillStyle = data.backgroundColor
-  ctx.fillRect(0, 0, w, h)
-
-  // Helper to load image from base64 data URL
-  async function loadImg(dataUrl: string) {
-    const img = new Image()
-    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
-    img.src = Buffer.from(base64, 'base64')
-    await img.decode() // Required for napi-rs to actually render the image
-    return img
-  }
-
-  if (orientation === 'landscape') {
-    // For stagger mode, image col width is driven by the image group size
-    const colPad = 60
-    let imgColW: number
-    let textColX: number
-
-    if (data.imageMode === 'two-stagger') {
-      const overlapPct = (data.imageOverlap ?? 30) / 100
-      const imgW = data.staggerSize ?? 250
-      const groupW = imgW * (1 - overlapPct) + imgW
-      imgColW = groupW + colPad * 2
-      textColX = imgColW + 20
-    } else {
-      imgColW = w * 0.4
-      textColX = imgColW + 20 + PAD
-    }
-    const textColMaxW = w - textColX - PAD
-
-    // Image(s)
-    if (data.imageMode === 'two-stagger' && (data.imageUrl || data.image2Url)) {
-      try {
-        const overlapPct = (data.imageOverlap ?? 30) / 100
-        const baseW = data.staggerSize ?? 250
-        const img1W = data.image1Scale || baseW
-        const img2W = data.image2Scale || baseW
-        const offsetX = baseW * (1 - overlapPct)
-        const shift = baseW * 0.12
-
-        const img1 = data.imageUrl ? await loadImg(data.imageUrl) : null
-        const img2 = data.image2Url ? await loadImg(data.image2Url) : null
-
-        const img1H = img1 ? (img1W / img1.width) * img1.height : img1W * 1.35
-        const img2H = img2 ? (img2W / img2.width) * img2.height : img2W * 1.35
-
-        const totalH = Math.max(img1H + (data.image1Y ?? 0), shift + img2H + (data.image2Y ?? 0))
-        const startX = colPad
-        const startY = (h - totalH) / 2
-
-        if (img1) ctx.drawImage(img1, startX, startY + (data.image1Y ?? 0), img1W, img1H)
-        if (img2) ctx.drawImage(img2, startX + offsetX, startY + shift + (data.image2Y ?? 0), img2W, img2H)
-      } catch (e) { console.warn('Stagger image error', e) }
-    } else if (data.imageUrl) {
-      try {
-        const img = await loadImg(data.imageUrl)
-        const imgSizePct = (data.imageSize ?? 100) / 100
-        const availW = (imgColW - PAD * 2) * imgSizePct
-        const availH = (h - PAD * 2) * imgSizePct
-        const scale = Math.min(availW / img.width, availH / img.height)
-        const dw = img.width * scale
-        const dh = img.height * scale
-        const dx = (imgColW - dw) / 2
-        const dy = (h - dh) / 2
-        ctx.drawImage(img, dx, dy, dw, dh)
-      } catch (e) { console.warn('Image error', e) }
+    const titleStyle = {
+      fontFamily: NY92,
+      fontStyle: data.titleItalic ? 'italic' : 'normal',
+      fontKerning: 'normal' as const,
+      fontFeatureSettings: '"kern" 1, "liga" 1',
+      letterSpacing: '0',
+      color: data.accentColor,
     }
 
-    const labelSize = 48
-    const titleSize = data.titleSize
-    const subSize = data.subtitleSize
-    const sub2Size = data.subtitle2Size
-    const pSize = data.presentersSize
-
-    ctx.textBaseline = 'top'
-    ctx.textAlign = 'left'
-
-    // Pre-measure title lines with correct font
-    // 92NY variable: use weight 500 to match the visual weight seen in browser at 700
-    // (variable fonts map differently in canvas vs browser)
-    ctx.font = `normal 500 ${titleSize}px 92NY`
-    const titleLines = data.title ? wrapText(ctx, data.title, textColMaxW) : []
-    const presenterLines = data.presenters ? data.presenters.split('\n') : []
-
-    // Calculate total block height for vertical centering
-    let totalH = 0
-    if (data.label) totalH += labelSize * 1.2 + GAP
-    if (data.title) totalH += titleLines.length * (titleSize * 0.88) + GAP
-    if (data.subtitle && !data.subtitleInline) totalH += subSize * 1.2 + GAP
-    if (data.subtitle2) totalH += sub2Size * 1.2 + GAP
-    if (data.presenters) totalH += presenterLines.length * (pSize * 0.95)
-
-    let y = (h - totalH) / 2
-
-    // Label
-    if (data.label) {
-      ctx.fillStyle = data.textColor
-      ctx.font = `normal ${tw(data.labelWeight)} ${labelSize}px Theinhardt`
-      ctx.fillText(data.label, textColX, y)
-      y += labelSize * 1.2 + GAP
-    }
-
-    // Title — 92NY at weight 500 matches browser 700 visually for this variable font
-    if (data.title) {
-      ctx.fillStyle = data.accentColor
-      ctx.font = `${data.titleItalic ? 'italic' : 'normal'} 500 ${titleSize}px 92NY`
-      for (const line of titleLines) {
-        ctx.fillText(line, textColX, y)
-        y += titleSize * 0.88
-      }
-      y += GAP * 2
-    }
-
-    // Subtitle standalone
-    if (data.subtitle && !data.subtitleInline) {
-      ctx.fillStyle = data.textColor
-      ctx.font = `normal ${tw(data.subtitleWeight)} ${subSize}px Theinhardt`
-      ctx.fillText(data.subtitle, textColX, y)
-      y += subSize * 1.2 + GAP
-    }
-
-    // Subtitle 2
-    if (data.subtitle2) {
-      ctx.fillStyle = data.textColor
-      ctx.font = `normal ${tw(data.subtitle2Weight)} ${sub2Size}px Theinhardt`
-      ctx.fillText(data.subtitle2, textColX, y)
-      y += sub2Size * 1.2 + GAP
-    }
-
-    // Presenters
-    if (data.presenters) {
-      presenterLines.forEach((line: string, i: number) => {
-        ctx.fillStyle = data.textColor
-        if (i === 0 && data.subtitleInline && data.subtitle) {
-          const inlineSubSize = pSize * 0.75
-          ctx.font = `normal ${tw(data.subtitleWeight)} ${inlineSubSize}px Theinhardt`
-          const subW = ctx.measureText(data.subtitle + ' ').width
-          ctx.fillText(data.subtitle + ' ', textColX, y + (pSize - inlineSubSize))
-          ctx.font = `normal ${tw(data.presentersWeight)} ${pSize}px Theinhardt`
-          ctx.fillText(line, textColX + subW, y)
-        } else {
-          ctx.font = `normal ${tw(data.presentersWeight)} ${pSize}px Theinhardt`
-          ctx.fillText(line, textColX, y)
-        }
-        y += pSize * 0.95
-      })
-    }
-
-    // Logos
-    if (data.logos && data.logos.length > 0) {
-      y += GAP * 2
-      const logoH = data.logoSize || 60
-      let logoX = textColX
-      for (const logo of data.logos) {
-        try {
-          const logoImg = await loadImg(logo.url)
-          const scale = logoH / logoImg.height
-          const logoW = logoImg.width * scale
-          ctx.drawImage(logoImg, logoX, y, logoW, logoH)
-          logoX += logoW + 32
-        } catch (e) { console.warn('Logo error', e) }
+    function bodyStyle(weight: TheinhardtWeight, sizePx: number) {
+      const trackingEm = Math.max(-0.05, -20 / (sizePx * (1 / scale)))
+      return {
+        fontFamily: THEINHARDT,
+        fontWeight: theinhardtWeight(weight),
+        letterSpacing: `${trackingEm}em`,
+        color: data.textColor,
       }
     }
 
-    // Fixed footer — always at bottom
-    // Calculate footer height to anchor it properly
-    const seriesLineH = 52
-    const creditLineH = 30
-    const creditLines = (data.showListeningCredit && data.listeningCredit)
-      ? (() => {
-          ctx.font = `normal 400 23px Theinhardt`
-          return wrapText(ctx, data.listeningCredit, w - textColX - PAD)
-        })()
-      : []
-    const footerTotalH =
-      (data.showSeriesName ? seriesLineH : 0) +
-      (data.showListeningCredit ? creditLines.length * creditLineH : 0)
-    let fy = h - 60 - footerTotalH
+    const placeholderBox = (w: number, h: number) => (
+      <div style={{
+        width: w, height: h,
+        border: `${2 * scale}px dashed ${data.textColor}`,
+        borderRadius: `${8 * scale}px`,
+        opacity: 0.2,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: `${18 * scale}px`,
+        color: data.textColor,
+        fontFamily: THEINHARDT,
+      }}>
+        Image
+      </div>
+    )
 
-    if (data.showSeriesName && data.seriesName) {
-      ctx.fillStyle = data.textColor
-      ctx.globalAlpha = 1
-      ctx.font = `normal 700 38px Theinhardt`
-      ctx.textAlign = 'left'
-      ctx.fillText(data.seriesName.toUpperCase(), textColX, fy)
-      fy += seriesLineH
-    }
-    if (data.showListeningCredit && data.listeningCredit) {
-      // Use a slightly transparent version of textColor instead of globalAlpha
-      const hex = data.textColor.replace('#', '')
-      const r = parseInt(hex.slice(0,2), 16)
-      const g = parseInt(hex.slice(2,4), 16)
-      const b = parseInt(hex.slice(4,6), 16)
-      ctx.fillStyle = `rgba(${r},${g},${b},0.7)`
-      ctx.globalAlpha = 1
-      ctx.font = `normal 400 23px Theinhardt`
-      ctx.textAlign = 'left'
-      for (const line of creditLines) {
-        ctx.fillText(line, textColX, fy)
-        fy += creditLineH
-      }
-      ctx.fillStyle = data.textColor
+    const hasFooter = data.showSeriesName || data.showListeningCredit
+    const footerH = hasFooter ? (data.showSeriesName && data.showListeningCredit ? 120 : 80) : 0
+
+    if (orientation === 'landscape') {
+      const labelSize = 48
+      const titleSize = data.titleSize
+      const presenterSize = data.presentersSize
+      const bottomPad = hasFooter ? (footerH + 60) : 80
+
+      return (
+        <div
+          ref={ref}
+          id="slide-canvas"
+          style={{
+            width: dim.w * scale,
+            height: dim.h * scale,
+            backgroundColor: data.backgroundColor,
+            color: data.textColor,
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            overflow: 'hidden',
+            position: 'relative',
+            flexShrink: 0,
+          }}
+        >
+          {/* Left: Image column — width driven by image size in stagger mode */}
+          {(() => {
+            if (data.imageMode === 'two-stagger') {
+              const overlapPct = (data.imageOverlap ?? 30) / 100
+              const baseW = (data.staggerSize ?? 250) * scale
+              const img1W = (data.image1Scale || data.staggerSize || 250) * scale
+              const img2W = (data.image2Scale || data.staggerSize || 250) * scale
+              const offsetX = baseW * (1 - overlapPct)
+              const shift = baseW * 0.12
+              // Group width is based on actual image sizes, not base
+              const groupW = offsetX + Math.max(img1W, img2W)
+              const colPad = 60 * scale
+              const colW = groupW + colPad * 2
+              return (
+                <div style={{
+                  width: colW,
+                  flexShrink: 0,
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: `${colPad}px`,
+                  overflow: 'visible',
+                }}>
+                  <div style={{ position: 'relative', width: groupW, height: Math.max(img1W, img2W) * 1.35 + shift, flexShrink: 0 }}>
+                    {/* Back image (top-left) — natural aspect ratio */}
+                    <div style={{ position: 'absolute', top: (data.image1Y ?? 0) * scale, left: 0, width: img1W }}>
+                      {data.imageUrl
+                        ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                        : placeholderBox(img1W, img1W * 1.35)
+                      }
+                    </div>
+                    {/* Front image (bottom-right) — natural aspect ratio */}
+                    <div style={{ position: 'absolute', top: shift + (data.image2Y ?? 0) * scale, left: offsetX, width: img2W }}>
+                      {data.image2Url
+                        ? <img src={data.image2Url} alt={data.image2Alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                        : placeholderBox(img2W, img2W * 1.35)
+                      }
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+            // Single image — fixed 40% column
+            return (
+              <div style={{
+                width: '40%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: `${80 * scale}px`,
+                flexShrink: 0,
+              }}>
+                {data.imageUrl
+                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${(data.imageSize || 100)}%`, maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+                  : placeholderBox(400 * scale, 400 * scale)
+                }
+              </div>
+            )
+          })()}
+
+          {/* Right: Text — flex:1 so it takes remaining space */}
+          <div style={{
+            flex: 1,
+            minWidth: 0,
+            height: '100%',
+            padding: `${80 * scale}px ${80 * scale}px ${bottomPad * scale}px ${20 * scale}px`,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: `${16 * scale}px`,
+            position: 'relative',
+          }}>
+
+            {data.label && (
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+                {data.label}
+              </div>
+            )}
+
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: 700, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+              {data.title}
+            </div>
+
+            {data.subtitle && !data.subtitleInline && (
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize) }}>
+                {data.subtitle}
+              </div>
+            )}
+
+            {data.subtitle2 && (
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size) }}>
+                {data.subtitle2}
+              </div>
+            )}
+
+            {data.presenters && (
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...bodyStyle(data.presentersWeight, presenterSize) }}>
+                {data.subtitleInline && data.subtitle
+                  ? (() => {
+                      const lines = data.presenters.split('\n')
+                      return (
+                        <>
+                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
+                            {data.subtitle}{' '}
+                          </span>
+                          <span>{lines[0]}</span>
+                          {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
+                        </>
+                      )
+                    })()
+                  : data.presenters
+                }
+              </div>
+            )}
+
+            {/* Logo bar */}
+            {data.logos && data.logos.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px` }}>
+                {data.logos.map(logo => (
+                  <img key={logo.id} src={logo.url} alt={logo.alt}
+                    style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
+                ))}
+              </div>
+            )}
+
+            {/* Fixed footer */}
+            {hasFooter && (
+              <div style={{
+                position: 'absolute',
+                bottom: `${48 * scale}px`,
+                left: `${20 * scale}px`,
+                right: `${100 * scale}px`,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: `${6 * scale}px`,
+              }}>
+                {data.showSeriesName && data.seriesName && (
+                  <div style={{
+                    fontSize: `${38 * scale}px`,
+                    lineHeight: 1,
+                    fontFamily: THEINHARDT,
+                    fontWeight: 700,
+                    color: data.textColor,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                  }}>
+                    {data.seriesName}
+                  </div>
+                )}
+                {data.showListeningCredit && data.listeningCredit && (
+                  <div style={{
+                    fontSize: `${23 * scale}px`,
+                    lineHeight: 1.4,
+                    fontFamily: THEINHARDT,
+                    fontWeight: 400,
+                    color: data.textColor,
+                    opacity: 0.65,
+                  }}>
+                    {data.listeningCredit}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )
     }
 
-  } else {
     // Portrait
-    const textMaxW = w - PAD * 2
     const labelSize = 48
     const titleSize = data.titleSize
-    const pSize = data.presentersSize
+    const presenterSize = data.presentersSize
 
-    ctx.textBaseline = 'top'
-    ctx.textAlign = 'center'
+    return (
+      <div
+        ref={ref}
+        id="slide-canvas"
+        style={{
+          width: dim.w * scale,
+          height: dim.h * scale,
+          backgroundColor: data.backgroundColor,
+          color: data.textColor,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          position: 'relative',
+          flexShrink: 0,
+        }}
+      >
+        {/* Top label */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          paddingTop: `${80 * scale}px`,
+          paddingBottom: `${40 * scale}px`,
+        }}>
+          {data.label && (
+            <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+              {data.label}
+            </div>
+          )}
+        </div>
 
-    let portraitStaggerBottom = 0
-    if (data.imageMode === 'two-stagger' && (data.imageUrl || data.image2Url)) {
-      try {
-        const overlapPct = (data.imageOverlap ?? 30) / 100
-        const baseW = data.staggerSize ?? 250
-        const img1W = data.image1Scale || baseW
-        const img2W = data.image2Scale || baseW
-        const offsetX = baseW * (1 - overlapPct)
-        const groupW = offsetX + Math.max(img1W, img2W)
-        const shift = baseW * 0.12
+        {/* Image */}
+        {data.imageMode === 'two-stagger' ? (
+          (() => {
+            const overlapPct = (data.imageOverlap ?? 30) / 100
+            const baseW = (data.staggerSize ?? 250) * scale
+            const img1W = (data.image1Scale || data.staggerSize || 250) * scale
+            const img2W = (data.image2Scale || data.staggerSize || 250) * scale
+            const offsetX = baseW * (1 - overlapPct)
+            const groupW = offsetX + Math.max(img1W, img2W)
+            const shift = baseW * 0.12
+            // Estimate group height for container (assume ~1.35 aspect ratio as fallback)
+            const est1H = img1W * 1.35
+            const est2H = img2W * 1.35
+            const groupH = Math.max(
+              est1H + (data.image1Y ?? 0) * scale,
+              shift + est2H + (data.image2Y ?? 0) * scale
+            ) + 40 * scale
+            return (
+              <div style={{
+                position: 'relative',
+                width: groupW,
+                height: Math.max(groupH, baseW * 1.35 + shift + 40 * scale),
+                alignSelf: 'center',
+                flexShrink: 0,
+              }}>
+                {/* Back image */}
+                <div style={{ position: 'absolute', top: (data.image1Y ?? 0) * scale, left: 0, width: img1W }}>
+                  {data.imageUrl
+                    ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                    : placeholderBox(img1W, img1W * 1.35)
+                  }
+                </div>
+                {/* Front image */}
+                <div style={{ position: 'absolute', top: shift + (data.image2Y ?? 0) * scale, left: offsetX, width: img2W }}>
+                  {data.image2Url
+                    ? <img src={data.image2Url} alt={data.image2Alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                    : placeholderBox(img2W, img2W * 1.35)
+                  }
+                </div>
+              </div>
+            )
+          })()
+        ) : (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '66%',
+            alignSelf: 'center',
+          }}>
+            {data.imageUrl
+              ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${(data.imageSize || 100)}%`, maxWidth: '100%', maxHeight: `${dim.h * 0.5 * scale}px`, objectFit: 'contain', display: 'block' }} />
+              : placeholderBox(400 * scale, 400 * scale)
+            }
+          </div>
+        )}
 
-        const img1 = data.imageUrl ? await loadImg(data.imageUrl) : null
-        const img2 = data.image2Url ? await loadImg(data.image2Url) : null
-        const img1H = img1 ? (img1W / img1.width) * img1.height : img1W * 1.35
-        const img2H = img2 ? (img2W / img2.width) * img2.height : img2W * 1.35
+        {/* Text block */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: `${60 * scale}px ${80 * scale}px`,
+          gap: `${16 * scale}px`,
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: 700, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+            {data.title}
+          </div>
 
-        const startX = (w - groupW) / 2
-        const startY = PAD + 80
+          {data.subtitle && !data.subtitleInline && (
+            <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize) }}>
+              {data.subtitle}
+            </div>
+          )}
 
-        if (img1) ctx.drawImage(img1, startX, startY + (data.image1Y ?? 0), img1W, img1H)
-        if (img2) ctx.drawImage(img2, startX + offsetX, startY + shift + (data.image2Y ?? 0), img2W, img2H)
+          {data.subtitle2 && (
+            <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size) }}>
+              {data.subtitle2}
+            </div>
+          )}
 
-        // Track the actual bottom of images to push text down
-        portraitStaggerBottom = startY + Math.max(
-          img1H + (data.image1Y ?? 0),
-          shift + img2H + (data.image2Y ?? 0)
-        ) + 40
-      } catch (e) { console.warn('Portrait stagger error', e) }
-    } else if (data.imageUrl) {
-      try {
-        const img = await loadImg(data.imageUrl)
-        const imgSizePct = (data.imageSize ?? 100) / 100
-        const availW = w * 0.66 * imgSizePct
-        const availH = h * 0.5 * imgSizePct
-        const scale = Math.min(availW / img.width, availH / img.height)
-        const dw = img.width * scale
-        const dh = img.height * scale
-        const dx = (w - dw) / 2
-        const dy = PAD + 80
-        ctx.drawImage(img, dx, dy, dw, dh)
-      } catch (e) { console.warn('Image error', e) }
-    }
+          {data.presenters && (
+            <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...bodyStyle(data.presentersWeight, presenterSize) }}>
+              {data.presenters}
+            </div>
+          )}
 
-    if (data.label) {
-      ctx.fillStyle = data.textColor
-      ctx.font = `normal ${tw(data.labelWeight)} ${labelSize}px Theinhardt`
-      ctx.fillText(data.label, w / 2, PAD)
-    }
+          {/* Logo bar */}
+          {data.logos && data.logos.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px` }}>
+              {data.logos.map(logo => (
+                <img key={logo.id} src={logo.url} alt={logo.alt}
+                  style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
+              ))}
+            </div>
+          )}
+        </div>
 
-    const hasStaggerPortrait = data.imageMode === 'two-stagger' && (data.imageUrl || data.image2Url)
-    const imgBottom = hasStaggerPortrait
-      ? portraitStaggerBottom
-      : data.imageUrl ? PAD + 80 + h * 0.45 + 20 : PAD + labelSize + GAP * 2
-    let y = imgBottom
-
-    if (data.title) {
-      ctx.fillStyle = data.accentColor
-      ctx.font = `${data.titleItalic ? 'italic' : 'normal'} 500 ${titleSize}px 92NY`
-      const titleLines = wrapText(ctx, data.title, textMaxW)
-      for (const line of titleLines) {
-        ctx.fillText(line, w / 2, y)
-        y += titleSize * 0.88
-      }
-      y += GAP
-    }
-
-    if (data.subtitle && !data.subtitleInline) {
-      ctx.fillStyle = data.textColor
-      ctx.font = `normal ${tw(data.subtitleWeight)} ${data.subtitleSize}px Theinhardt`
-      ctx.fillText(data.subtitle, w / 2, y)
-      y += data.subtitleSize * 1.2 + GAP
-    }
-
-    if (data.subtitle2) {
-      ctx.fillStyle = data.textColor
-      ctx.font = `normal ${tw(data.subtitle2Weight)} ${data.subtitle2Size}px Theinhardt`
-      ctx.fillText(data.subtitle2, w / 2, y)
-      y += data.subtitle2Size * 1.2 + GAP
-    }
-
-    if (data.presenters) {
-      data.presenters.split('\n').forEach((line: string) => {
-        ctx.fillStyle = data.textColor
-        ctx.font = `normal ${tw(data.presentersWeight)} ${pSize}px Theinhardt`
-        ctx.fillText(line, w / 2, y)
-        y += pSize * 0.95
-      })
-    }
+        {/* Fixed footer */}
+        {hasFooter && (
+          <div style={{
+            position: 'absolute',
+            bottom: `${48 * scale}px`,
+            left: `${80 * scale}px`,
+            right: `${80 * scale}px`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: `${6 * scale}px`,
+          }}>
+            {data.showSeriesName && data.seriesName && (
+              <div style={{
+                fontSize: `${38 * scale}px`,
+                lineHeight: 1,
+                fontFamily: THEINHARDT,
+                fontWeight: 700,
+                color: data.textColor,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+              }}>
+                {data.seriesName}
+              </div>
+            )}
+            {data.showListeningCredit && data.listeningCredit && (
+              <div style={{
+                fontSize: `${23 * scale}px`,
+                lineHeight: 1.4,
+                fontFamily: THEINHARDT,
+                fontWeight: 400,
+                color: data.textColor,
+                opacity: 0.65,
+              }}>
+                {data.listeningCredit}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
   }
+)
 
-  const jpegBuffer = await canvas.encode('jpeg', 95)
-  return new NextResponse(jpegBuffer, {
-    headers: {
-      'Content-Type': 'image/jpeg',
-      'Content-Disposition': `attachment; filename="slide.jpg"`,
-    },
-  })
-}
+SlideCanvas.displayName = 'SlideCanvas'
+export default SlideCanvas
