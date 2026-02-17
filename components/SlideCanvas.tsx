@@ -379,7 +379,21 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
           {data.presenters && (
             <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...bodyStyle(data.presentersWeight, presenterSize) }}>
-              {data.presenters}
+              {data.subtitleInline && data.subtitle
+                ? (() => {
+                    const lines = data.presenters.split('\n')
+                    return (
+                      <>
+                        <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
+                          {data.subtitle}{' '}
+                        </span>
+                        <span>{lines[0]}</span>
+                        {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
+                      </>
+                    )
+                  })()
+                : data.presenters
+              }
             </div>
           )}
 
