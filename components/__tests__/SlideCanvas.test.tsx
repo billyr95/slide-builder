@@ -85,4 +85,18 @@ describe('SlideCanvas', () => {
     const data = withData({ imageUrl: '', image2Url: '' })
     expect(() => render(<SlideCanvas data={data} orientation={orientation} />)).not.toThrow()
   })
+
+  it.each(ORIENTATIONS)('imageMode "none" renders no image placeholder in %s mode', (orientation) => {
+    const data = withData({ imageMode: 'none', imageUrl: '', image2Url: '' })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    expect(screen.queryByText('Image')).not.toBeInTheDocument()
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.title)).toBeInTheDocument()
+  })
+
+  it.each(ORIENTATIONS)('imageMode "none" centers the text content in %s mode', (orientation) => {
+    const data = withData({ imageMode: 'none' })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    const root = screen.getByText(DEFAULT_SLIDE_DATA.title).closest('#slide-canvas') as HTMLElement
+    expect(root).toHaveStyle({ textAlign: 'center', justifyContent: 'center' })
+  })
 })

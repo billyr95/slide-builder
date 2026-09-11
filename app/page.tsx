@@ -6,7 +6,7 @@ import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import SlideCanvas from '@/components/SlideCanvas'
 import EditorPanel from '@/components/EditorPanel'
 import TemplatesSidebar from '@/components/TemplatesSidebar'
-import { exportSlideAsJpeg } from '@/lib/exportSlide'
+import { exportSlideAsPng } from '@/lib/exportSlide'
 import { useUndoableState } from '@/lib/useUndoableState'
 
 const PREVIEW_SCALES = {
@@ -135,9 +135,9 @@ export default function Home() {
   async function handleExport(orient: Orientation) {
     setExporting(orient)
     const safeName = savedName.replace(/[^a-z0-9]/gi, '_').toLowerCase().slice(0, 60)
-    const filename = `${safeName}_${orient}.jpg`
+    const filename = `${safeName}_${orient}.png`
     try {
-      await exportSlideAsJpeg(orient, data, filename)
+      await exportSlideAsPng(orient, data, filename)
       showToast(`Exported "${savedName}"`)
     } catch (e) {
       console.error(e)
@@ -300,7 +300,7 @@ export default function Home() {
 
           {/* Dimension label */}
           <p className="text-xs text-zinc-600 flex-shrink-0">
-            {orientation === 'landscape' ? '1920 × 1080 px' : '1080 × 1920 px'} — JPEG export at full resolution
+            {orientation === 'landscape' ? '1920 × 1080 px' : '1080 × 1920 px'} — PNG export at full resolution
           </p>
         </main>
 

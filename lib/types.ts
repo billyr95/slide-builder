@@ -1,6 +1,6 @@
 export type TheinhardtWeight = 'regular' | 'bold' | 'heavy'
 export type Orientation = 'landscape' | 'portrait'
-export type ImageMode = 'single' | 'two-stagger'
+export type ImageMode = 'single' | 'two-stagger' | 'none'
 
 export interface SlideTemplate {
   id: string

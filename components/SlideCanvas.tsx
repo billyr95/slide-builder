@@ -68,6 +68,136 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const hasFooter = data.showSeriesName || data.showListeningCredit
     const footerH = hasFooter ? (data.showSeriesName && data.showListeningCredit ? 120 : 80) : 0
 
+    if (data.imageMode === 'none') {
+      const labelSize = 48
+      const titleSize = data.titleSize
+      const presenterSize = data.presentersSize
+      const maxTextW = dim.w * (orientation === 'landscape' ? 0.7 : 0.8)
+
+      return (
+        <div
+          ref={ref}
+          id="slide-canvas"
+          style={{
+            width: dim.w * scale,
+            height: dim.h * scale,
+            backgroundColor: data.backgroundColor,
+            color: data.textColor,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+            position: 'relative',
+            flexShrink: 0,
+            textAlign: 'center',
+            padding: `${80 * scale}px`,
+          }}
+        >
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: `${16 * scale}px`,
+            maxWidth: maxTextW * scale,
+          }}>
+            {data.label && (
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+                {data.label}
+              </div>
+            )}
+
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: 700, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+              {data.title}
+            </div>
+
+            {data.subtitle && !data.subtitleInline && (
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize) }}>
+                {data.subtitle}
+              </div>
+            )}
+
+            {data.subtitle2 && (
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size) }}>
+                {data.subtitle2}
+              </div>
+            )}
+
+            {data.presenters && (
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...bodyStyle(data.presentersWeight, presenterSize) }}>
+                {data.subtitleInline && data.subtitle
+                  ? (() => {
+                      const lines = data.presenters.split('\n')
+                      return (
+                        <>
+                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
+                            {data.subtitle}{' '}
+                          </span>
+                          <span>{lines[0]}</span>
+                          {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
+                        </>
+                      )
+                    })()
+                  : data.presenters
+                }
+              </div>
+            )}
+
+            {/* Logo bar */}
+            {data.logos && data.logos.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px`, flexWrap: 'wrap' }}>
+                {data.logos.map(logo => (
+                  <img key={logo.id} src={logo.url} alt={logo.alt}
+                    style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Fixed footer */}
+          {hasFooter && (
+            <div style={{
+              position: 'absolute',
+              bottom: `${48 * scale}px`,
+              left: `${80 * scale}px`,
+              right: `${80 * scale}px`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: `${6 * scale}px`,
+              textAlign: 'center',
+            }}>
+              {data.showSeriesName && data.seriesName && (
+                <div style={{
+                  fontSize: `${38 * scale}px`,
+                  lineHeight: 1,
+                  fontFamily: THEINHARDT,
+                  fontWeight: 700,
+                  color: data.textColor,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                }}>
+                  {data.seriesName}
+                </div>
+              )}
+              {data.showListeningCredit && data.listeningCredit && (
+                <div style={{
+                  fontSize: `${23 * scale}px`,
+                  lineHeight: 1.4,
+                  fontFamily: THEINHARDT,
+                  fontWeight: 400,
+                  color: data.textColor,
+                  opacity: 0.65,
+                }}>
+                  {data.listeningCredit}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )
+    }
+
     if (orientation === 'landscape') {
       const labelSize = 48
       const titleSize = data.titleSize

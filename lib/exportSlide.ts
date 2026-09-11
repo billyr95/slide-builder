@@ -1,6 +1,6 @@
 import { Orientation, SlideData } from '@/lib/types'
 
-export async function exportSlideAsJpeg(
+export async function exportSlideAsPng(
   orientation: Orientation,
   data: SlideData,
   filename: string

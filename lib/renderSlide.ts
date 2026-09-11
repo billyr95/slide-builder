@@ -72,7 +72,7 @@ async function launchBrowser() {
   return puppeteer.launch({ headless: true })
 }
 
-export async function renderSlideToJpeg(data: SlideData, orientation: Orientation): Promise<Buffer> {
+export async function renderSlideToPng(data: SlideData, orientation: Orientation): Promise<Buffer> {
   const { w, h } = DIMS[orientation]
   const html = await buildHtml(data, orientation)
 
@@ -83,7 +83,7 @@ export async function renderSlideToJpeg(data: SlideData, orientation: Orientatio
     await page.setContent(html, { waitUntil: 'load' })
     await page.evaluate(() => (document as any).fonts?.ready ?? Promise.resolve())
     await page.waitForFunction(() => Array.from(document.images).every(img => img.complete))
-    const buffer = await page.screenshot({ type: 'jpeg', quality: 95 })
+    const buffer = await page.screenshot({ type: 'png' })
     return buffer as Buffer
   } finally {
     await browser.close()

@@ -302,7 +302,7 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
 
           {/* Mode selector */}
           <div className="flex gap-1.5 mb-4">
-            {(['single', 'two-stagger'] as const).map(mode => (
+            {(['single', 'two-stagger', 'none'] as const).map(mode => (
               <button key={mode}
                 onClick={() => set('imageMode', mode)}
                 className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
@@ -310,11 +310,17 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
                     ? 'bg-white text-black border-white font-medium'
                     : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
                 }`}>
-                {mode === 'single' ? '1 image' : '2 staggered'}
+                {mode === 'single' ? '1 image' : mode === 'two-stagger' ? '2 staggered' : 'No image'}
               </button>
             ))}
           </div>
 
+          {data.imageMode === 'none' && (
+            <p className="text-xs text-zinc-500">No image — all text is centered on the slide.</p>
+          )}
+
+          {data.imageMode !== 'none' && (
+            <>
           {/* Image 1 */}
           <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, 'image1')} />
           <p className="text-xs text-zinc-500 mb-1.5">{data.imageMode === 'two-stagger' ? 'Image 1 (back)' : 'Image'}</p>
@@ -388,6 +394,8 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
                 <FontSizeSlider label="Image 2 Y" value={data.image2Y ?? 0} onChange={v => set('image2Y', v)} min={-600} max={600} />
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
 
