@@ -1,5 +1,3 @@
-'use client'
-
 import React, { forwardRef } from 'react'
 import { SlideData, Orientation } from '@/lib/types'
 
@@ -34,6 +32,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       fontFeatureSettings: '"kern" 1, "liga" 1',
       letterSpacing: '0',
       color: data.accentColor,
+      overflowWrap: 'break-word' as const,
+      wordBreak: 'break-word' as const,
     }
 
     function bodyStyle(weight: TheinhardtWeight, sizePx: number) {
@@ -43,6 +43,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         fontWeight: theinhardtWeight(weight),
         letterSpacing: `${trackingEm}em`,
         color: data.textColor,
+        overflowWrap: 'break-word' as const,
+        wordBreak: 'break-word' as const,
       }
     }
 

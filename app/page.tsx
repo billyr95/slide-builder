@@ -7,6 +7,7 @@ import SlideCanvas from '@/components/SlideCanvas'
 import EditorPanel from '@/components/EditorPanel'
 import TemplatesSidebar from '@/components/TemplatesSidebar'
 import { exportSlideAsJpeg } from '@/lib/exportSlide'
+import { useUndoableState } from '@/lib/useUndoableState'
 
 const PREVIEW_SCALES = {
   landscape: 0.33,
@@ -14,7 +15,7 @@ const PREVIEW_SCALES = {
 }
 
 export default function Home() {
-  const [data, setData] = useState<SlideData>(DEFAULT_SLIDE_DATA)
+  const { value: data, set: setData, undo, redo, reset: resetData, canUndo, canRedo } = useUndoableState<SlideData>(DEFAULT_SLIDE_DATA)
   const [orientation, setOrientation] = useState<Orientation>('landscape')
   const [templates, setTemplates] = useState<SlideTemplate[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -44,6 +45,30 @@ export default function Home() {
     nameInputRef.current?.focus()
     nameInputRef.current?.select()
   }, [])
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      const isEditableField = !!target && (
+        target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      )
+      // Let native undo run inside text fields rather than fighting it with app-level undo.
+      if (isEditableField) return
+      if (!(e.metaKey || e.ctrlKey)) return
+      if (e.key.toLowerCase() === 'z' && e.shiftKey) {
+        e.preventDefault()
+        redo()
+      } else if (e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        undo()
+      } else if (e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [undo, redo])
 
   function handleSaveName() {
     const name = slideName.trim() || 'Untitled Slide'
@@ -78,7 +103,7 @@ export default function Home() {
   }
 
   function handleLoad(template: SlideTemplate) {
-    setData(template.data)
+    resetData(template.data)
     setSavedData(template.data)
     setActiveId(template.id)
     setSlideName(template.name)
@@ -96,7 +121,7 @@ export default function Home() {
   }
 
   function handleNew() {
-    setData(DEFAULT_SLIDE_DATA)
+    resetData(DEFAULT_SLIDE_DATA)
     setSavedData(DEFAULT_SLIDE_DATA)
     setActiveId(null)
     setSlideName('Untitled Slide')
@@ -156,6 +181,22 @@ export default function Home() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            title="Undo (Cmd+Z)"
+            className="text-sm text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
+            ↶ Undo
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            title="Redo (Cmd+Shift+Z)"
+            className="text-sm text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
+            ↷ Redo
+          </button>
           <button
             onClick={handleNew}
             className="text-sm text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"

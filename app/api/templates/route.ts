@@ -4,7 +4,7 @@ import { readTemplates, saveTemplate } from '@/lib/storage'
 import { SlideTemplate } from '@/lib/types'
 
 export async function GET() {
-  const templates = readTemplates()
+  const templates = await readTemplates()
   return NextResponse.json(templates)
 }
 
@@ -20,6 +20,6 @@ export async function POST(req: NextRequest) {
     data: body.data,
   }
 
-  saveTemplate(template)
+  await saveTemplate(template)
   return NextResponse.json(template, { status: 201 })
 }

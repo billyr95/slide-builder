@@ -3,6 +3,9 @@
 import { SlideData, TheinhardtWeight, LogoItem } from '@/lib/types'
 import { useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
+import { resizeImageDataUrl } from '@/lib/resizeImage'
+
+const MAX_LOGO_DIM = 400
 
 const CropModal = dynamic(() => import('./CropModal'), { ssr: false })
 
@@ -139,19 +142,24 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || [])
-    files.forEach(file => {
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        const newLogo: LogoItem = {
-          id: Math.random().toString(36).slice(2),
-          url: ev.target?.result as string,
-          alt: file.name.replace(/\.[^.]+$/, ''),
-        }
-        onChange([...logos, newLogo])
-      }
-      reader.readAsDataURL(file)
-    })
     e.target.value = ''
+
+    Promise.all(files.map(file => new Promise<LogoItem>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = async (ev) => {
+        try {
+          const rawUrl = ev.target?.result as string
+          const url = await resizeImageDataUrl(rawUrl, MAX_LOGO_DIM, 0.9)
+          resolve({ id: Math.random().toString(36).slice(2), url, alt: file.name.replace(/\.[^.]+$/, '') })
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    }))).then(newLogos => {
+      onChange([...logos, ...newLogos])
+    })
   }
 
   function removeLogo(id: string) {

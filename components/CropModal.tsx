@@ -8,6 +8,9 @@ import ReactCrop, {
   makeAspectCrop,
 } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
+import { resizeImageDataUrl } from '@/lib/resizeImage'
+
+const MAX_CROPPED_DIM = 1600
 
 interface CropModalProps {
   imageSrc: string
@@ -34,7 +37,7 @@ async function getCroppedImg(image: HTMLImageElement, pixelCrop: PixelCrop): Pro
     pixelCrop.width,
     pixelCrop.height,
   )
-  return canvas.toDataURL('image/png')
+  return resizeImageDataUrl(canvas.toDataURL('image/png'), MAX_CROPPED_DIM)
 }
 
 const ASPECT_OPTIONS = [
