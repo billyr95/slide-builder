@@ -64,14 +64,31 @@ describe('SlideCanvas', () => {
   it.each(ORIENTATIONS)('renders both images in two-stagger mode in %s mode', (orientation) => {
     const data = withData({
       imageMode: 'two-stagger',
-      imageUrl: 'data:image/png;base64,AAA',
-      imageAlt: 'Back image',
-      image2Url: 'data:image/png;base64,BBB',
-      image2Alt: 'Front image',
+      staggerImages: [
+        { id: '1', url: 'data:image/png;base64,AAA', alt: 'Back image', y: 0, scale: 0 },
+        { id: '2', url: 'data:image/png;base64,BBB', alt: 'Front image', y: 0, scale: 0 },
+      ],
     })
     render(<SlideCanvas data={data} orientation={orientation} />)
     expect(screen.getByAltText('Back image')).toBeInTheDocument()
     expect(screen.getByAltText('Front image')).toBeInTheDocument()
+  })
+
+  it.each(ORIENTATIONS)('renders all four images in four-stagger mode in %s mode', (orientation) => {
+    const data = withData({
+      imageMode: 'four-stagger',
+      staggerImages: [
+        { id: '1', url: 'data:image/png;base64,AAA', alt: 'Image A', y: 0, scale: 0 },
+        { id: '2', url: 'data:image/png;base64,BBB', alt: 'Image B', y: 0, scale: 0 },
+        { id: '3', url: 'data:image/png;base64,CCC', alt: 'Image C', y: 0, scale: 0 },
+        { id: '4', url: 'data:image/png;base64,DDD', alt: 'Image D', y: 0, scale: 0 },
+      ],
+    })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    expect(screen.getByAltText('Image A')).toBeInTheDocument()
+    expect(screen.getByAltText('Image B')).toBeInTheDocument()
+    expect(screen.getByAltText('Image C')).toBeInTheDocument()
+    expect(screen.getByAltText('Image D')).toBeInTheDocument()
   })
 
   it.each(ORIENTATIONS)('wraps long unbroken text instead of overflowing in %s mode', (orientation) => {
@@ -82,15 +99,28 @@ describe('SlideCanvas', () => {
   })
 
   it.each(ORIENTATIONS)('renders without crashing when no image is set in %s mode', (orientation) => {
-    const data = withData({ imageUrl: '', image2Url: '' })
+    const data = withData({ imageUrl: '', staggerImages: [] })
     expect(() => render(<SlideCanvas data={data} orientation={orientation} />)).not.toThrow()
   })
 
   it.each(ORIENTATIONS)('imageMode "none" renders no image placeholder in %s mode', (orientation) => {
-    const data = withData({ imageMode: 'none', imageUrl: '', image2Url: '' })
+    const data = withData({ imageMode: 'none', imageUrl: '', staggerImages: [] })
     render(<SlideCanvas data={data} orientation={orientation} />)
     expect(screen.queryByText('Image')).not.toBeInTheDocument()
     expect(screen.getByText(DEFAULT_SLIDE_DATA.title)).toBeInTheDocument()
+  })
+
+  it.each(ORIENTATIONS)('defaults the title to 92NY at weight 700 in %s mode', (orientation) => {
+    render(<SlideCanvas data={DEFAULT_SLIDE_DATA} orientation={orientation} />)
+    const titleEl = screen.getByText(DEFAULT_SLIDE_DATA.title)
+    expect(titleEl).toHaveStyle({ fontFamily: "'92NY', sans-serif", fontWeight: '700' })
+  })
+
+  it.each(ORIENTATIONS)('switches the title to Theinhardt Heavy when selected in %s mode', (orientation) => {
+    const data = withData({ titleFont: 'Theinhardt Heavy' })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    const titleEl = screen.getByText(DEFAULT_SLIDE_DATA.title)
+    expect(titleEl).toHaveStyle({ fontFamily: "'Theinhardt', sans-serif", fontWeight: '900' })
   })
 
   it.each(ORIENTATIONS)('imageMode "none" centers the text content in %s mode', (orientation) => {

@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react'
-import { SlideData, Orientation } from '@/lib/types'
+import { SlideData, Orientation, StaggerImage, staggerCount } from '@/lib/types'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -25,16 +25,27 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
   ({ data, orientation, scale = 1 }, ref) => {
     const dim = orientation === 'landscape' ? LANDSCAPE : PORTRAIT
 
-    const titleStyle = {
-      fontFamily: NY92,
-      fontStyle: data.titleItalic ? 'italic' : 'normal',
-      fontKerning: 'normal' as const,
-      fontFeatureSettings: '"kern" 1, "liga" 1',
-      letterSpacing: '0',
-      color: data.accentColor,
-      overflowWrap: 'break-word' as const,
-      wordBreak: 'break-word' as const,
-    }
+    const titleFont = data.titleFont ?? '92NY'
+    const titleWeight = titleFont === 'Theinhardt Heavy' ? 900 : 700
+    const titleStyle = titleFont === 'Theinhardt Heavy'
+      ? {
+          fontFamily: THEINHARDT,
+          fontStyle: data.titleItalic ? 'italic' : 'normal',
+          letterSpacing: `${Math.max(-0.05, -20 / (data.titleSize * (1 / scale)))}em`,
+          color: data.accentColor,
+          overflowWrap: 'break-word' as const,
+          wordBreak: 'break-word' as const,
+        }
+      : {
+          fontFamily: NY92,
+          fontStyle: data.titleItalic ? 'italic' : 'normal',
+          fontKerning: 'normal' as const,
+          fontFeatureSettings: '"kern" 1, "liga" 1',
+          letterSpacing: '0',
+          color: data.accentColor,
+          overflowWrap: 'break-word' as const,
+          wordBreak: 'break-word' as const,
+        }
 
     function bodyStyle(weight: TheinhardtWeight, sizePx: number) {
       const trackingEm = Math.max(-0.05, -20 / (sizePx * (1 / scale)))
@@ -64,6 +75,26 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         Image
       </div>
     )
+
+    // Lays out `count` images as a fanned/staggered cascade: each subsequent
+    // image is offset further right and down from the previous one.
+    function computeStaggerLayout(count: number) {
+      const overlapPct = (data.imageOverlap ?? 30) / 100
+      const baseSize = data.staggerSize ?? 250
+      const offsetX = baseSize * (1 - overlapPct) * scale
+      const shiftStep = baseSize * 0.12 * scale
+
+      const images: (StaggerImage | undefined)[] = Array.from({ length: count }, (_, i) => data.staggerImages?.[i])
+      const widths = images.map(img => ((img?.scale || baseSize)) * scale)
+      const heights = widths.map(w => w * 1.35) // fallback box estimate; actual <img> keeps its natural aspect ratio
+      const lefts = widths.map((_, i) => i * offsetX)
+      const tops = widths.map((_, i) => i * shiftStep + (images[i]?.y ?? 0) * scale)
+
+      const groupW = Math.max(...lefts.map((l, i) => l + widths[i]))
+      const groupH = Math.max(...tops.map((t, i) => t + heights[i]))
+
+      return { images, widths, heights, lefts, tops, groupW, groupH }
+    }
 
     const hasFooter = data.showSeriesName || data.showListeningCredit
     const footerH = hasFooter ? (data.showSeriesName && data.showListeningCredit ? 120 : 80) : 0
@@ -107,7 +138,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: 700, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
               {data.title}
             </div>
 
@@ -223,15 +254,9 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         >
           {/* Left: Image column — width driven by image size in stagger mode */}
           {(() => {
-            if (data.imageMode === 'two-stagger') {
-              const overlapPct = (data.imageOverlap ?? 30) / 100
-              const baseW = (data.staggerSize ?? 250) * scale
-              const img1W = (data.image1Scale || data.staggerSize || 250) * scale
-              const img2W = (data.image2Scale || data.staggerSize || 250) * scale
-              const offsetX = baseW * (1 - overlapPct)
-              const shift = baseW * 0.12
-              // Group width is based on actual image sizes, not base
-              const groupW = offsetX + Math.max(img1W, img2W)
+            const count = staggerCount(data.imageMode)
+            if (count > 0) {
+              const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(count)
               const colPad = 60 * scale
               const colW = groupW + colPad * 2
               return (
@@ -245,21 +270,15 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   padding: `${colPad}px`,
                   overflow: 'visible',
                 }}>
-                  <div style={{ position: 'relative', width: groupW, height: Math.max(img1W, img2W) * 1.35 + shift, flexShrink: 0 }}>
-                    {/* Back image (top-left) — natural aspect ratio */}
-                    <div style={{ position: 'absolute', top: (data.image1Y ?? 0) * scale, left: 0, width: img1W }}>
-                      {data.imageUrl
-                        ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: '100%', height: 'auto', display: 'block' }} />
-                        : placeholderBox(img1W, img1W * 1.35)
-                      }
-                    </div>
-                    {/* Front image (bottom-right) — natural aspect ratio */}
-                    <div style={{ position: 'absolute', top: shift + (data.image2Y ?? 0) * scale, left: offsetX, width: img2W }}>
-                      {data.image2Url
-                        ? <img src={data.image2Url} alt={data.image2Alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
-                        : placeholderBox(img2W, img2W * 1.35)
-                      }
-                    </div>
+                  <div style={{ position: 'relative', width: groupW, height: groupH, flexShrink: 0 }}>
+                    {images.map((img, i) => (
+                      <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i] }}>
+                        {img?.url
+                          ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                          : placeholderBox(widths[i], widths[i] * 1.35)
+                        }
+                      </div>
+                    ))}
                   </div>
                 </div>
               )
@@ -302,7 +321,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: 700, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
               {data.title}
             </div>
 
@@ -428,44 +447,25 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         </div>
 
         {/* Image */}
-        {data.imageMode === 'two-stagger' ? (
+        {staggerCount(data.imageMode) > 0 ? (
           (() => {
-            const overlapPct = (data.imageOverlap ?? 30) / 100
-            const baseW = (data.staggerSize ?? 250) * scale
-            const img1W = (data.image1Scale || data.staggerSize || 250) * scale
-            const img2W = (data.image2Scale || data.staggerSize || 250) * scale
-            const offsetX = baseW * (1 - overlapPct)
-            const groupW = offsetX + Math.max(img1W, img2W)
-            const shift = baseW * 0.12
-            // Estimate group height for container (assume ~1.35 aspect ratio as fallback)
-            const est1H = img1W * 1.35
-            const est2H = img2W * 1.35
-            const groupH = Math.max(
-              est1H + (data.image1Y ?? 0) * scale,
-              shift + est2H + (data.image2Y ?? 0) * scale
-            ) + 40 * scale
+            const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(staggerCount(data.imageMode))
             return (
               <div style={{
                 position: 'relative',
                 width: groupW,
-                height: Math.max(groupH, baseW * 1.35 + shift + 40 * scale),
+                height: groupH,
                 alignSelf: 'center',
                 flexShrink: 0,
               }}>
-                {/* Back image */}
-                <div style={{ position: 'absolute', top: (data.image1Y ?? 0) * scale, left: 0, width: img1W }}>
-                  {data.imageUrl
-                    ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: '100%', height: 'auto', display: 'block' }} />
-                    : placeholderBox(img1W, img1W * 1.35)
-                  }
-                </div>
-                {/* Front image */}
-                <div style={{ position: 'absolute', top: shift + (data.image2Y ?? 0) * scale, left: offsetX, width: img2W }}>
-                  {data.image2Url
-                    ? <img src={data.image2Url} alt={data.image2Alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
-                    : placeholderBox(img2W, img2W * 1.35)
-                  }
-                </div>
+                {images.map((img, i) => (
+                  <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i] }}>
+                    {img?.url
+                      ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                      : placeholderBox(widths[i], widths[i] * 1.35)
+                    }
+                  </div>
+                ))}
               </div>
             )
           })()
@@ -493,7 +493,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           gap: `${16 * scale}px`,
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: 700, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+          <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
             {data.title}
           </div>
 

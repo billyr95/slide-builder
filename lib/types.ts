@@ -1,6 +1,7 @@
 export type TheinhardtWeight = 'regular' | 'bold' | 'heavy'
 export type Orientation = 'landscape' | 'portrait'
-export type ImageMode = 'single' | 'two-stagger' | 'none'
+export type ImageMode = 'single' | 'two-stagger' | 'three-stagger' | 'four-stagger' | 'none'
+export type TitleFont = '92NY' | 'Theinhardt Heavy'
 
 export interface SlideTemplate {
   id: string
@@ -16,11 +17,28 @@ export interface LogoItem {
   alt: string
 }
 
+export interface StaggerImage {
+  id: string
+  url: string
+  alt: string
+  y: number      // vertical offset (px)
+  scale: number  // width override (px); 0 means use staggerSize
+}
+
+// Number of images used by a given stagger mode (0 for non-stagger modes).
+export function staggerCount(mode: ImageMode): number {
+  if (mode === 'two-stagger') return 2
+  if (mode === 'three-stagger') return 3
+  if (mode === 'four-stagger') return 4
+  return 0
+}
+
 export interface SlideData {
   // Content
   label: string
   labelWeight: TheinhardtWeight
   title: string
+  titleFont: TitleFont
   titleItalic: boolean
   titleSize: number
   subtitle: string
@@ -41,17 +59,12 @@ export interface SlideData {
 
   // Images
   imageMode: ImageMode
-  imageUrl: string
+  imageUrl: string       // single-image mode only
   imageAlt: string
   imageSize: number
-  image2Url: string
-  image2Alt: string
-  imageOverlap: number  // 0–60, percentage overlap of image2 over image1
-  staggerSize: number   // pixels, width of each image in stagger layout
-  image1Y: number       // vertical offset for image 1 (px)
-  image2Y: number       // vertical offset for image 2 (px)
-  image1Scale: number   // individual scale for image 1 (px width)
-  image2Scale: number   // individual scale for image 2 (px width)
+  staggerImages: StaggerImage[]  // two/three/four-stagger modes
+  imageOverlap: number  // 0–60, percentage overlap between consecutive stagger images
+  staggerSize: number   // pixels, default width of each image in stagger layout
 
   // Logos
   logos: LogoItem[]
