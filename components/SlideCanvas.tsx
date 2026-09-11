@@ -1,5 +1,5 @@
 import React, { forwardRef } from 'react'
-import { SlideData, Orientation, StaggerImage, staggerCount } from '@/lib/types'
+import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount } from '@/lib/types'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -76,9 +76,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       </div>
     )
 
-    // Lays out `count` images as a fanned/staggered cascade: each subsequent
-    // image is offset further right and down from the previous one.
-    function computeStaggerLayout(count: number) {
+    // Lays out a mode's images in one of three arrangements:
+    //  - cascade (two/three/four-stagger): each subsequent image steps right and down from the previous one
+    //  - triangle (three-triangle): two images side by side on top, one centered below overlapping both
+    //  - squared (four-squared): a 2x2 grid, each quadrant nudged toward its neighbors
+    function computeStaggerLayout(mode: ImageMode) {
+      const count = staggerCount(mode)
       const overlapPct = (data.imageOverlap ?? 30) / 100
       const baseSize = data.staggerSize ?? 250
       const offsetX = baseSize * (1 - overlapPct) * scale
@@ -87,8 +90,22 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       const images: (StaggerImage | undefined)[] = Array.from({ length: count }, (_, i) => data.staggerImages?.[i])
       const widths = images.map(img => ((img?.scale || baseSize)) * scale)
       const heights = widths.map(w => w * 1.35) // fallback box estimate; actual <img> keeps its natural aspect ratio
-      const lefts = widths.map((_, i) => i * offsetX)
-      const tops = widths.map((_, i) => i * shiftStep + (images[i]?.y ?? 0) * scale)
+      const rowH = heights[0] ?? baseSize * 1.35 * scale
+      const rowDrop = rowH * (1 - overlapPct)
+
+      let lefts: number[]
+      let baseTops: number[]
+      if (mode === 'three-triangle') {
+        lefts = [0, offsetX, offsetX / 2]
+        baseTops = [0, shiftStep, rowDrop + shiftStep]
+      } else if (mode === 'four-squared') {
+        lefts = [0, offsetX, shiftStep, offsetX + shiftStep]
+        baseTops = [0, shiftStep, rowDrop, rowDrop + shiftStep]
+      } else {
+        lefts = widths.map((_, i) => i * offsetX)
+        baseTops = widths.map((_, i) => i * shiftStep)
+      }
+      const tops = baseTops.map((t, i) => t + (images[i]?.y ?? 0) * scale)
 
       const groupW = Math.max(...lefts.map((l, i) => l + widths[i]))
       const groupH = Math.max(...tops.map((t, i) => t + heights[i]))
@@ -256,7 +273,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           {(() => {
             const count = staggerCount(data.imageMode)
             if (count > 0) {
-              const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(count)
+              const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data.imageMode)
               const colPad = 60 * scale
               const colW = groupW + colPad * 2
               return (
@@ -449,7 +466,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         {/* Image */}
         {staggerCount(data.imageMode) > 0 ? (
           (() => {
-            const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(staggerCount(data.imageMode))
+            const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data.imageMode)
             return (
               <div style={{
                 position: 'relative',

@@ -91,6 +91,38 @@ describe('SlideCanvas', () => {
     expect(screen.getByAltText('Image D')).toBeInTheDocument()
   })
 
+  it.each(ORIENTATIONS)('renders all three images in three-triangle mode in %s mode', (orientation) => {
+    const data = withData({
+      imageMode: 'three-triangle',
+      staggerImages: [
+        { id: '1', url: 'data:image/png;base64,AAA', alt: 'Top left', y: 0, scale: 0 },
+        { id: '2', url: 'data:image/png;base64,BBB', alt: 'Top right', y: 0, scale: 0 },
+        { id: '3', url: 'data:image/png;base64,CCC', alt: 'Bottom', y: 0, scale: 0 },
+      ],
+    })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    expect(screen.getByAltText('Top left')).toBeInTheDocument()
+    expect(screen.getByAltText('Top right')).toBeInTheDocument()
+    expect(screen.getByAltText('Bottom')).toBeInTheDocument()
+  })
+
+  it.each(ORIENTATIONS)('renders all four images in four-squared mode in %s mode', (orientation) => {
+    const data = withData({
+      imageMode: 'four-squared',
+      staggerImages: [
+        { id: '1', url: 'data:image/png;base64,AAA', alt: 'Image A', y: 0, scale: 0 },
+        { id: '2', url: 'data:image/png;base64,BBB', alt: 'Image B', y: 0, scale: 0 },
+        { id: '3', url: 'data:image/png;base64,CCC', alt: 'Image C', y: 0, scale: 0 },
+        { id: '4', url: 'data:image/png;base64,DDD', alt: 'Image D', y: 0, scale: 0 },
+      ],
+    })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    expect(screen.getByAltText('Image A')).toBeInTheDocument()
+    expect(screen.getByAltText('Image B')).toBeInTheDocument()
+    expect(screen.getByAltText('Image C')).toBeInTheDocument()
+    expect(screen.getByAltText('Image D')).toBeInTheDocument()
+  })
+
   it.each(ORIENTATIONS)('wraps long unbroken text instead of overflowing in %s mode', (orientation) => {
     const data = withData({ title: 'A'.repeat(200) })
     render(<SlideCanvas data={data} orientation={orientation} />)

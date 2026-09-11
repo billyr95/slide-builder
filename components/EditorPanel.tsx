@@ -7,6 +7,13 @@ import { resizeImageDataUrl } from '@/lib/resizeImage'
 
 const MAX_LOGO_DIM = 400
 
+function staggerSlotLabel(mode: ImageMode, i: number): string {
+  if (mode === 'three-triangle') return ['(top-left)', '(top-right)', '(bottom)'][i] ?? ''
+  if (mode === 'four-squared') return ['(top-left)', '(top-right)', '(bottom-left)', '(bottom-right)'][i] ?? ''
+  const count = staggerCount(mode)
+  return i === 0 ? '(back)' : i === count - 1 ? '(front)' : `(${i + 1})`
+}
+
 const CropModal = dynamic(() => import('./CropModal'), { ssr: false })
 
 interface EditorPanelProps {
@@ -329,7 +336,12 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
 
           {/* Mode selector */}
           <div className="grid grid-cols-3 gap-1.5 mb-4">
-            {(['single', 'two-stagger', 'three-stagger', 'four-stagger', 'none'] as ImageMode[]).map(mode => (
+            {([
+              'single', 'two-stagger',
+              'three-stagger', 'three-triangle',
+              'four-stagger', 'four-squared',
+              'none',
+            ] as ImageMode[]).map(mode => (
               <button key={mode}
                 onClick={() => set('imageMode', mode)}
                 className={`text-xs py-1.5 rounded-md border transition-colors ${
@@ -340,7 +352,9 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
                 {mode === 'single' ? '1 image'
                   : mode === 'two-stagger' ? '2 staggered'
                   : mode === 'three-stagger' ? '3 staggered'
+                  : mode === 'three-triangle' ? '3 triangle'
                   : mode === 'four-stagger' ? '4 staggered'
+                  : mode === 'four-squared' ? '4 squared'
                   : 'No image'}
               </button>
             ))}
@@ -386,7 +400,7 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
             <>
               {Array.from({ length: staggerCount(data.imageMode) }).map((_, i) => {
                 const img = data.staggerImages?.[i]
-                const position = i === 0 ? '(back)' : i === staggerCount(data.imageMode) - 1 ? '(front)' : `(${i + 1})`
+                const position = staggerSlotLabel(data.imageMode, i)
                 return (
                   <div key={i} className={i > 0 ? 'mt-4' : ''}>
                     <p className="text-xs text-zinc-500 mb-1.5">Image {i + 1} {position}</p>
