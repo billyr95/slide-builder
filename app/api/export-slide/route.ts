@@ -353,12 +353,85 @@ export async function POST(req: NextRequest) {
     }
 
     if (data.presenters) {
-      data.presenters.split('\n').forEach((line: string) => {
+      const presenterLines = data.presenters.split('\n')
+      presenterLines.forEach((line: string, i: number) => {
         ctx.fillStyle = data.textColor
-        ctx.font = `normal ${tw(data.presentersWeight)} ${pSize}px Theinhardt`
-        ctx.fillText(line, w / 2, y)
+        if (i === 0 && data.subtitleInline && data.subtitle) {
+          const inlineSubSize = pSize * 0.75
+          ctx.font = `normal ${tw(data.subtitleWeight)} ${inlineSubSize}px Theinhardt`
+          const subText = data.subtitle + ' '
+          const subW = ctx.measureText(subText).width
+          ctx.font = `normal ${tw(data.presentersWeight)} ${pSize}px Theinhardt`
+          const nameW = ctx.measureText(line).width
+          const startX = (w - (subW + nameW)) / 2
+
+          ctx.textAlign = 'left'
+          ctx.font = `normal ${tw(data.subtitleWeight)} ${inlineSubSize}px Theinhardt`
+          ctx.fillText(subText, startX, y + (pSize - inlineSubSize))
+          ctx.font = `normal ${tw(data.presentersWeight)} ${pSize}px Theinhardt`
+          ctx.fillText(line, startX + subW, y)
+          ctx.textAlign = 'center'
+        } else {
+          ctx.font = `normal ${tw(data.presentersWeight)} ${pSize}px Theinhardt`
+          ctx.fillText(line, w / 2, y)
+        }
         y += pSize * 0.95
       })
+    }
+
+    // Logos
+    if (data.logos && data.logos.length > 0) {
+      y += GAP * 2
+      const logoH = data.logoSize || 60
+      const loaded: { img: any; w: number }[] = []
+      for (const logo of data.logos) {
+        try {
+          const logoImg = await loadImg(logo.url)
+          const scale = logoH / logoImg.height
+          loaded.push({ img: logoImg, w: logoImg.width * scale })
+        } catch (e) { console.warn('Logo error', e) }
+      }
+      const totalLogoW = loaded.reduce((sum, l) => sum + l.w, 0) + Math.max(0, loaded.length - 1) * 32
+      let logoX = (w - totalLogoW) / 2
+      for (const l of loaded) {
+        ctx.drawImage(l.img, logoX, y, l.w, logoH)
+        logoX += l.w + 32
+      }
+    }
+
+    // Fixed footer — always at bottom
+    const seriesLineH = 52
+    const creditLineH = 30
+    const creditLines = (data.showListeningCredit && data.listeningCredit)
+      ? (() => {
+          ctx.font = `normal 400 23px Theinhardt`
+          return wrapText(ctx, data.listeningCredit, w - PAD * 2)
+        })()
+      : []
+    const footerTotalH =
+      (data.showSeriesName ? seriesLineH : 0) +
+      (data.showListeningCredit ? creditLines.length * creditLineH : 0)
+    let fy = h - 48 - footerTotalH
+
+    ctx.textAlign = 'left'
+    if (data.showSeriesName && data.seriesName) {
+      ctx.fillStyle = data.textColor
+      ctx.font = `normal 700 38px Theinhardt`
+      ctx.fillText(data.seriesName.toUpperCase(), PAD, fy)
+      fy += seriesLineH
+    }
+    if (data.showListeningCredit && data.listeningCredit) {
+      const hex = data.textColor.replace('#', '')
+      const r = parseInt(hex.slice(0,2), 16)
+      const g = parseInt(hex.slice(2,4), 16)
+      const b = parseInt(hex.slice(4,6), 16)
+      ctx.fillStyle = `rgba(${r},${g},${b},0.7)`
+      ctx.font = `normal 400 23px Theinhardt`
+      for (const line of creditLines) {
+        ctx.fillText(line, PAD, fy)
+        fy += creditLineH
+      }
+      ctx.fillStyle = data.textColor
     }
   }
 
