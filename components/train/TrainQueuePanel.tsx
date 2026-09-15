@@ -122,6 +122,10 @@ export default function TrainQueuePanel({
                 <span className={entry.screenType === 'projector' ? 'text-blue-400' : 'text-amber-400'}>
                   {entry.screenType === 'projector' ? 'Projector' : 'Lobby'}
                 </span>
+                {' · '}
+                <span className={entry.source === 'live' ? 'text-emerald-400' : 'text-zinc-500'}>
+                  {entry.source === 'live' ? 'Live' : 'Upload'}
+                </span>
                 {' · '}{entry.images.filter(img => img.url).length} img{entry.images.filter(img => img.url).length === 1 ? '' : 's'}
               </p>
             </div>

@@ -9,6 +9,11 @@ import EditorPanel from '@/components/EditorPanel'
 import TemplatesSidebar from '@/components/TemplatesSidebar'
 import { exportSlideAsPng } from '@/lib/exportSlide'
 import { useUndoableState } from '@/lib/useUndoableState'
+import { useTrainQueue } from '@/lib/useTrainQueue'
+import { buildLiveTrainEntry } from '@/lib/liveTrainCapture'
+import { ScreenType } from '@/lib/trainTypes'
+
+const LOGGING_PREF_KEY = 'slide-builder-live-logging-enabled'
 
 const PREVIEW_SCALES = {
   landscape: 0.33,
@@ -27,6 +32,11 @@ export default function Home() {
   const [savedName, setSavedName] = useState('Untitled Slide')
   const nameInputRef = useRef<HTMLInputElement>(null)
 
+  const { addEntry: addTrainEntry } = useTrainQueue()
+  const [screenType, setScreenType] = useState<ScreenType>('projector')
+  const [loggingEnabled, setLoggingEnabled] = useState(true)
+  const [loggingPrefLoaded, setLoggingPrefLoaded] = useState(false)
+
   const isDirty = JSON.stringify(data) !== JSON.stringify(savedData)
   const isNameDirty = slideName !== savedName
 
@@ -40,6 +50,28 @@ export default function Home() {
     const list = await res.json()
     setTemplates(list)
   }
+
+  // Load the logging preference once on mount, then persist changes after —
+  // gated on `loggingPrefLoaded` (real state, not a ref) so the save effect
+  // never fires with the pre-load default before the stored value arrives.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOGGING_PREF_KEY)
+      if (raw !== null) setLoggingEnabled(raw === 'true')
+    } catch (e) {
+      console.warn('Failed to load logging preference', e)
+    }
+    setLoggingPrefLoaded(true)
+  }, [])
+
+  useEffect(() => {
+    if (!loggingPrefLoaded) return
+    try {
+      localStorage.setItem(LOGGING_PREF_KEY, String(loggingEnabled))
+    } catch (e) {
+      console.warn('Failed to save logging preference', e)
+    }
+  }, [loggingEnabled, loggingPrefLoaded])
 
   useEffect(() => {
     fetchTemplates()
@@ -140,6 +172,15 @@ export default function Home() {
     try {
       await exportSlideAsPng(orient, data, filename)
       showToast(`Exported "${savedName}"`)
+      if (loggingEnabled) {
+        // Best-effort — a logging failure must never surface to the user or
+        // affect the export they just successfully completed.
+        try {
+          addTrainEntry(buildLiveTrainEntry(data, orient, screenType))
+        } catch (e) {
+          console.warn('Failed to log training entry', e)
+        }
+      }
     } catch (e) {
       console.error(e)
       showToast('Export failed')
@@ -314,7 +355,14 @@ export default function Home() {
         {/* Right: Editor */}
         <aside className="w-72 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 p-4 overflow-y-auto">
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Edit</p>
-          <EditorPanel data={data} onChange={setData} />
+          <EditorPanel
+            data={data}
+            onChange={setData}
+            loggingEnabled={loggingEnabled}
+            onLoggingEnabledChange={setLoggingEnabled}
+            screenType={screenType}
+            onScreenTypeChange={setScreenType}
+          />
         </aside>
       </div>
 

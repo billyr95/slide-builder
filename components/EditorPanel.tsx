@@ -1,6 +1,7 @@
 'use client'
 
 import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, staggerCount } from '@/lib/types'
+import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
@@ -19,6 +20,10 @@ const CropModal = dynamic(() => import('./CropModal'), { ssr: false })
 interface EditorPanelProps {
   data: SlideData
   onChange: (data: SlideData) => void
+  loggingEnabled: boolean
+  onLoggingEnabledChange: (enabled: boolean) => void
+  screenType: ScreenType
+  onScreenTypeChange: (t: ScreenType) => void
 }
 
 const inputCls = `w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 transition-colors placeholder-zinc-500`
@@ -206,7 +211,9 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
   )
 }
 
-export default function EditorPanel({ data, onChange }: EditorPanelProps) {
+export default function EditorPanel({
+  data, onChange, loggingEnabled, onLoggingEnabledChange, screenType, onScreenTypeChange,
+}: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   // -1 = the single-image slot; >=0 = index into data.staggerImages
@@ -517,9 +524,40 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
         </div>
 
         {/* Accessibility */}
-        <div>
+        <div className={sectionCls}>
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-3">Accessibility</p>
           <WcagChecker bg={data.backgroundColor} text={data.textColor} accent={data.accentColor} />
+        </div>
+
+        {/* Training data logging */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="checkbox"
+              id="trainLogging"
+              checked={loggingEnabled}
+              onChange={e => onLoggingEnabledChange(e.target.checked)}
+              className="rounded"
+            />
+            <label htmlFor="trainLogging" className="text-xs text-zinc-400">
+              Log exports as training data
+            </label>
+          </div>
+          {loggingEnabled && (
+            <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+              {(['projector', 'lobby'] as ScreenType[]).map(t => (
+                <button
+                  key={t}
+                  onClick={() => onScreenTypeChange(t)}
+                  className={`flex-1 text-xs px-3 py-1 rounded-md transition-colors font-medium ${
+                    screenType === t ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {t === 'projector' ? 'Projector' : 'Lobby'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

@@ -2,11 +2,8 @@ import { TrainEntry } from './trainTypes'
 
 const MODEL = 'claude-haiku-4-5-20251001'
 
-// The full set of visual style properties a human could plausibly supply by
-// hand for an old slide. Anything already known (weights, italic, an
-// explicit color) is passed to the model as ground truth instead of being
-// asked for — only the remaining gaps get listed as things to estimate.
-function buildPrompt(entry: TrainEntry): string {
+// Fields common to both entry sources, as "known: value" lines.
+function commonKnownLines(entry: TrainEntry): string[] {
   const known: string[] = [
     `Screen type: ${entry.screenType}`,
     `Has label/kicker line: ${entry.hasLabel}`,
@@ -22,6 +19,15 @@ function buildPrompt(entry: TrainEntry): string {
   }
   if (entry.subtitle2) known.push(`Subtitle 2: "${entry.subtitle2}"`)
   if (entry.presenters) known.push(`Presenters (one per line):\n${entry.presenters}`)
+  return known
+}
+
+// The full set of visual style properties a human could plausibly supply by
+// hand for an old slide. Anything already known (weights, italic, an
+// explicit color) is passed to the model as ground truth instead of being
+// asked for — only the remaining gaps get listed as things to estimate.
+function buildEstimatePrompt(entry: TrainEntry): string {
+  const known = commonKnownLines(entry)
   if (entry.backgroundColor) known.push(`Background color: ${entry.backgroundColor}`)
   if (entry.textColor) known.push(`Text color: ${entry.textColor}`)
 
@@ -44,6 +50,34 @@ function buildPrompt(entry: TrainEntry): string {
     '',
     'Respond with a single JSON object containing your estimates, keyed by the property names above.',
   ].join('\n')
+}
+
+// Live entries come straight from the editor's own state — every value is
+// already exact, so there's nothing to estimate. Ask the model to sanity-check
+// the image(s) against the known values instead of guessing at anything.
+function buildConfirmPrompt(entry: TrainEntry): string {
+  const known = commonKnownLines(entry)
+  known.push(`Background color: ${entry.backgroundColor}`)
+  known.push(`Text color: ${entry.textColor}`)
+  if (entry.liveStyle) {
+    known.push(`Additional exact style data (from the original editor state, as JSON): ${JSON.stringify(entry.liveStyle)}`)
+  }
+
+  return [
+    'You are QA-checking a slide that was exported directly from a slide-layout editor.',
+    'Every value below is EXACT, known ground truth taken from the editor state — nothing needs to be estimated.',
+    '',
+    'Known ground-truth values:',
+    ...known.map(line => `- ${line}`),
+    '',
+    'Review the attached image(s) against these values and confirm they are visually consistent with each other.',
+    'If anything looks inconsistent or wrong, briefly describe what and why; otherwise just confirm the match.',
+    'Respond with a single JSON object: { "consistent": boolean, "notes": string }.',
+  ].join('\n')
+}
+
+function buildPrompt(entry: TrainEntry): string {
+  return entry.source === 'live' ? buildConfirmPrompt(entry) : buildEstimatePrompt(entry)
 }
 
 function dataUrlToBase64(dataUrl: string): string {
@@ -72,6 +106,7 @@ export function buildBatchLine(entry: TrainEntry): string {
       max_tokens: 1000,
       messages: [{ role: 'user', content }],
     },
+    source: entry.source,
     screen_type: entry.screenType,
     has_label: entry.hasLabel,
     image_count: entry.images.filter(img => img.url).length,
