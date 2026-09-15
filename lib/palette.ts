@@ -14,4 +14,6 @@ export const PALETTE: { hex: string; name: string }[] = [
   { hex: '#38618C', name: 'Navy' },
   { hex: '#FAD487', name: 'Amber' },
   { hex: '#D4D9DD', name: 'Silver' },
+  { hex: '#66BAC9', name: 'Turquoise' },
+  { hex: '#EFB255', name: 'Marigold' },
 ]
