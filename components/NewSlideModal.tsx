@@ -25,6 +25,7 @@ export interface SlideFieldsInput {
   subtitle: string
   subtitle2: string
   presenters: string // newline-joined, one per line -- matches SlideData.presenters' own format
+  presentersItalic: boolean
   seriesName: string
 }
 
@@ -64,6 +65,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
   const [subtitle, setSubtitle] = useState('')
   const [subtitle2, setSubtitle2] = useState('')
   const [presenters, setPresenters] = useState('')
+  const [presentersItalic, setPresentersItalic] = useState(false)
   const [seriesName, setSeriesName] = useState('')
   const [images, setImages] = useState<DroppedImage[]>([])
   const [dragActive, setDragActive] = useState(false)
@@ -102,6 +104,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
         subtitle,
         subtitle2,
         presenters: normalizePresenters(presenters),
+        presentersItalic,
         seriesName,
       },
       images,
@@ -155,9 +158,14 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           </div>
 
           <div>
-            <label className={fieldLabelCls}>Presenters (one per line, or semicolon-separated)</label>
+            <label className={fieldLabelCls}>Presenters / Program (one per line, or semicolon-separated)</label>
             <textarea className={inputCls + ' resize-none font-mono'} rows={3} value={presenters}
               onChange={e => setPresenters(e.target.value)} placeholder={'Name One,\nName Two\n& Name Three'} />
+            <div className="mt-1.5 flex items-center gap-2">
+              <input type="checkbox" id="newSlidePresentersItalic" checked={presentersItalic}
+                onChange={e => setPresentersItalic(e.target.checked)} className="rounded" />
+              <label htmlFor="newSlidePresentersItalic" className="text-sm text-zinc-300">Italic</label>
+            </div>
           </div>
 
           <div>

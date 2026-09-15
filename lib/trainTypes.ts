@@ -32,6 +32,7 @@ export interface TrainEntry {
   subtitle2: string
   presenters: string
   presentersFont: PresentersFont  // hardlocked to the same options the main editor offers
+  presentersItalic: boolean
 
   seriesName: string       // '' = unused
   hasQrCode: boolean
@@ -98,6 +99,7 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     subtitle2: '',
     presenters: '',
     presentersFont: 'Theinhardt',
+    presentersItalic: false,
     seriesName: '',
     listeningCredit: '',
     backgroundColor: '',

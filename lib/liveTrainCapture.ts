@@ -76,6 +76,7 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     subtitle2: data.subtitle2,
     presenters: data.presenters,
     presentersFont: data.presentersFont,
+    presentersItalic: data.presentersItalic,
 
     seriesName: data.showSeriesName ? data.seriesName : '',
     // TODO: the main editor has no QR code feature yet -- always false

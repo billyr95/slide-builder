@@ -58,6 +58,7 @@ export interface SlideData {
   subtitle2Size: number
   presenters: string
   presentersFont: PresentersFont
+  presentersItalic: boolean
   presentersWeight: TheinhardtWeight
   presentersSize: number
 

@@ -318,10 +318,14 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
         </div>
 
         <div className="mb-0">
-          <label className={labelCls}>Presenters (one per line)</label>
+          <label className={labelCls}>Presenters / Program (one per line)</label>
           <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={entry.presenters}
             onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
           <div className="mt-1.5"><FontPicker value={entry.presentersFont} options={PRESENTERS_FONTS} onChange={v => set('presentersFont', v)} /></div>
+          <div className="mt-2 flex items-center gap-2">
+            <input type="checkbox" id="presentersItalic" checked={entry.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
+            <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
+          </div>
         </div>
       </div>
 

@@ -199,6 +199,7 @@ export default function Home() {
       subtitle: fields.subtitle,
       subtitle2: fields.subtitle2,
       presenters: fields.presenters,
+      presentersItalic: fields.presentersItalic,
       seriesName: fields.seriesName,
       showSeriesName: !!fields.seriesName,
       titleSize: suggestTitleFontSize(fields.title.length, titleLineCount, newScreenType, hasSubtitle),

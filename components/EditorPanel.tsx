@@ -376,7 +376,7 @@ export default function EditorPanel({
           </div>
 
           <div className="mb-0">
-            <label className={labelCls}>Presenters (one per line)</label>
+            <label className={labelCls}>Presenters / Program (one per line)</label>
             <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
               onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
             <div className="mt-1.5 flex gap-1.5">
@@ -391,6 +391,10 @@ export default function EditorPanel({
                   {font}
                 </button>
               ))}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
+              <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
             <div className="mt-1.5"><WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)} /></div>
             <FontSizeSlider label="Font size" value={data.presentersSize} onChange={v => set('presentersSize', v)} min={24} max={160} />

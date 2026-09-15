@@ -60,10 +60,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     function presentersStyle(weight: TheinhardtWeight, sizePx: number) {
+      const fontStyle = data.presentersItalic ? 'italic' : 'normal'
       if ((data.presentersFont ?? 'Theinhardt') === '92NY') {
         return {
           fontFamily: NY92,
           fontWeight: theinhardtWeight(weight),
+          fontStyle,
           fontKerning: 'normal' as const,
           fontFeatureSettings: '"kern" 1, "liga" 1',
           letterSpacing: '0',
@@ -72,7 +74,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           wordBreak: 'break-word' as const,
         }
       }
-      return bodyStyle(weight, sizePx)
+      return { ...bodyStyle(weight, sizePx), fontStyle }
     }
 
     const placeholderBox = (w: number, h: number) => (

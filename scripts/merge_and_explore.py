@@ -98,8 +98,8 @@ def parse_known_values(prompt_text):
     string built by lib/trainExport.ts, returning {label: raw_value_string}.
 
     Values can themselves span multiple lines (e.g. a multi-line title, or
-    "Presenters (one per line)" whose value is the raw lines that follow
-    it) — anything that doesn't start a new "- " bullet is treated as a
+    "Presenters / Program (one per line)" whose value is the raw lines that
+    follow it) — anything that doesn't start a new "- " bullet is treated as a
     continuation of the current one. The one sharp edge: a value line that
     itself happens to start with "- " would be misread as a new bullet;
     acceptable for this exploratory-only use, not bulletproof against it.
@@ -266,7 +266,7 @@ def build_rows(jsonl_entries, results):
         title = known.get("Title", "")
         subtitle = known.get("Subtitle", "")
         subtitle2 = known.get("Subtitle 2", "")
-        presenters_raw = known.get("Presenters (one per line)", "")
+        presenters_raw = known.get("Presenters / Program (one per line)", "")
         presenters_list = [p.strip() for p in presenters_raw.split("\n") if p.strip()]
 
         row = {

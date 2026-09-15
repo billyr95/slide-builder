@@ -16,6 +16,7 @@ export const DEFAULT_SLIDE_DATA: SlideData = {
   subtitle2Size: 48,
   presenters: 'Vinson Cunningham,\nNaomi Fry\n& Alexandra Schwartz',
   presentersFont: 'Theinhardt',
+  presentersItalic: false,
   presentersWeight: 'bold',
   presentersSize: 56,
   backgroundColor: '#000000',
