@@ -325,6 +325,19 @@ export default function EditorPanel({ data, onChange }: EditorPanelProps) {
             <label className={labelCls}>Presenters (one per line)</label>
             <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
               onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+            <div className="mt-1.5 flex gap-1.5">
+              {(['Theinhardt', '92NY'] as const).map(font => (
+                <button key={font}
+                  onClick={() => set('presentersFont', font)}
+                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                    (data.presentersFont ?? 'Theinhardt') === font
+                      ? 'bg-white text-black border-white font-medium'
+                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                  }`}>
+                  {font}
+                </button>
+              ))}
+            </div>
             <div className="mt-1.5"><WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)} /></div>
             <FontSizeSlider label="Font size" value={data.presentersSize} onChange={v => set('presentersSize', v)} min={24} max={160} />
           </div>

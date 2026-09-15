@@ -59,6 +59,22 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       }
     }
 
+    function presentersStyle(weight: TheinhardtWeight, sizePx: number) {
+      if ((data.presentersFont ?? 'Theinhardt') === '92NY') {
+        return {
+          fontFamily: NY92,
+          fontWeight: theinhardtWeight(weight),
+          fontKerning: 'normal' as const,
+          fontFeatureSettings: '"kern" 1, "liga" 1',
+          letterSpacing: '0',
+          color: data.textColor,
+          overflowWrap: 'break-word' as const,
+          wordBreak: 'break-word' as const,
+        }
+      }
+      return bodyStyle(weight, sizePx)
+    }
+
     const placeholderBox = (w: number, h: number) => (
       <div style={{
         width: w, height: h,
@@ -172,7 +188,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...bodyStyle(data.presentersWeight, presenterSize) }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize) }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -355,7 +371,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...bodyStyle(data.presentersWeight, presenterSize) }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize) }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -527,7 +543,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           )}
 
           {data.presenters && (
-            <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...bodyStyle(data.presentersWeight, presenterSize) }}>
+            <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize) }}>
               {data.subtitleInline && data.subtitle
                 ? (() => {
                     const lines = data.presenters.split('\n')

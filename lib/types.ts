@@ -9,6 +9,7 @@ export type ImageMode =
   | 'four-squared'
   | 'none'
 export type TitleFont = '92NY' | 'Theinhardt Heavy'
+export type PresentersFont = 'Theinhardt' | '92NY'
 
 export interface SlideTemplate {
   id: string
@@ -56,6 +57,7 @@ export interface SlideData {
   subtitle2Weight: TheinhardtWeight
   subtitle2Size: number
   presenters: string
+  presentersFont: PresentersFont
   presentersWeight: TheinhardtWeight
   presentersSize: number
 

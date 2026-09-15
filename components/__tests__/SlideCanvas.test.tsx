@@ -155,6 +155,19 @@ describe('SlideCanvas', () => {
     expect(titleEl).toHaveStyle({ fontFamily: "'Theinhardt', sans-serif", fontWeight: '900' })
   })
 
+  it.each(ORIENTATIONS)('defaults presenters to Theinhardt in %s mode', (orientation) => {
+    render(<SlideCanvas data={DEFAULT_SLIDE_DATA} orientation={orientation} />)
+    const presentersEl = screen.getByText(/Vinson Cunningham/)
+    expect(presentersEl).toHaveStyle({ fontFamily: "'Theinhardt', sans-serif" })
+  })
+
+  it.each(ORIENTATIONS)('switches presenters to 92NY when selected in %s mode', (orientation) => {
+    const data = withData({ presentersFont: '92NY' })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    const presentersEl = screen.getByText(/Vinson Cunningham/)
+    expect(presentersEl).toHaveStyle({ fontFamily: "'92NY', sans-serif" })
+  })
+
   it.each(ORIENTATIONS)('imageMode "none" centers the text content in %s mode', (orientation) => {
     const data = withData({ imageMode: 'none' })
     render(<SlideCanvas data={data} orientation={orientation} />)
