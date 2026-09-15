@@ -246,13 +246,14 @@ export default function Home() {
       await exportSlideAsPng(orient, data, filename)
       showToast(`Exported "${savedName}"`)
       if (loggingEnabled) {
-        // Best-effort — a logging failure must never surface to the user or
-        // affect the export they just successfully completed.
-        try {
-          addTrainEntry(buildLiveTrainEntry(data, orient, screenType))
-        } catch (e) {
-          console.warn('Failed to log training entry', e)
-        }
+        // Fire-and-forget — must never block or slow down the export the
+        // user is already looking at, and a logging failure must never
+        // surface to them either. buildLiveTrainEntry is async (it reads
+        // the placed image's natural dimensions), so this is intentionally
+        // NOT awaited here.
+        buildLiveTrainEntry(data, orient, screenType)
+          .then(entry => addTrainEntry(entry))
+          .catch(e => console.warn('Failed to log training entry', e))
       }
     } catch (e) {
       console.error(e)
@@ -333,6 +334,40 @@ export default function Home() {
           >
             + New
           </button>
+
+          {/* Training-data logging -- lives right next to Export since
+              that's the action it actually hooks into. */}
+          <div className="flex items-center gap-1 mr-1">
+            <button
+              onClick={() => setLoggingEnabled(v => !v)}
+              title={loggingEnabled
+                ? 'Exports are logged as training data (click to turn off for a one-off export)'
+                : 'Exports are NOT logged as training data (click to turn back on)'}
+              className={`text-xs px-2 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
+                loggingEnabled ? 'bg-emerald-950 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${loggingEnabled ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+              Log
+            </button>
+            {loggingEnabled && (
+              <div className="flex gap-0.5 bg-zinc-800 p-0.5 rounded-lg">
+                {(['projector', 'lobby'] as ScreenType[]).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setScreenType(t)}
+                    title={`Log future exports as "${t}" screen type`}
+                    className={`text-[11px] px-2 py-1 rounded-md transition-colors font-medium ${
+                      screenType === t ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {t === 'projector' ? 'Proj' : 'Lobby'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => handleExport('landscape')}
             disabled={!!exporting}
@@ -440,10 +475,7 @@ export default function Home() {
           <EditorPanel
             data={data}
             onChange={setData}
-            loggingEnabled={loggingEnabled}
-            onLoggingEnabledChange={setLoggingEnabled}
             screenType={screenType}
-            onScreenTypeChange={setScreenType}
             orientation={orientation}
             slideRevision={slideRevision}
           />

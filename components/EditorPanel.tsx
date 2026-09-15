@@ -30,10 +30,11 @@ const CropModal = dynamic(() => import('./CropModal'), { ssr: false })
 interface EditorPanelProps {
   data: SlideData
   onChange: (data: SlideData) => void
-  loggingEnabled: boolean
-  onLoggingEnabledChange: (enabled: boolean) => void
+  // Read-only here -- used only to parameterize the heuristic auto-fill
+  // calls below. The control for setting it lives near the Export buttons
+  // in page.tsx now, since that's what it actually affects (training-data
+  // logging on export), not anything in this panel.
   screenType: ScreenType
-  onScreenTypeChange: (t: ScreenType) => void
   orientation: Orientation
   // Bumped by the parent whenever a genuinely new slide/template is loaded
   // (not on ordinary field edits) — resets the heuristic "manually
@@ -204,7 +205,7 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 }
 
 export default function EditorPanel({
-  data, onChange, loggingEnabled, onLoggingEnabledChange, screenType, onScreenTypeChange, orientation, slideRevision,
+  data, onChange, screenType, orientation, slideRevision,
 }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -580,37 +581,6 @@ export default function EditorPanel({
         <div className={sectionCls}>
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-3">Accessibility</p>
           <WcagChecker bg={data.backgroundColor} text={data.textColor} accent={data.accentColor} />
-        </div>
-
-        {/* Training data logging */}
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <input
-              type="checkbox"
-              id="trainLogging"
-              checked={loggingEnabled}
-              onChange={e => onLoggingEnabledChange(e.target.checked)}
-              className="rounded"
-            />
-            <label htmlFor="trainLogging" className="text-xs text-zinc-400">
-              Log exports as training data
-            </label>
-          </div>
-          {loggingEnabled && (
-            <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
-              {(['projector', 'lobby'] as ScreenType[]).map(t => (
-                <button
-                  key={t}
-                  onClick={() => onScreenTypeChange(t)}
-                  className={`flex-1 text-xs px-3 py-1 rounded-md transition-colors font-medium ${
-                    screenType === t ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  {t === 'projector' ? 'Projector' : 'Lobby'}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
       </div>

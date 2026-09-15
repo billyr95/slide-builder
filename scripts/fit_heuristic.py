@@ -29,6 +29,14 @@ import pandas as pd
 OUTLIER_IQR_MULTIPLIER = 1.5
 NUDGE_CLAMP = 8  # px — caps how much any single secondary factor can move the title suggestion
 
+# Manual, non-fitted adjustments layered on top of the data-driven numbers
+# above, based on real usage feedback (not derivable from training_dataset.csv
+# itself): the house style favors bigger/bolder titles and normal-sized
+# (not thumbnail-sized) images than the historical sample's raw average.
+# Tune these directly rather than re-fitting — they're deliberate overrides,
+# not statistics.
+TITLE_SIZE_BIAS_PX = 20  # feedback said "try +16 to +24px as a starting point"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fit a first-pass slide-layout heuristic from training_dataset.csv.")
@@ -274,10 +282,21 @@ def fit_image_position(df):
     # generic default, since that's the best available estimate of "what an
     # arbitrary attached image on one of these slides tends to look like."
     pooled = median_position(d)
-    results["other"] = pooled
     print(f"\n--- other / unclassified (n=0 direct examples) ---")
-    print(f"  No 'other'-typed rows exist in this dataset. Falling back to the pooled median across "
-          f"all {len(d)} image rows regardless of type: {pooled}")
+    print(f"  No 'other'-typed rows exist in this dataset. Pooled median across all {len(d)} image "
+          f"rows regardless of type: {pooled}")
+
+    # Manual override (feedback, not a re-fit): 'other' should read as a
+    # normal-sized slide image, not a thumbnail, until real image-type
+    # classification exists. It's set to match book_cover's own fitted
+    # proportions rather than the pooled-across-all-types median above --
+    # numerically similar here (book_cover dominates the pooled sample
+    # anyway) but a deliberate design choice, not a statistical average,
+    # so it won't silently drift if the type mix changes on a future refit.
+    results["otherPooledMedian_forLoggingOnly"] = pooled
+    results["other"] = dict(results["book_cover"]) if "book_cover" in results else pooled
+    print(f"  Overridden to match book_cover's proportions instead (placeholder until real image-type "
+          f"classification exists): {results['other']}")
 
     return results
 
@@ -311,6 +330,11 @@ def generate_ts(title_fit, subtitle_fit, image_fit):
     lines.append("  height: number")
     lines.append("  crop: 'none' | { top: number; bottom: number; left: number; right: number }")
     lines.append("}")
+    lines.append("")
+    lines.append("// Manual, non-fitted bump based on real usage feedback: the house style favors")
+    lines.append("// bigger/bolder titles than the historical sample's raw average. Tune this directly")
+    lines.append("// (not the bucket/nudge values inside suggestTitleFontSize) if that feedback changes.")
+    lines.append(f"const TITLE_SIZE_BIAS_PX = {TITLE_SIZE_BIAS_PX}")
     lines.append("")
 
     # --- suggestTitleFontSize ---
@@ -352,9 +376,16 @@ def generate_ts(title_fit, subtitle_fit, image_fit):
         lines.append(f"    {it}: {ts_num(v)},")
     lines.append("  }")
     lines.append("")
-    lines.append("  const raw = base + subtitleNudge + screenNudge[screenType] + (imageType ? (imageNudge[imageType] ?? 0) : 0)")
-    lines.append("  const snapped = Math.round(raw / 4) * 4")
-    lines.append("  return Math.max(24, Math.min(160, snapped))")
+    lines.append("  const rawFitted = base + subtitleNudge + screenNudge[screenType] + (imageType ? (imageNudge[imageType] ?? 0) : 0)")
+    lines.append("  const oldValue = Math.max(24, Math.min(160, Math.round(rawFitted / 4) * 4))")
+    lines.append("")
+    lines.append("  // TITLE_SIZE_BIAS_PX is a manual, non-fitted bump (see its definition above) --")
+    lines.append("  // applied after the fitted bucket/nudge math, before the final snap+clamp.")
+    lines.append("  const snapped = Math.round((rawFitted + TITLE_SIZE_BIAS_PX) / 4) * 4")
+    lines.append("  const newValue = Math.max(24, Math.min(160, snapped))")
+    lines.append("")
+    lines.append("  console.log(`[suggestTitleFontSize] old=${oldValue}px new=${newValue}px (bias=+${TITLE_SIZE_BIAS_PX}px)`)")
+    lines.append("  return newValue")
     lines.append("}")
     lines.append("")
 
@@ -382,6 +413,16 @@ def generate_ts(title_fit, subtitle_fit, image_fit):
         lines.append(f"  {it}: {{ x: {ts_num(p['x'])}, y: {ts_num(p['y'])}, width: {ts_num(p['width'])}, height: {ts_num(p['height'])}, crop: 'none' }},")
     lines.append("}")
     lines.append("")
+    other_old = image_fit["otherPooledMedian_forLoggingOnly"]
+    lines.append("// Snapshot of 'other''s pre-tuning value (the pooled median across all image types),")
+    lines.append("// kept only so suggestImagePosition can log an old-vs-new comparison while sanity-")
+    lines.append("// checking the book_cover-matched bump above on real slides -- safe to delete once done.")
+    lines.append(
+        "const OLD_OTHER_POSITION: SuggestedImagePosition = "
+        f"{{ x: {ts_num(other_old['x'])}, y: {ts_num(other_old['y'])}, width: {ts_num(other_old['width'])}, "
+        f"height: {ts_num(other_old['height'])}, crop: 'none' }}"
+    )
+    lines.append("")
     face = image_fit["face"]
     face_crop = image_fit["faceCrop"]
     lines.append("// Faces showed two real position clusters in the fitted data (split on height_ratio")
@@ -400,14 +441,17 @@ def generate_ts(title_fit, subtitle_fit, image_fit):
     lines.append("")
     lines.append("/**")
     lines.append(" * Suggest a default position/size/crop for a newly-attached image, grouped by the")
-    lines.append(" * image's classified type (medians from the fitted data; 'other' falls back to the")
-    lines.append(" * pooled median across all image types, since no 'other'-typed examples exist yet).")
+    lines.append(" * image's classified type (medians from the fitted data; 'other' is manually set to")
+    lines.append(" * match book_cover's proportions -- a normal-sized placeholder, not a thumbnail --")
+    lines.append(" * since no real image-type classification exists yet).")
     lines.append(" * All values are ratios (0-1) relative to the full slide, matching the /train batch")
     lines.append(" * prompt's image schema.")
     lines.append(" */")
     lines.append("export function suggestImagePosition(imageType: ImageTypeLike, screenType: ScreenTypeLike): SuggestedImagePosition {")
-    lines.append("  if (imageType === 'face') return FACE_POSITION[screenType]")
-    lines.append("  return IMAGE_POSITION[imageType]")
+    lines.append("  const result = imageType === 'face' ? FACE_POSITION[screenType] : IMAGE_POSITION[imageType]")
+    lines.append("  const old = imageType === 'other' ? OLD_OTHER_POSITION : result")
+    lines.append("  console.log(`[suggestImagePosition] imageType=${imageType} screenType=${screenType} old=`, old, 'new=', result)")
+    lines.append("  return result")
     lines.append("}")
     lines.append("")
 

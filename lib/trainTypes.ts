@@ -47,11 +47,35 @@ export interface TrainEntry {
   // with an accurate count instead of silently reporting 0.
   imageCount: number
 
+  // Populated only for source: 'live' entries — ground truth read directly
+  // from the editor's real slider values at export time, no vision-model
+  // estimation needed (unlike 'upload' entries, where these same-named
+  // concepts only exist inside the model's JSON response). Pixel values,
+  // matching the /train batch prompt's title_font_size_px-style schema.
+  titleFontSizePx?: number
+  subtitleFontSizePx?: number   // only set if a subtitle is present
+  subtitle2FontSizePx?: number  // only set if a subtitle2 is present
+
+  // Approximate image_1 position, derived from the editor's actual size
+  // controls (imageSize % for single mode, scale px for stagger mode) and,
+  // for height, the image's own natural aspect ratio. x/y position and crop
+  // are NOT included here: this app has no absolute image-position control
+  // in either image mode (single mode has no x/y at all; stagger's "y" is a
+  // manual nudge off an algorithmic default, not an absolute position), and
+  // crop is baked into the image's pixels via the crop tool rather than
+  // stored as separate top/bottom/left/right metadata — so there's nothing
+  // real to report for those, and faking a value would be worse than
+  // omitting it. image_1_type is also omitted: the app doesn't classify
+  // uploaded images by content (same TODO as the manual-upload heuristic
+  // auto-fill path).
+  imageWidthRatio?: number
+  imageHeightRatio?: number
+
   // Extra known style data, populated only for source: 'live' entries
-  // (exact numeric sizes/ratios, image placement, font choices, footer
-  // content, etc.) — /train's manual-entry schema has no equivalent for
-  // these, so they're carried as a free-form bag rather than forcing every
-  // field onto the shared type.
+  // (remaining sizes, image placement, font choices, footer content, etc.)
+  // — /train's manual-entry schema has no equivalent for these, so they're
+  // carried as a free-form bag rather than forcing every field onto the
+  // shared type.
   liveStyle?: Record<string, unknown>
 }
 

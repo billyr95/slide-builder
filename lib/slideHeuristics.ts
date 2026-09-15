@@ -18,6 +18,11 @@ export interface SuggestedImagePosition {
   crop: 'none' | { top: number; bottom: number; left: number; right: number }
 }
 
+// Manual, non-fitted bump based on real usage feedback: the house style favors
+// bigger/bolder titles than the historical sample's raw average. Tune this directly
+// (not the bucket/nudge values inside suggestTitleFontSize) if that feedback changes.
+const TITLE_SIZE_BIAS_PX = 20
+
 /**
  * Suggest a title font size (px) from a small set of grouped-average lookups:
  * a primary bucket on chars-per-line, plus up to three secondary nudges (has_subtitle,
@@ -54,9 +59,16 @@ export function suggestTitleFontSize(
     poster: -8,
   }
 
-  const raw = base + subtitleNudge + screenNudge[screenType] + (imageType ? (imageNudge[imageType] ?? 0) : 0)
-  const snapped = Math.round(raw / 4) * 4
-  return Math.max(24, Math.min(160, snapped))
+  const rawFitted = base + subtitleNudge + screenNudge[screenType] + (imageType ? (imageNudge[imageType] ?? 0) : 0)
+  const oldValue = Math.max(24, Math.min(160, Math.round(rawFitted / 4) * 4))
+
+  // TITLE_SIZE_BIAS_PX is a manual, non-fitted bump (see its definition above) --
+  // applied after the fitted bucket/nudge math, before the final snap+clamp.
+  const snapped = Math.round((rawFitted + TITLE_SIZE_BIAS_PX) / 4) * 4
+  const newValue = Math.max(24, Math.min(160, snapped))
+
+  console.log(`[suggestTitleFontSize] old=${oldValue}px new=${newValue}px (bias=+${TITLE_SIZE_BIAS_PX}px)`)
+  return newValue
 }
 
 /**
@@ -77,8 +89,13 @@ const IMAGE_POSITION: Record<Exclude<ImageTypeLike, 'face'>, SuggestedImagePosit
   book_cover: { x: 0.039, y: 0.061, width: 0.32, height: 0.867, crop: 'none' },
   poster: { x: 0.043, y: 0.04, width: 0.35, height: 0.92, crop: 'none' },
   graphic: { x: 0.26, y: 0.53, width: 0.225, height: 0.22, crop: 'none' },
-  other: { x: 0.035, y: 0.07, width: 0.32, height: 0.86, crop: 'none' },
+  other: { x: 0.039, y: 0.061, width: 0.32, height: 0.867, crop: 'none' },
 }
+
+// Snapshot of 'other''s pre-tuning value (the pooled median across all image types),
+// kept only so suggestImagePosition can log an old-vs-new comparison while sanity-
+// checking the book_cover-matched bump above on real slides -- safe to delete once done.
+const OLD_OTHER_POSITION: SuggestedImagePosition = { x: 0.035, y: 0.07, width: 0.32, height: 0.86, crop: 'none' }
 
 // Faces showed two real position clusters in the fitted data (split on height_ratio
 // > 0.6): near-full-height headshots vs. shorter/lower-placed ones. The split correlates
@@ -91,12 +108,15 @@ const FACE_POSITION: Record<ScreenTypeLike, SuggestedImagePosition> = {
 
 /**
  * Suggest a default position/size/crop for a newly-attached image, grouped by the
- * image's classified type (medians from the fitted data; 'other' falls back to the
- * pooled median across all image types, since no 'other'-typed examples exist yet).
+ * image's classified type (medians from the fitted data; 'other' is manually set to
+ * match book_cover's proportions -- a normal-sized placeholder, not a thumbnail --
+ * since no real image-type classification exists yet).
  * All values are ratios (0-1) relative to the full slide, matching the /train batch
  * prompt's image schema.
  */
 export function suggestImagePosition(imageType: ImageTypeLike, screenType: ScreenTypeLike): SuggestedImagePosition {
-  if (imageType === 'face') return FACE_POSITION[screenType]
-  return IMAGE_POSITION[imageType]
+  const result = imageType === 'face' ? FACE_POSITION[screenType] : IMAGE_POSITION[imageType]
+  const old = imageType === 'other' ? OLD_OTHER_POSITION : result
+  console.log(`[suggestImagePosition] imageType=${imageType} screenType=${screenType} old=`, old, 'new=', result)
+  return result
 }

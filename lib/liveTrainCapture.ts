@@ -1,38 +1,61 @@
 import { SlideData, Orientation } from './types'
-import { TrainEntry, TrainImage, ScreenType } from './trainTypes'
+import { TrainEntry, ScreenType } from './trainTypes'
+import { getImageDimensions } from './resizeImage'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
   portrait: { w: 1080, h: 1920 },
 }
 
-function mediaTypeFromDataUrl(url: string): string {
-  const match = /^data:([^;]+);base64,/.exec(url)
-  return match ? match[1] : 'image/png'
+function imageCount(data: SlideData): number {
+  if (data.imageMode === 'single') return data.imageUrl ? 1 : 0
+  if (data.imageMode === 'none') return 0
+  return (data.staggerImages || []).filter(img => img.url).length
 }
 
-function toTrainImage(url: string, name: string): TrainImage {
-  return {
-    id: Math.random().toString(36).slice(2),
-    url,
-    mediaType: mediaTypeFromDataUrl(url),
-    name,
-  }
-}
+// The first placed image's data URL and the approximate width ratio (0-1 of
+// full slide width) implied by its current size control. Read-only, in
+// memory here — never persisted onto the entry itself (see TrainEntry's
+// comment on why no image file is attached by default).
+function getFirstImage(data: SlideData, orientation: Orientation): { url: string; widthRatio: number } | null {
+  const dims = DIMS[orientation]
 
-function collectImages(data: SlideData): TrainImage[] {
   if (data.imageMode === 'single') {
-    return data.imageUrl ? [toTrainImage(data.imageUrl, data.imageAlt || 'image')] : []
+    if (!data.imageUrl) return null
+    // imageSize is a %-of-container width control, not a %-of-full-slide
+    // one (the container itself is 40-66% of the slide depending on layout
+    // variant) -- treated as an approximate stand-in for width_ratio, same
+    // simplification used by the manual-upload heuristic auto-fill.
+    return { url: data.imageUrl, widthRatio: Math.max(0, Math.min(1, (data.imageSize ?? 100) / 100)) }
   }
-  if (data.imageMode === 'none') return []
-  return (data.staggerImages || [])
-    .filter(img => img.url)
-    .map((img, i) => toTrainImage(img.url, img.alt || `image-${i + 1}`))
+
+  if (data.imageMode === 'none') return null
+
+  const first = (data.staggerImages || []).find(img => img.url)
+  if (!first) return null
+  const scalePx = first.scale || data.staggerSize || 250
+  return { url: first.url, widthRatio: Math.max(0, Math.min(1, scalePx / dims.w)) }
 }
 
-export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, screenType: ScreenType): TrainEntry {
-  const { h } = DIMS[orientation]
-  const images = collectImages(data)
+export async function buildLiveTrainEntry(data: SlideData, orientation: Orientation, screenType: ScreenType): Promise<TrainEntry> {
+  const dims = DIMS[orientation]
+  const count = imageCount(data)
+  const first = getFirstImage(data, orientation)
+
+  let imageHeightRatio: number | undefined
+  if (first) {
+    try {
+      const { width, height } = await getImageDimensions(first.url)
+      if (width > 0) {
+        // Rendered height follows the image's own aspect ratio at its
+        // current width -- an approximation for single-image mode, which
+        // also has a maxHeight clamp this doesn't account for.
+        imageHeightRatio = (first.widthRatio * dims.w * (height / width)) / dims.h
+      }
+    } catch (e) {
+      console.warn('Could not read image dimensions for training-data logging', e)
+    }
+  }
 
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
@@ -55,33 +78,37 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
     presentersFont: data.presentersFont,
 
     seriesName: data.showSeriesName ? data.seriesName : '',
-    hasQrCode: false, // the main editor has no QR code feature
+    // TODO: the main editor has no QR code feature yet -- always false
+    // until one exists.
+    hasQrCode: false,
     listeningCredit: data.showListeningCredit ? data.listeningCredit : '',
 
     backgroundColor: data.backgroundColor,
     textColor: data.textColor,
 
-    images,
-    imageCount: images.length, // live captures always know the exact real count
+    // No image file is attached by default -- these are the user's own
+    // uploads, not something worth re-storing wholesale on every export.
+    // imageCount alone (below) already captures the structural fact that
+    // matters for training. Revisit if a rendered-slide snapshot ever
+    // becomes useful instead of per-image file storage.
+    images: [],
+    imageCount: count,
+
+    titleFontSizePx: data.titleSize,
+    subtitleFontSizePx: data.subtitle ? data.subtitleSize : undefined,
+    subtitle2FontSizePx: data.subtitle2 ? data.subtitle2Size : undefined,
+    imageWidthRatio: first?.widthRatio,
+    imageHeightRatio,
 
     liveStyle: {
       accentColor: data.accentColor,
       labelWeight: data.labelWeight,
 
-      titleSize: data.titleSize,
-      titleSizeRatio: data.titleSize / h,
-
       subtitleInline: data.subtitleInline,
-      subtitleSize: data.subtitleSize,
-      subtitleSizeRatio: data.subtitleSize / h,
-
       subtitle2Weight: data.subtitle2Weight,
-      subtitle2Size: data.subtitle2Size,
-      subtitle2SizeRatio: data.subtitle2Size / h,
 
       presentersWeight: data.presentersWeight,
       presentersSize: data.presentersSize,
-      presentersSizeRatio: data.presentersSize / h,
 
       imageMode: data.imageMode,
       imageSize: data.imageSize,

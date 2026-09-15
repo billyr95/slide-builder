@@ -1,3 +1,16 @@
+// Reads an image's natural pixel dimensions without rendering it anywhere.
+// Used for deriving an approximate rendered height ratio for training-data
+// logging, since the editor itself only stores a width-based size control,
+// not the image's own aspect ratio.
+export function getImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    img.onerror = () => reject(new Error('Failed to load image for dimension check'))
+    img.src = dataUrl
+  })
+}
+
 // Downscales an image data URL so uploads (e.g. full-resolution phone photos)
 // don't bloat storage. Never upscales. Defaults to WebP, which keeps alpha
 // transparency (needed for logos/cutouts) at a fraction of PNG's size; pass
