@@ -2,16 +2,25 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { SlideData, SlideTemplate, Orientation } from '@/lib/types'
+import { SlideData, SlideTemplate, Orientation, ImageMode } from '@/lib/types'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import SlideCanvas from '@/components/SlideCanvas'
 import EditorPanel from '@/components/EditorPanel'
 import TemplatesSidebar from '@/components/TemplatesSidebar'
+import NewSlideModal, { BuildResult } from '@/components/NewSlideModal'
 import { exportSlideAsPng } from '@/lib/exportSlide'
 import { useUndoableState } from '@/lib/useUndoableState'
 import { useTrainQueue } from '@/lib/useTrainQueue'
 import { buildLiveTrainEntry } from '@/lib/liveTrainCapture'
 import { ScreenType } from '@/lib/trainTypes'
+import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
+
+// Real pixel dimensions the slide renders at -- needed to convert the image
+// heuristic's width_ratio into an absolute pixel size for stagger mode.
+const SLIDE_DIMS: Record<Orientation, { w: number; h: number }> = {
+  landscape: { w: 1920, h: 1080 },
+  portrait: { w: 1080, h: 1920 },
+}
 
 const LOGGING_PREF_KEY = 'slide-builder-live-logging-enabled'
 
@@ -31,6 +40,7 @@ export default function Home() {
   const [slideName, setSlideName] = useState('Untitled Slide')
   const [savedName, setSavedName] = useState('Untitled Slide')
   const nameInputRef = useRef<HTMLInputElement>(null)
+  const [showNewSlideModal, setShowNewSlideModal] = useState(false)
 
   const { addEntry: addTrainEntry } = useTrainQueue()
   const [screenType, setScreenType] = useState<ScreenType>('projector')
@@ -159,16 +169,73 @@ export default function Home() {
   }
 
   function handleNew() {
+    setShowNewSlideModal(true)
+  }
+
+  // The original "New" behavior -- now reached via the modal's "Skip /
+  // Start blank" option instead of running directly on click.
+  function handleStartBlank() {
     resetData(DEFAULT_SLIDE_DATA)
     setSavedData(DEFAULT_SLIDE_DATA)
     setActiveId(null)
     setSlideName('Untitled Slide')
     setSavedName('Untitled Slide')
     setSlideRevision(r => r + 1)
+    setShowNewSlideModal(false)
     setTimeout(() => {
       nameInputRef.current?.focus()
       nameInputRef.current?.select()
     }, 50)
+  }
+
+  function handleBuildFromModal({ screenType: newScreenType, fields, images }: BuildResult) {
+    const hasSubtitle = !!fields.subtitle
+    const titleLineCount = Math.max(1, fields.title.split('\n').length)
+
+    const newData: SlideData = {
+      ...DEFAULT_SLIDE_DATA,
+      label: fields.label,
+      title: fields.title,
+      subtitle: fields.subtitle,
+      subtitle2: fields.subtitle2,
+      presenters: fields.presenters,
+      seriesName: fields.seriesName,
+      showSeriesName: !!fields.seriesName,
+      titleSize: suggestTitleFontSize(fields.title.length, titleLineCount, newScreenType, hasSubtitle),
+      subtitleSize: hasSubtitle ? suggestSubtitleFontSize(fields.subtitle.length) : DEFAULT_SLIDE_DATA.subtitleSize,
+      imageMode: 'single',
+      imageUrl: '',
+      staggerImages: [],
+    }
+
+    // Assign uploaded images into slots, picking a stagger mode that fits
+    // how many were dropped. Image-type classification isn't implemented
+    // (no vision call on paste) -- same "other" default TODO as the manual
+    // upload path in EditorPanel.
+    if (images.length > 0) {
+      const suggestion = suggestImagePosition('other', newScreenType)
+      const dims = SLIDE_DIMS[orientation]
+
+      if (images.length === 1) {
+        newData.imageUrl = images[0].url
+        newData.imageAlt = images[0].name
+        newData.imageSize = Math.max(20, Math.min(100, Math.round(suggestion.width * 100)))
+      } else {
+        const mode: ImageMode = images.length === 2 ? 'two-stagger' : images.length === 3 ? 'three-stagger' : 'four-stagger'
+        const scale = Math.max(80, Math.min(800, Math.round(suggestion.width * dims.w)))
+        newData.imageMode = mode
+        newData.staggerImages = images.slice(0, 4).map(img => ({ id: img.id, url: img.url, alt: img.name, y: 0, scale }))
+      }
+    }
+
+    resetData(newData)
+    setSavedData(newData)
+    setActiveId(null)
+    setSlideName('Untitled Slide')
+    setSavedName('Untitled Slide')
+    setScreenType(newScreenType)
+    setSlideRevision(r => r + 1)
+    setShowNewSlideModal(false)
   }
 
   async function handleExport(orient: Orientation) {
@@ -197,6 +264,15 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ fontFamily: "'Theinhardt', sans-serif" }}>
+
+      {showNewSlideModal && (
+        <NewSlideModal
+          initialScreenType={screenType}
+          onBuild={handleBuildFromModal}
+          onSkip={handleStartBlank}
+          onCancel={() => setShowNewSlideModal(false)}
+        />
+      )}
 
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 bg-zinc-950 flex-shrink-0">
