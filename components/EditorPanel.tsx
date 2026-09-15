@@ -1,13 +1,22 @@
 'use client'
 
-import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, staggerCount } from '@/lib/types'
+import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, staggerCount, Orientation } from '@/lib/types'
 import { ScreenType } from '@/lib/trainTypes'
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 import ColorPalette from './ColorPalette'
+import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
 
 const MAX_LOGO_DIM = 400
+
+// Real pixel dimensions the slide renders at — needed to convert the image
+// heuristic's width_ratio (0-1 of full slide width) into an absolute pixel
+// size for stagger mode's "scale" control.
+const DIMS: Record<Orientation, { w: number; h: number }> = {
+  landscape: { w: 1920, h: 1080 },
+  portrait: { w: 1080, h: 1920 },
+}
 
 function staggerSlotLabel(mode: ImageMode, i: number): string {
   if (mode === 'three-triangle') return ['(top-left)', '(top-right)', '(bottom)'][i] ?? ''
@@ -25,6 +34,11 @@ interface EditorPanelProps {
   onLoggingEnabledChange: (enabled: boolean) => void
   screenType: ScreenType
   onScreenTypeChange: (t: ScreenType) => void
+  orientation: Orientation
+  // Bumped by the parent whenever a genuinely new slide/template is loaded
+  // (not on ordinary field edits) — resets the heuristic "manually
+  // overridden" flags below so a fresh slide gets auto-suggestions again.
+  slideRevision: number
 }
 
 const inputCls = `w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 transition-colors placeholder-zinc-500`
@@ -55,13 +69,28 @@ function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: 
   )
 }
 
-function FontSizeSlider({ label, value, onChange, min = 24, max = 160 }: {
+function FontSizeSlider({ label, value, onChange, min = 24, max = 160, badge }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
+  // Small, unobtrusive indicator of whether `value` came from the heuristic
+  // or a manual override — omit to render no badge at all.
+  badge?: 'auto' | 'manual'
 }) {
   return (
     <div className="mt-1.5">
       <div className="flex justify-between items-center mb-1">
-        <span className="text-xs text-zinc-500">{label}</span>
+        <span className="text-xs text-zinc-500 flex items-center gap-1.5">
+          {label}
+          {badge && (
+            <span
+              title={badge === 'auto' ? 'Auto-suggested from training data' : 'Manually set'}
+              className={`text-[9px] uppercase tracking-wide px-1 py-px rounded ${
+                badge === 'auto' ? 'text-zinc-500 bg-zinc-800' : 'text-zinc-300 bg-zinc-700'
+              }`}
+            >
+              {badge}
+            </span>
+          )}
+        </span>
         <span className="text-xs font-mono text-zinc-400">{value}px</span>
       </div>
       <input type="range" min={min} max={max} step={1} value={value}
@@ -175,15 +204,50 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 }
 
 export default function EditorPanel({
-  data, onChange, loggingEnabled, onLoggingEnabledChange, screenType, onScreenTypeChange,
+  data, onChange, loggingEnabled, onLoggingEnabledChange, screenType, onScreenTypeChange, orientation, slideRevision,
 }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   // -1 = the single-image slot; >=0 = index into data.staggerImages
   const [cropTarget, setCropTarget] = useState<number>(-1)
 
+  // Once the user manually drags a slider (or manually adjusts an image),
+  // stop auto-updating that field for the rest of the session on this
+  // slide. Image overrides are keyed by slot (-1 = single-image slot, >=0
+  // = stagger index).
+  const [titleSizeOverridden, setTitleSizeOverridden] = useState(false)
+  const [subtitleSizeOverridden, setSubtitleSizeOverridden] = useState(false)
+  const [imageSizeOverridden, setImageSizeOverridden] = useState<Record<number, boolean>>({})
+
+  useEffect(() => {
+    setTitleSizeOverridden(false)
+    setSubtitleSizeOverridden(false)
+    setImageSizeOverridden({})
+  }, [slideRevision])
+
   function set<K extends keyof SlideData>(key: K, value: SlideData[K]) {
     onChange({ ...data, [key]: value })
+  }
+
+  // Title/subtitle text and their auto-suggested font size must land in the
+  // same onChange call — two sequential `set()` calls here would each
+  // spread the same stale `data` closure and the second call would clobber
+  // the first's field.
+  function handleTitleChange(value: string) {
+    const patch: Partial<SlideData> = { title: value }
+    if (!titleSizeOverridden) {
+      const lineCount = Math.max(1, value.split('\n').length)
+      patch.titleSize = suggestTitleFontSize(value.length, lineCount, screenType, !!data.subtitle)
+    }
+    onChange({ ...data, ...patch })
+  }
+
+  function handleSubtitleChange(value: string) {
+    const patch: Partial<SlideData> = { subtitle: value }
+    if (!subtitleSizeOverridden) {
+      patch.subtitleSize = suggestSubtitleFontSize(value.length)
+    }
+    onChange({ ...data, ...patch })
   }
 
   function updateStaggerImage(index: number, patch: Partial<StaggerImage>) {
@@ -214,14 +278,29 @@ export default function EditorPanel({
 
   function clearImage() {
     set('imageUrl', '')
+    setImageSizeOverridden(prev => ({ ...prev, [-1]: false }))
     if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
   function handleCropComplete(croppedUrl: string) {
+    // TODO: the app doesn't classify uploaded images by content yet (e.g. a
+    // quick vision API call to detect a face/book-cover/poster/etc.) — until
+    // it does, every upload gets the generic "other" default rather than a
+    // more accurate type-specific one.
+    const suggestion = suggestImagePosition('other', screenType)
+
     if (cropTarget >= 0) {
-      updateStaggerImage(cropTarget, { url: croppedUrl })
+      const patch: Partial<StaggerImage> = { url: croppedUrl }
+      if (!imageSizeOverridden[cropTarget]) {
+        patch.scale = Math.max(80, Math.min(800, Math.round(suggestion.width * DIMS[orientation].w)))
+      }
+      updateStaggerImage(cropTarget, patch)
     } else {
-      set('imageUrl', croppedUrl)
+      const patch: Partial<SlideData> = { imageUrl: croppedUrl }
+      if (!imageSizeOverridden[-1]) {
+        patch.imageSize = Math.max(20, Math.min(100, Math.round(suggestion.width * 100)))
+      }
+      onChange({ ...data, ...patch })
     }
     setCropSrc(null)
   }
@@ -250,7 +329,7 @@ export default function EditorPanel({
 
           <div className="mb-3">
             <label className={labelCls}>Title</label>
-            <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => set('title', e.target.value)} placeholder="Event title" />
+            <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
             <div className="mt-1.5 flex gap-1.5">
               {(['92NY', 'Theinhardt Heavy'] as const).map(font => (
                 <button key={font}
@@ -268,12 +347,14 @@ export default function EditorPanel({
               <input type="checkbox" id="titleItalic" checked={data.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
               <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
-            <FontSizeSlider label="Font size" value={data.titleSize} onChange={v => set('titleSize', v)} min={24} max={160} />
+            <FontSizeSlider label="Font size" value={data.titleSize}
+              onChange={v => { setTitleSizeOverridden(true); set('titleSize', v) }}
+              min={24} max={160} badge={titleSizeOverridden ? 'manual' : 'auto'} />
           </div>
 
           <div className="mb-3">
             <label className={labelCls}>Subtitle</label>
-            <input className={inputCls} value={data.subtitle} onChange={e => set('subtitle', e.target.value)} placeholder='e.g. "with"' />
+            <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
             <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
             <div className="mt-2 flex items-center gap-2">
               <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
@@ -281,7 +362,9 @@ export default function EditorPanel({
                 Inline before first presenter <span className="text-zinc-500">(75% size)</span>
               </label>
             </div>
-            <FontSizeSlider label="Font size" value={data.subtitleSize} onChange={v => set('subtitleSize', v)} min={16} max={120} />
+            <FontSizeSlider label="Font size" value={data.subtitleSize}
+              onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
+              min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
           </div>
 
           <div className="mb-3">
@@ -373,7 +456,9 @@ export default function EditorPanel({
               )}
               {data.imageUrl && (
                 <div className="mt-2">
-                  <FontSizeSlider label="Image size" value={data.imageSize ?? 100} onChange={v => set('imageSize', v)} min={20} max={100} />
+                  <FontSizeSlider label="Image size" value={data.imageSize ?? 100}
+                    onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [-1]: true })); set('imageSize', v) }}
+                    min={20} max={100} badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} />
                 </div>
               )}
             </>
@@ -393,7 +478,10 @@ export default function EditorPanel({
                         <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
                       </label>
                       {img?.url && (
-                        <button onClick={() => updateStaggerImage(i, { url: '' })}
+                        <button onClick={() => {
+                          updateStaggerImage(i, { url: '' })
+                          setImageSizeOverridden(prev => ({ ...prev, [i]: false }))
+                        }}
                           className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
                           Remove
                         </button>
@@ -409,7 +497,9 @@ export default function EditorPanel({
                       </div>
                     )}
                     <div className="mt-2">
-                      <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250} onChange={v => updateStaggerImage(i, { scale: v })} min={80} max={800} />
+                      <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
+                        onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [i]: true })); updateStaggerImage(i, { scale: v }) }}
+                        min={80} max={800} badge={imageSizeOverridden[i] ? 'manual' : 'auto'} />
                     </div>
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} />

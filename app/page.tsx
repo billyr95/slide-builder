@@ -36,6 +36,10 @@ export default function Home() {
   const [screenType, setScreenType] = useState<ScreenType>('projector')
   const [loggingEnabled, setLoggingEnabled] = useState(true)
   const [loggingPrefLoaded, setLoggingPrefLoaded] = useState(false)
+  // Bumped whenever a genuinely new slide/template is loaded (not on
+  // ordinary field edits) — tells EditorPanel to reset its heuristic
+  // "manually overridden" tracking so the fresh slide gets auto-suggestions.
+  const [slideRevision, setSlideRevision] = useState(0)
 
   const isDirty = JSON.stringify(data) !== JSON.stringify(savedData)
   const isNameDirty = slideName !== savedName
@@ -141,6 +145,7 @@ export default function Home() {
     setActiveId(template.id)
     setSlideName(template.name)
     setSavedName(template.name)
+    setSlideRevision(r => r + 1)
   }
 
   async function handleDelete(id: string) {
@@ -159,6 +164,7 @@ export default function Home() {
     setActiveId(null)
     setSlideName('Untitled Slide')
     setSavedName('Untitled Slide')
+    setSlideRevision(r => r + 1)
     setTimeout(() => {
       nameInputRef.current?.focus()
       nameInputRef.current?.select()
@@ -362,6 +368,8 @@ export default function Home() {
             onLoggingEnabledChange={setLoggingEnabled}
             screenType={screenType}
             onScreenTypeChange={setScreenType}
+            orientation={orientation}
+            slideRevision={slideRevision}
           />
         </aside>
       </div>
