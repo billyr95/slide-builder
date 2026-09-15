@@ -31,6 +31,10 @@ export interface TrainEntry {
   subtitle2: string
   presenters: string
 
+  seriesName: string       // '' = unused
+  hasQrCode: boolean
+  listeningCredit: string  // '' = unused; not restricted to a screen type
+
   backgroundColor: string  // '' = unset, let the model estimate
   textColor: string        // '' = unset, let the model estimate
 
@@ -44,7 +48,7 @@ export interface TrainEntry {
   liveStyle?: Record<string, unknown>
 }
 
-export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenType' | 'hasLabel' | 'hasLogos'>>): TrainEntry {
+export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenType' | 'hasLabel' | 'hasLogos' | 'hasQrCode'>>): TrainEntry {
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     createdAt: new Date().toISOString(),
@@ -52,6 +56,7 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     screenType: overrides?.screenType ?? 'projector',
     hasLabel: overrides?.hasLabel ?? false,
     hasLogos: overrides?.hasLogos ?? false,
+    hasQrCode: overrides?.hasQrCode ?? false,
     label: '',
     title: '',
     titleFont: '92NY',
@@ -60,6 +65,8 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     subtitleWeight: 'regular',
     subtitle2: '',
     presenters: '',
+    seriesName: '',
+    listeningCredit: '',
     backgroundColor: '',
     textColor: '',
     images: [{ id: Math.random().toString(36).slice(2), url: '', mediaType: '', name: '' }],

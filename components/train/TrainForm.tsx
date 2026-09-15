@@ -71,7 +71,8 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
   const [screenType, setScreenType] = useState<ScreenType>('projector')
   const [hasLabel, setHasLabel] = useState(false)
   const [hasLogos, setHasLogos] = useState(false)
-  const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', hasLabel: false, hasLogos: false }))
+  const [hasQrCode, setHasQrCode] = useState(false)
+  const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', hasLabel: false, hasLogos: false, hasQrCode: false }))
   const [error, setError] = useState<string | null>(null)
 
   function set<K extends keyof TrainEntry>(key: K, value: TrainEntry[K]) {
@@ -106,10 +107,10 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
       return
     }
     setError(null)
-    onAdd({ ...entry, screenType, hasLabel, hasLogos, id: entry.id, createdAt: new Date().toISOString() })
+    onAdd({ ...entry, screenType, hasLabel, hasLogos, hasQrCode, id: entry.id, createdAt: new Date().toISOString() })
     // Reset content fields for the next entry, but keep screen type / has-label
     // sticky — batches of old slides are usually entered a screen-type at a time.
-    setEntry(createBlankEntry({ screenType, hasLabel, hasLogos }))
+    setEntry(createBlankEntry({ screenType, hasLabel, hasLogos, hasQrCode }))
   }
 
   return (
@@ -140,9 +141,14 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
           <label htmlFor="hasLabel" className="text-sm text-zinc-300">Has label/kicker line above title</label>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-2">
           <input type="checkbox" id="hasLogos" checked={hasLogos} onChange={e => setHasLogos(e.target.checked)} className="rounded" />
           <label htmlFor="hasLogos" className="text-sm text-zinc-300">Has logos on the slide</label>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="hasQrCode" checked={hasQrCode} onChange={e => setHasQrCode(e.target.checked)} className="rounded" />
+          <label htmlFor="hasQrCode" className="text-sm text-zinc-300">Has QR code</label>
         </div>
       </div>
 
@@ -221,6 +227,22 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
           <label className={labelCls}>Presenters (one per line)</label>
           <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={entry.presenters}
             onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+        </div>
+      </div>
+
+      {/* Footer / extras */}
+      <div className={sectionCls}>
+        <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Footer</p>
+
+        <div className="mb-3">
+          <label className={labelCls}>Series name</label>
+          <input className={inputCls} value={entry.seriesName} onChange={e => set('seriesName', e.target.value)} placeholder="e.g. Recanati-Kaplan Talks" />
+        </div>
+
+        <div className="mb-0">
+          <label className={labelCls}>Listening credit</label>
+          <textarea className={inputCls + ' resize-none'} rows={3} value={entry.listeningCredit}
+            onChange={e => set('listeningCredit', e.target.value)} placeholder="Assistive listening devices, sponsor credits, etc." />
         </div>
       </div>
 

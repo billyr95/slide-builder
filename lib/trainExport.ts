@@ -8,6 +8,7 @@ function commonKnownLines(entry: TrainEntry): string[] {
     `Screen type: ${entry.screenType}`,
     `Has label/kicker line: ${entry.hasLabel}`,
     `Has logos: ${entry.hasLogos}`,
+    `Has QR code: ${entry.hasQrCode}`,
     `Image count: ${entry.images.length}`,
   ]
   if (entry.hasLabel && entry.label) known.push(`Label: "${entry.label}"`)
@@ -20,6 +21,8 @@ function commonKnownLines(entry: TrainEntry): string[] {
   }
   if (entry.subtitle2) known.push(`Subtitle 2: "${entry.subtitle2}"`)
   if (entry.presenters) known.push(`Presenters (one per line):\n${entry.presenters}`)
+  if (entry.seriesName) known.push(`Series name: "${entry.seriesName}"`)
+  if (entry.listeningCredit) known.push(`Listening credit: "${entry.listeningCredit}"`)
   return known
 }
 
@@ -111,6 +114,9 @@ export function buildBatchLine(entry: TrainEntry): string {
     screen_type: entry.screenType,
     has_label: entry.hasLabel,
     has_logos: entry.hasLogos,
+    has_qr_code: entry.hasQrCode,
+    series_name: entry.seriesName,
+    listening_credit: entry.listeningCredit,
     image_count: entry.images.filter(img => img.url).length,
   }
 

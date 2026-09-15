@@ -51,6 +51,10 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
     subtitle2: data.subtitle2,
     presenters: data.presenters,
 
+    seriesName: data.showSeriesName ? data.seriesName : '',
+    hasQrCode: false, // the main editor has no QR code feature
+    listeningCredit: data.showListeningCredit ? data.listeningCredit : '',
+
     backgroundColor: data.backgroundColor,
     textColor: data.textColor,
 
@@ -89,9 +93,7 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
       logoSize: data.logoSize,
 
       showSeriesName: data.showSeriesName,
-      seriesName: data.seriesName,
       showListeningCredit: data.showListeningCredit,
-      listeningCredit: data.listeningCredit,
     },
   }
 }
