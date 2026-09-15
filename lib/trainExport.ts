@@ -7,11 +7,12 @@ function commonKnownLines(entry: TrainEntry): string[] {
   const known: string[] = [
     `Screen type: ${entry.screenType}`,
     `Has label/kicker line: ${entry.hasLabel}`,
+    `Has logos: ${entry.hasLogos}`,
     `Image count: ${entry.images.length}`,
   ]
   if (entry.hasLabel && entry.label) known.push(`Label: "${entry.label}"`)
   if (entry.title) known.push(`Title: "${entry.title}"`)
-  known.push(`Title weight: ${entry.titleWeight}`)
+  known.push(`Title font: ${entry.titleFont}`)
   known.push(`Title italic: ${entry.titleItalic}`)
   if (entry.subtitle) {
     known.push(`Subtitle: "${entry.subtitle}"`)
@@ -109,6 +110,7 @@ export function buildBatchLine(entry: TrainEntry): string {
     source: entry.source,
     screen_type: entry.screenType,
     has_label: entry.hasLabel,
+    has_logos: entry.hasLogos,
     image_count: entry.images.filter(img => img.url).length,
   }
 

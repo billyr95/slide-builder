@@ -30,15 +30,6 @@ function collectImages(data: SlideData): TrainImage[] {
     .map((img, i) => toTrainImage(img.url, img.alt || `image-${i + 1}`))
 }
 
-// The main editor's title has no discrete named-weight control (it's the
-// 92NY variable font at a fixed numeric weight, or Theinhardt Heavy) — map
-// onto the same regular/bold/heavy tiers /train's manual entries use, by the
-// numeric weight the title actually renders at. The exact font choice is
-// still preserved in `liveStyle.titleFont` for anything that needs it.
-function titleWeightFromFont(titleFont: SlideData['titleFont']): 'regular' | 'bold' | 'heavy' {
-  return titleFont === 'Theinhardt Heavy' ? 'heavy' : 'bold'
-}
-
 export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, screenType: ScreenType): TrainEntry {
   const { h } = DIMS[orientation]
 
@@ -49,10 +40,11 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
 
     screenType,
     hasLabel: !!data.label.trim(),
+    hasLogos: (data.logos || []).length > 0,
 
     label: data.label,
     title: data.title,
-    titleWeight: titleWeightFromFont(data.titleFont),
+    titleFont: data.titleFont,
     titleItalic: data.titleItalic,
     subtitle: data.subtitle,
     subtitleWeight: data.subtitleWeight,
@@ -69,7 +61,6 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
       accentColor: data.accentColor,
       labelWeight: data.labelWeight,
 
-      titleFont: data.titleFont,
       titleSize: data.titleSize,
       titleSizeRatio: data.titleSize / h,
 

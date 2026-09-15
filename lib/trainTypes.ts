@@ -1,4 +1,4 @@
-import { TheinhardtWeight } from './types'
+import { TheinhardtWeight, TitleFont } from './types'
 
 export type ScreenType = 'projector' | 'lobby'
 // 'upload' = hand-entered via /train from an old/scanned slide (style values
@@ -20,10 +20,11 @@ export interface TrainEntry {
 
   screenType: ScreenType
   hasLabel: boolean
+  hasLogos: boolean
 
   label: string
   title: string
-  titleWeight: TheinhardtWeight
+  titleFont: TitleFont  // hardlocked to the same options the main editor offers
   titleItalic: boolean
   subtitle: string
   subtitleWeight: TheinhardtWeight
@@ -43,16 +44,17 @@ export interface TrainEntry {
   liveStyle?: Record<string, unknown>
 }
 
-export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenType' | 'hasLabel'>>): TrainEntry {
+export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenType' | 'hasLabel' | 'hasLogos'>>): TrainEntry {
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     createdAt: new Date().toISOString(),
     source: 'upload',
     screenType: overrides?.screenType ?? 'projector',
     hasLabel: overrides?.hasLabel ?? false,
+    hasLogos: overrides?.hasLogos ?? false,
     label: '',
     title: '',
-    titleWeight: 'regular',
+    titleFont: '92NY',
     titleItalic: false,
     subtitle: '',
     subtitleWeight: 'regular',

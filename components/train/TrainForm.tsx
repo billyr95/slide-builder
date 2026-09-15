@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { TheinhardtWeight } from '@/lib/types'
+import { TheinhardtWeight, TitleFont } from '@/lib/types'
 import { TrainEntry, TrainImage, ScreenType, createBlankEntry } from '@/lib/trainTypes'
+import ColorPalette from '@/components/ColorPalette'
 
 interface TrainFormProps {
   onAdd: (entry: TrainEntry) => void
@@ -36,34 +37,22 @@ function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: 
   )
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (hex: string) => void }) {
+function TitleFontPicker({ value, onChange }: { value: TitleFont; onChange: (f: TitleFont) => void }) {
   return (
-    <div>
-      <label className={labelCls}>{label}</label>
-      <div className="flex gap-2 items-center">
-        <input
-          type="color"
-          value={/^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000'}
-          onChange={e => onChange(e.target.value)}
-          className="w-9 h-9 rounded-lg border border-zinc-700 bg-zinc-800 cursor-pointer flex-shrink-0"
-          title="Pick a color"
-        />
-        <input
-          className={inputCls}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          placeholder="auto — model estimates"
-        />
-        {value && (
-          <button
-            onClick={() => onChange('')}
-            className="flex-shrink-0 text-xs text-zinc-500 hover:text-white px-2 py-2"
-            title="Clear (let model estimate)"
-          >
-            ✕
-          </button>
-        )}
-      </div>
+    <div className="flex gap-1.5">
+      {(['92NY', 'Theinhardt Heavy'] as const).map(font => (
+        <button
+          key={font}
+          onClick={() => onChange(font)}
+          className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+            value === font
+              ? 'bg-white text-black border-white font-medium'
+              : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+          }`}
+        >
+          {font}
+        </button>
+      ))}
     </div>
   )
 }
@@ -81,7 +70,8 @@ async function readImageFile(file: File): Promise<{ url: string; mediaType: stri
 export default function TrainForm({ onAdd }: TrainFormProps) {
   const [screenType, setScreenType] = useState<ScreenType>('projector')
   const [hasLabel, setHasLabel] = useState(false)
-  const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', hasLabel: false }))
+  const [hasLogos, setHasLogos] = useState(false)
+  const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', hasLabel: false, hasLogos: false }))
   const [error, setError] = useState<string | null>(null)
 
   function set<K extends keyof TrainEntry>(key: K, value: TrainEntry[K]) {
@@ -116,10 +106,10 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
       return
     }
     setError(null)
-    onAdd({ ...entry, screenType, hasLabel, id: entry.id, createdAt: new Date().toISOString() })
+    onAdd({ ...entry, screenType, hasLabel, hasLogos, id: entry.id, createdAt: new Date().toISOString() })
     // Reset content fields for the next entry, but keep screen type / has-label
     // sticky — batches of old slides are usually entered a screen-type at a time.
-    setEntry(createBlankEntry({ screenType, hasLabel }))
+    setEntry(createBlankEntry({ screenType, hasLabel, hasLogos }))
   }
 
   return (
@@ -145,9 +135,14 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-2">
           <input type="checkbox" id="hasLabel" checked={hasLabel} onChange={e => setHasLabel(e.target.checked)} className="rounded" />
           <label htmlFor="hasLabel" className="text-sm text-zinc-300">Has label/kicker line above title</label>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="hasLogos" checked={hasLogos} onChange={e => setHasLogos(e.target.checked)} className="rounded" />
+          <label htmlFor="hasLogos" className="text-sm text-zinc-300">Has logos on the slide</label>
         </div>
       </div>
 
@@ -204,7 +199,7 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
         <div className="mb-3">
           <label className={labelCls}>Title</label>
           <textarea className={inputCls + ' resize-none'} rows={3} value={entry.title} onChange={e => set('title', e.target.value)} placeholder="Event title" />
-          <div className="mt-1.5"><WeightPicker value={entry.titleWeight} onChange={v => set('titleWeight', v)} /></div>
+          <div className="mt-1.5"><TitleFontPicker value={entry.titleFont} onChange={v => set('titleFont', v)} /></div>
           <div className="mt-2 flex items-center gap-2">
             <input type="checkbox" id="titleItalic" checked={entry.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
             <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
@@ -231,10 +226,18 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
 
       {/* Colors */}
       <div className={sectionCls}>
-        <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Colors <span className="normal-case text-zinc-600 tracking-normal">— optional, leave blank to estimate</span></p>
+        <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">
+          Colors <span className="normal-case text-zinc-600 tracking-normal">— hardlocked to the app's palette; leave unset ("Auto") to let the model estimate</span>
+        </p>
         <div className="flex flex-col gap-4">
-          <ColorField label="Background" value={entry.backgroundColor} onChange={v => set('backgroundColor', v)} />
-          <ColorField label="Text" value={entry.textColor} onChange={v => set('textColor', v)} />
+          <div>
+            <label className={labelCls}>Background</label>
+            <ColorPalette value={entry.backgroundColor} onChange={v => set('backgroundColor', v)} clearable />
+          </div>
+          <div>
+            <label className={labelCls}>Text</label>
+            <ColorPalette value={entry.textColor} onChange={v => set('textColor', v)} clearable />
+          </div>
         </div>
       </div>
 

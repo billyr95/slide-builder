@@ -5,6 +5,7 @@ import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
+import ColorPalette from './ColorPalette'
 
 const MAX_LOGO_DIM = 400
 
@@ -66,44 +67,6 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160 }: {
       <input type="range" min={min} max={max} step={1} value={value}
         onChange={e => onChange(Number(e.target.value))}
         className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-white" />
-    </div>
-  )
-}
-
-const PALETTE: { hex: string; name: string }[] = [
-  { hex: '#000000', name: 'Black' },
-  { hex: '#FFFFFF', name: 'White' },
-  { hex: '#8EAAE2', name: 'Periwinkle' },
-  { hex: '#21805E', name: 'Forest' },
-  { hex: '#EDABBA', name: 'Blush' },
-  { hex: '#990D61', name: 'Burgundy' },
-  { hex: '#FF5447', name: 'Coral' },
-  { hex: '#6A4C93', name: 'Plum' },
-  { hex: '#E7DFD6', name: 'Cream' },
-  { hex: '#38618C', name: 'Navy' },
-  { hex: '#FAD487', name: 'Amber' },
-  { hex: '#D4D9DD', name: 'Silver' },
-]
-
-function ColorPalette({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
-  return (
-    <div className="flex flex-wrap gap-1.5 mt-1">
-      {PALETTE.map(({ hex, name }) => {
-        const isSelected = value.toLowerCase() === hex.toLowerCase()
-        return (
-          <button key={hex} title={name} onClick={() => onChange(hex)} className="relative group" style={{ width: 28, height: 28 }}>
-            <div style={{
-              width: 28, height: 28, backgroundColor: hex, borderRadius: 6,
-              border: isSelected ? '2px solid white' : '2px solid transparent',
-              outline: isSelected ? '2px solid #666' : '1px solid #444',
-              boxSizing: 'border-box',
-            }} />
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 bg-zinc-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-zinc-700">
-              {name}
-            </div>
-          </button>
-        )
-      })}
     </div>
   )
 }
