@@ -9,10 +9,12 @@ interface TrainQueuePanelProps {
   queue: TrainEntry[]
   filter: QueueFilter
   onFilterChange: (f: QueueFilter) => void
+  onEdit: (entry: TrainEntry) => void
   onRemove: (id: string) => void
   onExport: () => void
   onClear: () => void
   storageWarning: string | null
+  editingId: string | null
 }
 
 function filterLabel(f: QueueFilter): string {
@@ -22,7 +24,7 @@ function filterLabel(f: QueueFilter): string {
 }
 
 export default function TrainQueuePanel({
-  queue, filter, onFilterChange, onRemove, onExport, onClear, storageWarning,
+  queue, filter, onFilterChange, onEdit, onRemove, onExport, onClear, storageWarning, editingId,
 }: TrainQueuePanelProps) {
   const [confirmingClear, setConfirmingClear] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -107,7 +109,12 @@ export default function TrainQueuePanel({
           </p>
         )}
         {filtered.map(entry => (
-          <div key={entry.id} className="group flex items-center gap-2 rounded-lg px-2.5 py-2 hover:bg-zinc-800 transition-colors">
+          <div
+            key={entry.id}
+            className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 transition-colors ${
+              editingId === entry.id ? 'bg-zinc-800 ring-1 ring-inset ring-zinc-500' : 'hover:bg-zinc-800'
+            }`}
+          >
             <div className="flex-shrink-0 flex -space-x-2">
               {entry.images.filter(img => img.url).slice(0, 2).map((img, i) => (
                 <img key={img.id} src={img.url} alt="" className="w-8 h-8 rounded object-cover border border-zinc-700" style={{ zIndex: 2 - i }} />
@@ -127,16 +134,27 @@ export default function TrainQueuePanel({
                   {entry.source === 'live' ? 'Live' : 'Upload'}
                 </span>
                 {' · '}{entry.images.filter(img => img.url).length} img{entry.images.filter(img => img.url).length === 1 ? '' : 's'}
+                {editingId === entry.id && <span className="text-zinc-400"> · editing</span>}
               </p>
             </div>
-            <button
-              onClick={() => confirmDelete(entry.id)}
-              className={`flex-shrink-0 text-xs rounded px-1.5 py-0.5 transition-colors opacity-0 group-hover:opacity-100 ${
-                deletingId === entry.id ? 'bg-red-600 text-white opacity-100' : 'text-zinc-500 hover:text-red-400'
-              }`}
-            >
-              {deletingId === entry.id ? 'Confirm' : '✕'}
-            </button>
+            <div className={`flex-shrink-0 flex items-center gap-1 transition-opacity ${
+              deletingId === entry.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}>
+              <button
+                onClick={() => onEdit(entry)}
+                className="text-xs rounded px-1.5 py-0.5 text-zinc-500 hover:text-white transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => confirmDelete(entry.id)}
+                className={`text-xs rounded px-1.5 py-0.5 transition-colors ${
+                  deletingId === entry.id ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-red-400'
+                }`}
+              >
+                {deletingId === entry.id ? 'Confirm' : '✕'}
+              </button>
+            </div>
           </div>
         ))}
       </div>

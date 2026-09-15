@@ -47,6 +47,10 @@ export function useTrainQueue() {
     setQueue(q => [entry, ...q])
   }
 
+  function updateEntry(entry: TrainEntry) {
+    setQueue(q => q.map(e => (e.id === entry.id ? entry : e)))
+  }
+
   function removeEntry(id: string) {
     setQueue(q => q.filter(e => e.id !== id))
   }
@@ -59,5 +63,5 @@ export function useTrainQueue() {
     setQueue([])
   }
 
-  return { queue, loaded, storageWarning, addEntry, removeEntry, removeEntries, clearQueue }
+  return { queue, loaded, storageWarning, addEntry, updateEntry, removeEntry, removeEntries, clearQueue }
 }

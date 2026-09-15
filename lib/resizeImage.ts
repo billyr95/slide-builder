@@ -1,7 +1,13 @@
 // Downscales an image data URL so uploads (e.g. full-resolution phone photos)
-// don't bloat SlideData/templates.json. Never upscales. Re-encodes as WebP,
-// which keeps alpha transparency (needed for logos/cutouts) at a fraction of PNG's size.
-export function resizeImageDataUrl(dataUrl: string, maxDim: number, quality = 0.85): Promise<string> {
+// don't bloat storage. Never upscales. Defaults to WebP, which keeps alpha
+// transparency (needed for logos/cutouts) at a fraction of PNG's size; pass
+// 'image/jpeg' for callers that specifically want JPEG output instead.
+export function resizeImageDataUrl(
+  dataUrl: string,
+  maxDim: number,
+  quality = 0.85,
+  format: 'image/webp' | 'image/jpeg' = 'image/webp'
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
@@ -16,8 +22,14 @@ export function resizeImageDataUrl(dataUrl: string, maxDim: number, quality = 0.
         reject(new Error('Canvas 2D context unavailable'))
         return
       }
+      if (format === 'image/jpeg') {
+        // JPEG has no alpha channel — fill white first so transparent source
+        // areas (e.g. a cutout PNG) don't render as black.
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, w, h)
+      }
       ctx.drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/webp', quality))
+      resolve(canvas.toDataURL(format, quality))
     }
     img.onerror = () => reject(new Error('Failed to load image for resizing'))
     img.src = dataUrl

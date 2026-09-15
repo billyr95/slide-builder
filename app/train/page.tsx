@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import TrainForm from '@/components/train/TrainForm'
 import TrainQueuePanel, { QueueFilter } from '@/components/train/TrainQueuePanel'
@@ -9,9 +9,11 @@ import { downloadJsonl } from '@/lib/trainExport'
 import { TrainEntry } from '@/lib/trainTypes'
 
 export default function TrainPage() {
-  const { queue, storageWarning, addEntry, removeEntry, clearQueue } = useTrainQueue()
+  const { queue, storageWarning, addEntry, updateEntry, removeEntry, clearQueue } = useTrainQueue()
   const [filter, setFilter] = useState<QueueFilter>('all')
   const [toast, setToast] = useState<string | null>(null)
+  const [editingEntry, setEditingEntry] = useState<TrainEntry | null>(null)
+  const mainRef = useRef<HTMLElement>(null)
 
   function showToast(msg: string) {
     setToast(msg)
@@ -21,6 +23,26 @@ export default function TrainPage() {
   function handleAdd(entry: TrainEntry) {
     addEntry(entry)
     showToast(`Added "${entry.title}" to queue`)
+  }
+
+  function handleSave(entry: TrainEntry) {
+    updateEntry(entry)
+    setEditingEntry(null)
+    showToast(`Updated "${entry.title}"`)
+  }
+
+  function handleEdit(entry: TrainEntry) {
+    setEditingEntry(entry)
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleCancelEdit() {
+    setEditingEntry(null)
+  }
+
+  function handleRemove(id: string) {
+    if (editingEntry?.id === id) setEditingEntry(null)
+    removeEntry(id)
   }
 
   function handleExport() {
@@ -39,6 +61,7 @@ export default function TrainPage() {
 
   function handleClear() {
     clearQueue()
+    setEditingEntry(null)
     showToast('Queue cleared')
   }
 
@@ -60,9 +83,14 @@ export default function TrainPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* Main: entry form */}
-        <main className="flex-1 overflow-y-auto bg-zinc-900 p-6">
+        <main ref={mainRef} className="flex-1 overflow-y-auto bg-zinc-900 p-6">
           <div className="max-w-xl mx-auto">
-            <TrainForm onAdd={handleAdd} />
+            <TrainForm
+              editingEntry={editingEntry}
+              onAdd={handleAdd}
+              onSave={handleSave}
+              onCancelEdit={handleCancelEdit}
+            />
           </div>
         </main>
 
@@ -72,10 +100,12 @@ export default function TrainPage() {
             queue={queue}
             filter={filter}
             onFilterChange={setFilter}
-            onRemove={removeEntry}
+            onEdit={handleEdit}
+            onRemove={handleRemove}
             onExport={handleExport}
             onClear={handleClear}
             storageWarning={storageWarning}
+            editingId={editingEntry?.id ?? null}
           />
         </aside>
       </div>

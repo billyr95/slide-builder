@@ -1,12 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TheinhardtWeight, TitleFont, PresentersFont } from '@/lib/types'
 import { TrainEntry, TrainImage, ScreenType, createBlankEntry } from '@/lib/trainTypes'
 import ColorPalette from '@/components/ColorPalette'
+import { resizeImageDataUrl } from '@/lib/resizeImage'
+
+const TRAIN_IMAGE_MAX_DIM = 1000
+const TRAIN_IMAGE_QUALITY = 0.8
 
 interface TrainFormProps {
+  editingEntry: TrainEntry | null
   onAdd: (entry: TrainEntry) => void
+  onSave: (entry: TrainEntry) => void
+  onCancelEdit: () => void
 }
 
 const inputCls = `w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 transition-colors placeholder-zinc-500`
@@ -60,23 +67,39 @@ function FontPicker<T extends string>({ value, options, onChange }: { value: T; 
 const TITLE_FONTS: readonly TitleFont[] = ['92NY', 'Theinhardt Heavy']
 const PRESENTERS_FONTS: readonly PresentersFont[] = ['Theinhardt', '92NY']
 
+// Compressed once here at add-time (not at export) so the stored/queued
+// entry already holds the small version — downscaled to a max dimension and
+// re-encoded as JPEG, matching what actually gets sent to the vision model.
 async function readImageFile(file: File): Promise<{ url: string; mediaType: string; name: string }> {
-  const url = await new Promise<string>((resolve, reject) => {
+  const rawUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as string)
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
   })
-  return { url, mediaType: file.type || 'image/png', name: file.name }
+  const url = await resizeImageDataUrl(rawUrl, TRAIN_IMAGE_MAX_DIM, TRAIN_IMAGE_QUALITY, 'image/jpeg')
+  return { url, mediaType: 'image/jpeg', name: file.name }
 }
 
-export default function TrainForm({ onAdd }: TrainFormProps) {
+export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }: TrainFormProps) {
   const [screenType, setScreenType] = useState<ScreenType>('projector')
   const [hasLabel, setHasLabel] = useState(false)
   const [hasLogos, setHasLogos] = useState(false)
   const [hasQrCode, setHasQrCode] = useState(false)
   const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', hasLabel: false, hasLogos: false, hasQrCode: false }))
   const [error, setError] = useState<string | null>(null)
+
+  // Hydrate the whole form from the entry being edited whenever it changes
+  // (clicking "Edit" on a queue entry, or switching to a different one).
+  useEffect(() => {
+    if (!editingEntry) return
+    setScreenType(editingEntry.screenType)
+    setHasLabel(editingEntry.hasLabel)
+    setHasLogos(editingEntry.hasLogos)
+    setHasQrCode(editingEntry.hasQrCode)
+    setEntry(editingEntry)
+    setError(null)
+  }, [editingEntry])
 
   function set<K extends keyof TrainEntry>(key: K, value: TrainEntry[K]) {
     setEntry(e => ({ ...e, [key]: value }))
@@ -104,16 +127,28 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
     updateImage(index, { url, mediaType, name })
   }
 
-  function handleAddToQueue() {
+  function handleSubmit() {
     if (!entry.title.trim()) {
       setError('Title is required.')
       return
     }
     setError(null)
-    onAdd({ ...entry, screenType, hasLabel, hasLogos, hasQrCode, id: entry.id, createdAt: new Date().toISOString() })
+    if (editingEntry) {
+      // Keep the original id/createdAt (and custom_id, which is derived from
+      // id at export time) — this updates the entry in place, not a new one.
+      onSave({ ...entry, screenType, hasLabel, hasLogos, hasQrCode, id: editingEntry.id, createdAt: editingEntry.createdAt })
+    } else {
+      onAdd({ ...entry, screenType, hasLabel, hasLogos, hasQrCode, id: entry.id, createdAt: new Date().toISOString() })
+    }
     // Reset content fields for the next entry, but keep screen type / has-label
     // sticky — batches of old slides are usually entered a screen-type at a time.
     setEntry(createBlankEntry({ screenType, hasLabel, hasLogos, hasQrCode }))
+  }
+
+  function handleCancelEdit() {
+    onCancelEdit()
+    setEntry(createBlankEntry({ screenType, hasLabel, hasLogos, hasQrCode }))
+    setError(null)
   }
 
   return (
@@ -269,12 +304,28 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
 
       {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
 
-      <button
-        onClick={handleAddToQueue}
-        className="w-full bg-white hover:bg-zinc-200 text-black font-medium text-sm py-2.5 rounded-lg transition-colors"
-      >
-        Add to queue
-      </button>
+      {editingEntry && (
+        <p className="text-xs text-amber-400 bg-amber-950/40 border border-amber-900 rounded-lg px-2.5 py-2 mb-3">
+          Editing an existing queue entry. Saving will update it in place.
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={handleSubmit}
+          className="flex-1 bg-white hover:bg-zinc-200 text-black font-medium text-sm py-2.5 rounded-lg transition-colors"
+        >
+          {editingEntry ? 'Save changes' : 'Add to queue'}
+        </button>
+        {editingEntry && (
+          <button
+            onClick={handleCancelEdit}
+            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-sm py-2.5 px-4 rounded-lg transition-colors"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </div>
   )
 }
