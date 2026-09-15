@@ -41,11 +41,11 @@ function buildEstimatePrompt(entry: TrainEntry): string {
 
   const estimate: string[] = ['Title font size, as a ratio relative to slide height']
   if (entry.subtitle) estimate.push('Subtitle font size, as a ratio relative to slide height')
-  if (attached.length > 0) {
-    estimate.push(`Position and crop for each of the ${attached.length} attached image(s), in the order given`)
-  }
   if (!entry.backgroundColor) estimate.push('Background color (hex)')
   if (!entry.textColor) estimate.push('Text color (hex)')
+  if (attached.length > 0) {
+    estimate.push(`An "images" array (see schema below) describing each of the ${attached.length} attached image(s), in the order given`)
+  }
 
   // The stated image count (what actually appeared on the slide) can differ
   // from how many source image files are attached below — e.g. the original
@@ -58,6 +58,24 @@ function buildEstimatePrompt(entry: TrainEntry): string {
       : `Note: the slide is stated to have had ${entry.imageCount} image(s), but only ${attached.length} source file(s) are attached below. Base image position/crop estimates only on the image(s) actually attached.`)
   }
 
+  // A fixed schema for image entries, so every response uses the same key
+  // names regardless of image type — the model previously invented its own
+  // shape per response, making the results impossible to parse consistently.
+  const imageSchema: string[] = attached.length > 0 ? [
+    '',
+    'For each attached image, return an object with EXACTLY these keys:',
+    '- "image_type": one of "face", "book_cover", "poster", "graphic", "other" — your best classification of what the image depicts',
+    '- "position": an object with "x_ratio", "y_ratio", "width_ratio", "height_ratio" (each 0-1, relative to the full slide width/height) — always present regardless of image_type',
+    '- "crop": either the string "none" (for images that appear uncropped/full, like most book covers and posters), or an object with "top", "bottom", "left", "right" (each 0-1 ratios) if the image is visibly cropped (common for face/headshot images)',
+    '',
+    'Example of a cropped face image:',
+    '{"image_type": "face", "position": {"x_ratio": 0.1, "y_ratio": 0.15, "width_ratio": 0.3, "height_ratio": 0.6}, "crop": {"top": 0.05, "bottom": 0, "left": 0.1, "right": 0.1}}',
+    'Example of an uncropped book cover:',
+    '{"image_type": "book_cover", "position": {"x_ratio": 0.55, "y_ratio": 0.2, "width_ratio": 0.35, "height_ratio": 0.5}, "crop": "none"}',
+    '',
+    `Put these under a top-level "images" array of exactly ${attached.length} such object(s), in the same order as the images were attached.`,
+  ] : []
+
   return [
     'You are labeling a historical event slide as training data for a slide-layout generator.',
     ...countNote,
@@ -67,6 +85,7 @@ function buildEstimatePrompt(entry: TrainEntry): string {
     '',
     'Based on the attached image(s), estimate ONLY the following visual style properties:',
     ...estimate.map(line => `- ${line}`),
+    ...imageSchema,
     '',
     'Respond with a single JSON object containing your estimates, keyed by the property names above.',
   ].join('\n')
