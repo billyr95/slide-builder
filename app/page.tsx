@@ -220,7 +220,7 @@ export default function Home() {
       if (images.length === 1) {
         newData.imageUrl = images[0].url
         newData.imageAlt = images[0].name
-        newData.imageSize = Math.max(20, Math.min(100, Math.round(suggestion.width * 100)))
+        newData.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
       } else {
         const mode: ImageMode = images.length === 2 ? 'two-stagger' : images.length === 3 ? 'three-stagger' : 'four-stagger'
         const scale = Math.max(80, Math.min(800, Math.round(suggestion.width * dims.w)))

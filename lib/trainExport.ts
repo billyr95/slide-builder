@@ -51,7 +51,7 @@ function buildEstimatePrompt(entry: TrainEntry): string {
   if (entry.textColor) known.push(`Text color: ${entry.textColor}`)
 
   const estimate: string[] = [
-    'title_font_size_px (24-160) and title_line_count for the title text (see guidance below)',
+    'title_font_size_px (24-250) and title_line_count for the title text (see guidance below)',
   ]
   if (entry.subtitle) {
     estimate.push('subtitle_font_size_px (16-120) and subtitle_line_count for the subtitle text (see guidance below)')
@@ -85,10 +85,10 @@ function buildEstimatePrompt(entry: TrainEntry): string {
   const sizeGuidance: string[] = [
     '',
     `This slide renders at ${dims.w}x${dims.h}px (${entry.orientation}). Font sizes must fall within the real ` +
-      'editor\'s slider ranges, since it cannot render outside them: title 24-160px, subtitle 16-120px, subtitle 2 16-120px.',
+      'editor\'s slider ranges, since it cannot render outside them: title 24-250px, subtitle 16-120px, subtitle 2 16-120px.',
     '',
     'For the title text, report:',
-    '- "title_font_size_px": the per-line font size of the title text, in pixels (24-160) — measure the height of a SINGLE line of the rendered title, not the full multi-line block; if the title wraps, divide the total block height by the line count to get the per-line size',
+    '- "title_font_size_px": the per-line font size of the title text, in pixels (24-250) — measure the height of a SINGLE line of the rendered title, not the full multi-line block; if the title wraps, divide the total block height by the line count to get the per-line size',
     '- "title_line_count": the number of lines the title actually wraps to in the image',
   ]
   if (entry.subtitle) {

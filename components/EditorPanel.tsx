@@ -70,8 +70,12 @@ function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: 
   )
 }
 
-function FontSizeSlider({ label, value, onChange, min = 24, max = 160, badge }: {
+function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
+  // Displayed after the value (e.g. "px" for a real pixel size, "%" for a
+  // percentage-based control like single-image mode's size) — defaults to
+  // "px" since that's what most callers are.
+  unit?: string
   // Small, unobtrusive indicator of whether `value` came from the heuristic
   // or a manual override — omit to render no badge at all.
   badge?: 'auto' | 'manual'
@@ -92,7 +96,7 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, badge }: 
             </span>
           )}
         </span>
-        <span className="text-xs font-mono text-zinc-400">{value}px</span>
+        <span className="text-xs font-mono text-zinc-400">{value}{unit}</span>
       </div>
       <input type="range" min={min} max={max} step={1} value={value}
         onChange={e => onChange(Number(e.target.value))}
@@ -299,7 +303,7 @@ export default function EditorPanel({
     } else {
       const patch: Partial<SlideData> = { imageUrl: croppedUrl }
       if (!imageSizeOverridden[-1]) {
-        patch.imageSize = Math.max(20, Math.min(100, Math.round(suggestion.width * 100)))
+        patch.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
       }
       onChange({ ...data, ...patch })
     }
@@ -350,7 +354,7 @@ export default function EditorPanel({
             </div>
             <FontSizeSlider label="Font size" value={data.titleSize}
               onChange={v => { setTitleSizeOverridden(true); set('titleSize', v) }}
-              min={24} max={160} badge={titleSizeOverridden ? 'manual' : 'auto'} />
+              min={24} max={250} badge={titleSizeOverridden ? 'manual' : 'auto'} />
           </div>
 
           <div className="mb-3">
@@ -463,7 +467,7 @@ export default function EditorPanel({
                 <div className="mt-2">
                   <FontSizeSlider label="Image size" value={data.imageSize ?? 100}
                     onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [-1]: true })); set('imageSize', v) }}
-                    min={20} max={100} badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} />
+                    min={20} max={200} unit="%" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} />
                 </div>
               )}
             </>

@@ -31,7 +31,7 @@ under the new prompt if needed.
 
 Title/subtitle/subtitle2 size is expected as absolute pixels — the fixed
 range each control's slider actually allows in the app — rather than the
-old ratio-of-slide-height fields: title_font_size_px (24-160) +
+old ratio-of-slide-height fields: title_font_size_px (24-250) +
 title_line_count, subtitle_font_size_px (16-120) + subtitle_line_count,
 subtitle2_font_size_px (16-120) + subtitle2_line_count. These need no unit
 conversion to become a valid slider value. Results from before this schema
@@ -207,7 +207,7 @@ def extract_image_fields(result):
 # slider ranges in lib/trainExport.ts's sizeGuidance, since the app cannot
 # render outside them.
 FONT_SIZE_RANGES = {
-    "title": (24, 160),
+    "title": (24, 250),
     "subtitle": (16, 120),
     "subtitle2": (16, 120),
 }

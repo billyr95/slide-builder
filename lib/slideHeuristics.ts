@@ -29,7 +29,7 @@ const TITLE_SIZE_BIAS_PX = 20
  * screen_type, image_1_type), each clamped to a modest +/-8px so no single weak signal
  * can dominate. Result is snapped to the nearest 4px, matching the granularity every
  * fitted value in the training set happened to share, and clamped to the real slider
- * range (24-160).
+ * range (24-250).
  */
 export function suggestTitleFontSize(
   charCount: number,
@@ -60,12 +60,16 @@ export function suggestTitleFontSize(
   }
 
   const rawFitted = base + subtitleNudge + screenNudge[screenType] + (imageType ? (imageNudge[imageType] ?? 0) : 0)
-  const oldValue = Math.max(24, Math.min(160, Math.round(rawFitted / 4) * 4))
+  const oldValue = Math.max(24, Math.min(250, Math.round(rawFitted / 4) * 4))
 
   // TITLE_SIZE_BIAS_PX is a manual, non-fitted bump (see its definition above) --
-  // applied after the fitted bucket/nudge math, before the final snap+clamp.
+  // applied after the fitted bucket/nudge math, before the final snap+clamp. The
+  // 250 ceiling matches the real editor slider's max (bumped from 160) -- none of
+  // the fitted bucket/nudge combinations get anywhere near it even with the bias,
+  // so this is headroom for intentionally large manual titles, not a bound this
+  // function actively pushes against today.
   const snapped = Math.round((rawFitted + TITLE_SIZE_BIAS_PX) / 4) * 4
-  const newValue = Math.max(24, Math.min(160, snapped))
+  const newValue = Math.max(24, Math.min(250, snapped))
 
   console.log(`[suggestTitleFontSize] old=${oldValue}px new=${newValue}px (bias=+${TITLE_SIZE_BIAS_PX}px)`)
   return newValue
