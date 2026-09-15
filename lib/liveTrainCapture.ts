@@ -32,6 +32,7 @@ function collectImages(data: SlideData): TrainImage[] {
 
 export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, screenType: ScreenType): TrainEntry {
   const { h } = DIMS[orientation]
+  const images = collectImages(data)
 
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
@@ -59,7 +60,8 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
     backgroundColor: data.backgroundColor,
     textColor: data.textColor,
 
-    images: collectImages(data),
+    images,
+    imageCount: images.length, // live captures always know the exact real count
 
     liveStyle: {
       orientation,

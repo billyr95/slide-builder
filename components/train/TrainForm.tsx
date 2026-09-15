@@ -88,6 +88,9 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
   const [hasQrCode, setHasQrCode] = useState(false)
   const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', hasLabel: false, hasLogos: false, hasQrCode: false }))
   const [error, setError] = useState<string | null>(null)
+  // Once the user directly edits "Images on screen", stop auto-syncing it to
+  // the filled-slot count — their number wins until the form resets.
+  const [imageCountTouched, setImageCountTouched] = useState(false)
 
   // Hydrate the whole form from the entry being edited whenever it changes
   // (clicking "Edit" on a queue entry, or switching to a different one).
@@ -99,7 +102,18 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
     setHasQrCode(editingEntry.hasQrCode)
     setEntry(editingEntry)
     setError(null)
+    // The stored value may deliberately differ from the slot count (that's
+    // the whole point of this field) — don't let auto-sync clobber it.
+    setImageCountTouched(true)
   }, [editingEntry])
+
+  // Default "Images on screen" to the filled-slot count as a starting
+  // suggestion, until the user manually overrides it.
+  useEffect(() => {
+    if (imageCountTouched) return
+    const filledCount = entry.images.filter(img => img.url).length
+    setEntry(e => (e.imageCount === filledCount ? e : { ...e, imageCount: filledCount }))
+  }, [entry.images, imageCountTouched])
 
   function set<K extends keyof TrainEntry>(key: K, value: TrainEntry[K]) {
     setEntry(e => ({ ...e, [key]: value }))
@@ -127,6 +141,12 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
     updateImage(index, { url, mediaType, name })
   }
 
+  function handleImageCountChange(value: string) {
+    setImageCountTouched(true)
+    const parsed = parseInt(value, 10)
+    set('imageCount', Number.isNaN(parsed) ? 0 : Math.max(0, parsed))
+  }
+
   function handleSubmit() {
     if (!entry.title.trim()) {
       setError('Title is required.')
@@ -143,11 +163,13 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
     // Reset content fields for the next entry, but keep screen type / has-label
     // sticky — batches of old slides are usually entered a screen-type at a time.
     setEntry(createBlankEntry({ screenType, hasLabel, hasLogos, hasQrCode }))
+    setImageCountTouched(false)
   }
 
   function handleCancelEdit() {
     onCancelEdit()
     setEntry(createBlankEntry({ screenType, hasLabel, hasLogos, hasQrCode }))
+    setImageCountTouched(false)
     setError(null)
   }
 
@@ -226,6 +248,21 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
           >
             + Add image
           </button>
+        </div>
+
+        <div className="mt-4">
+          <label className={labelCls}>Images on screen</label>
+          <input
+            type="number"
+            min={0}
+            className={inputCls}
+            value={entry.imageCount}
+            onChange={e => handleImageCountChange(e.target.value)}
+          />
+          <p className="text-xs text-zinc-600 mt-1">
+            How many images actually appeared on the slide — this is what gets exported, independent of how many
+            source files are attached above. Defaults to the attached count; edit it if the originals no longer exist.
+          </p>
         </div>
       </div>
 

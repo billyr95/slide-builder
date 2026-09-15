@@ -40,6 +40,11 @@ export interface TrainEntry {
   textColor: string        // '' = unset, let the model estimate
 
   images: TrainImage[]
+  // How many images actually appeared on the original slide, as stated by
+  // the user — independent of how many image files are attached above.
+  // Lets old slides whose source images no longer exist still be labeled
+  // with an accurate count instead of silently reporting 0.
+  imageCount: number
 
   // Extra known style data, populated only for source: 'live' entries
   // (exact numeric sizes/ratios, image placement, font choices, footer
@@ -72,5 +77,6 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     backgroundColor: '',
     textColor: '',
     images: [{ id: Math.random().toString(36).slice(2), url: '', mediaType: '', name: '' }],
+    imageCount: 0,
   }
 }

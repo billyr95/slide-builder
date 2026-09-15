@@ -9,7 +9,7 @@ function commonKnownLines(entry: TrainEntry): string[] {
     `Has label/kicker line: ${entry.hasLabel}`,
     `Has logos: ${entry.hasLogos}`,
     `Has QR code: ${entry.hasQrCode}`,
-    `Image count: ${entry.images.length}`,
+    `Image count: ${entry.imageCount}`,
   ]
   if (entry.hasLabel && entry.label) known.push(`Label: "${entry.label}"`)
   if (entry.title) known.push(`Title: "${entry.title}"`)
@@ -34,20 +34,33 @@ function commonKnownLines(entry: TrainEntry): string[] {
 // explicit color) is passed to the model as ground truth instead of being
 // asked for — only the remaining gaps get listed as things to estimate.
 function buildEstimatePrompt(entry: TrainEntry): string {
+  const attached = entry.images.filter(img => img.url)
   const known = commonKnownLines(entry)
   if (entry.backgroundColor) known.push(`Background color: ${entry.backgroundColor}`)
   if (entry.textColor) known.push(`Text color: ${entry.textColor}`)
 
   const estimate: string[] = ['Title font size, as a ratio relative to slide height']
   if (entry.subtitle) estimate.push('Subtitle font size, as a ratio relative to slide height')
-  if (entry.images.length > 0) {
-    estimate.push(`Position and crop for each of the ${entry.images.length} image(s) provided, in the order given`)
+  if (attached.length > 0) {
+    estimate.push(`Position and crop for each of the ${attached.length} attached image(s), in the order given`)
   }
   if (!entry.backgroundColor) estimate.push('Background color (hex)')
   if (!entry.textColor) estimate.push('Text color (hex)')
 
+  // The stated image count (what actually appeared on the slide) can differ
+  // from how many source image files are attached below — e.g. the original
+  // images no longer exist. Call that out explicitly so the model doesn't
+  // assume the two always match.
+  const countNote: string[] = []
+  if (entry.imageCount !== attached.length) {
+    countNote.push(attached.length === 0
+      ? `Note: the slide is stated to have had ${entry.imageCount} image(s), but none of the original source files are attached — estimate style from the text/layout fields only, and do not assume any image content.`
+      : `Note: the slide is stated to have had ${entry.imageCount} image(s), but only ${attached.length} source file(s) are attached below. Base image position/crop estimates only on the image(s) actually attached.`)
+  }
+
   return [
     'You are labeling a historical event slide as training data for a slide-layout generator.',
+    ...countNote,
     '',
     'Known ground-truth values:',
     ...known.map(line => `- ${line}`),
@@ -120,7 +133,7 @@ export function buildBatchLine(entry: TrainEntry): string {
     has_qr_code: entry.hasQrCode,
     series_name: entry.seriesName,
     listening_credit: entry.listeningCredit,
-    image_count: entry.images.filter(img => img.url).length,
+    image_count: entry.imageCount,
   }
 
   return JSON.stringify(line)

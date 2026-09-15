@@ -133,7 +133,10 @@ export default function TrainQueuePanel({
                 <span className={entry.source === 'live' ? 'text-emerald-400' : 'text-zinc-500'}>
                   {entry.source === 'live' ? 'Live' : 'Upload'}
                 </span>
-                {' · '}{entry.images.filter(img => img.url).length} img{entry.images.filter(img => img.url).length === 1 ? '' : 's'}
+                {' · '}{entry.imageCount} img{entry.imageCount === 1 ? '' : 's'}
+                {entry.images.filter(img => img.url).length !== entry.imageCount && (
+                  <span className="text-zinc-500"> ({entry.images.filter(img => img.url).length} attached)</span>
+                )}
                 {editingId === entry.id && <span className="text-zinc-400"> · editing</span>}
               </p>
             </div>
