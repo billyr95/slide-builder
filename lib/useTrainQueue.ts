@@ -21,7 +21,12 @@ export function useTrainQueue() {
     let cancelled = false
     get<TrainEntry[]>(STORAGE_KEY)
       .then(stored => {
-        if (!cancelled && stored) setQueue(stored)
+        // Entries queued before `orientation` existed on TrainEntry have no
+        // value for it — default to 'landscape' so downstream code (e.g.
+        // trainExport's DIMS lookup) never sees undefined.
+        if (!cancelled && stored) {
+          setQueue(stored.map(e => (e.orientation ? e : { ...e, orientation: 'landscape' })))
+        }
       })
       .catch(e => {
         console.warn('Failed to load training queue from IndexedDB', e)
