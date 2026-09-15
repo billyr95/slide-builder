@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { SlideData, SlideTemplate, Orientation } from '@/lib/types'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import SlideCanvas from '@/components/SlideCanvas'
@@ -157,6 +158,12 @@ export default function Home() {
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="w-6 h-6 bg-white rounded" />
           <span className="text-sm font-semibold text-white tracking-wide">Slide Builder</span>
+          <Link
+            href="/train"
+            className="text-xs text-zinc-500 hover:text-white px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors"
+          >
+            Training Bundler →
+          </Link>
         </div>
 
         {/* Center: Slide name input */}
