@@ -1,56 +1,88 @@
 import { SlideData, Orientation } from './types'
-import { TrainEntry, ScreenType } from './trainTypes'
-import { getImageDimensions } from './resizeImage'
+import { TrainEntry, TrainImage, ScreenType } from './trainTypes'
+import { getImageDimensions, resizeImageDataUrl } from './resizeImage'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
   portrait: { w: 1080, h: 1920 },
 }
 
-function imageCount(data: SlideData): number {
-  if (data.imageMode === 'single') return data.imageUrl ? 1 : 0
-  if (data.imageMode === 'none') return 0
-  return (data.staggerImages || []).filter(img => img.url).length
+// Matches the compression already applied to /train uploads (see
+// components/train/TrainForm.tsx's own TRAIN_IMAGE_MAX_DIM/QUALITY) --
+// downscaled + re-encoded as JPEG so these live-logged entries store the
+// same shape and don't blow through IndexedDB on every export.
+const LIVE_IMAGE_MAX_DIM = 1000
+const LIVE_IMAGE_QUALITY = 0.8
+
+function collectRawImages(data: SlideData): { url: string; name: string }[] {
+  if (data.imageMode === 'single') {
+    return data.imageUrl ? [{ url: data.imageUrl, name: data.imageAlt || 'image' }] : []
+  }
+  if (data.imageMode === 'none') return []
+  return (data.staggerImages || [])
+    .filter(img => img.url)
+    .map((img, i) => ({ url: img.url, name: img.alt || `image-${i + 1}` }))
 }
 
-// The first placed image's data URL and the approximate width ratio (0-1 of
-// full slide width) implied by its current size control. Read-only, in
-// memory here — never persisted onto the entry itself (see TrainEntry's
-// comment on why no image file is attached by default).
-function getFirstImage(data: SlideData, orientation: Orientation): { url: string; widthRatio: number } | null {
+async function toCompressedTrainImage(raw: { url: string; name: string }): Promise<TrainImage> {
+  const url = await resizeImageDataUrl(raw.url, LIVE_IMAGE_MAX_DIM, LIVE_IMAGE_QUALITY, 'image/jpeg')
+  return {
+    id: Math.random().toString(36).slice(2),
+    url,
+    mediaType: 'image/jpeg',
+    name: raw.name,
+  }
+}
+
+// The approximate width ratio (0-1 of full slide width) implied by the
+// first placed image's current size control.
+function firstImageWidthRatio(data: SlideData, orientation: Orientation): number | undefined {
   const dims = DIMS[orientation]
 
   if (data.imageMode === 'single') {
-    if (!data.imageUrl) return null
+    if (!data.imageUrl) return undefined
     // imageSize is a %-of-container width control, not a %-of-full-slide
     // one (the container itself is 40-66% of the slide depending on layout
     // variant) -- treated as an approximate stand-in for width_ratio, same
     // simplification used by the manual-upload heuristic auto-fill.
-    return { url: data.imageUrl, widthRatio: Math.max(0, Math.min(1, (data.imageSize ?? 100) / 100)) }
+    return Math.max(0, Math.min(1, (data.imageSize ?? 100) / 100))
   }
 
-  if (data.imageMode === 'none') return null
+  if (data.imageMode === 'none') return undefined
 
   const first = (data.staggerImages || []).find(img => img.url)
-  if (!first) return null
+  if (!first) return undefined
   const scalePx = first.scale || data.staggerSize || 250
-  return { url: first.url, widthRatio: Math.max(0, Math.min(1, scalePx / dims.w)) }
+  return Math.max(0, Math.min(1, scalePx / dims.w))
 }
 
 export async function buildLiveTrainEntry(data: SlideData, orientation: Orientation, screenType: ScreenType): Promise<TrainEntry> {
   const dims = DIMS[orientation]
-  const count = imageCount(data)
-  const first = getFirstImage(data, orientation)
+  const rawImages = collectRawImages(data)
+
+  const images = (await Promise.all(
+    rawImages.map(raw =>
+      toCompressedTrainImage(raw).catch(e => {
+        console.warn('Failed to compress an image for training-data logging, skipping it', e)
+        return null
+      })
+    )
+  )).filter((img): img is TrainImage => img !== null)
+
+  const widthRatio = firstImageWidthRatio(data, orientation)
 
   let imageHeightRatio: number | undefined
-  if (first) {
+  if (images[0] && widthRatio !== undefined) {
     try {
-      const { width, height } = await getImageDimensions(first.url)
+      // Measured off the already-compressed image -- resizeImageDataUrl
+      // scales both dimensions equally, so its aspect ratio still matches
+      // the original.
+      const { width, height } = await getImageDimensions(images[0].url)
       if (width > 0) {
         // Rendered height follows the image's own aspect ratio at its
         // current width -- an approximation for single-image mode, which
         // also has a maxHeight clamp this doesn't account for.
-        imageHeightRatio = (first.widthRatio * dims.w * (height / width)) / dims.h
+        imageHeightRatio = (widthRatio * dims.w * (height / width)) / dims.h
       }
     } catch (e) {
       console.warn('Could not read image dimensions for training-data logging', e)
@@ -87,18 +119,18 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     backgroundColor: data.backgroundColor,
     textColor: data.textColor,
 
-    // No image file is attached by default -- these are the user's own
-    // uploads, not something worth re-storing wholesale on every export.
-    // imageCount alone (below) already captures the structural fact that
-    // matters for training. Revisit if a rendered-slide snapshot ever
-    // becomes useful instead of per-image file storage.
-    images: [],
-    imageCount: count,
+    // Structural count of placed images, independent of whether any of
+    // them individually failed to compress above (images.length can be
+    // shorter in that rare case -- the queue UI already handles that
+    // mismatch gracefully, same as an 'upload' entry whose source files no
+    // longer exist).
+    images,
+    imageCount: rawImages.length,
 
     titleFontSizePx: data.titleSize,
     subtitleFontSizePx: data.subtitle ? data.subtitleSize : undefined,
     subtitle2FontSizePx: data.subtitle2 ? data.subtitle2Size : undefined,
-    imageWidthRatio: first?.widthRatio,
+    imageWidthRatio: widthRatio,
     imageHeightRatio,
 
     liveStyle: {
