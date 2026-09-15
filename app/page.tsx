@@ -15,13 +15,6 @@ import { buildLiveTrainEntry } from '@/lib/liveTrainCapture'
 import { ScreenType } from '@/lib/trainTypes'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
 
-// Real pixel dimensions the slide renders at -- needed to convert the image
-// heuristic's width_ratio into an absolute pixel size for stagger mode.
-const SLIDE_DIMS: Record<Orientation, { w: number; h: number }> = {
-  landscape: { w: 1920, h: 1080 },
-  portrait: { w: 1080, h: 1920 },
-}
-
 const LOGGING_PREF_KEY = 'slide-builder-live-logging-enabled'
 
 const PREVIEW_SCALES = {
@@ -214,18 +207,23 @@ export default function Home() {
     // (no vision call on paste) -- same "other" default TODO as the manual
     // upload path in EditorPanel.
     if (images.length > 0) {
-      const suggestion = suggestImagePosition('other', newScreenType)
-      const dims = SLIDE_DIMS[orientation]
-
       if (images.length === 1) {
+        const suggestion = suggestImagePosition('other', newScreenType)
         newData.imageUrl = images[0].url
         newData.imageAlt = images[0].name
         newData.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
       } else {
+        // No auto-sizing for stagger images here (scale: 0 -> falls back to
+        // the shared staggerSize default): the stagger layout's spacing in
+        // SlideCanvas.tsx is computed from staggerSize alone, not from each
+        // image's own scale, so applying suggestImagePosition's
+        // single-image-sized width to individual stagger images made them
+        // render far wider than the space the layout allocated for them,
+        // badly overlapping their neighbors. See the matching comment in
+        // EditorPanel.tsx's handleCropComplete.
         const mode: ImageMode = images.length === 2 ? 'two-stagger' : images.length === 3 ? 'three-stagger' : 'four-stagger'
-        const scale = Math.max(80, Math.min(800, Math.round(suggestion.width * dims.w)))
         newData.imageMode = mode
-        newData.staggerImages = images.slice(0, 4).map(img => ({ id: img.id, url: img.url, alt: img.name, y: 0, scale }))
+        newData.staggerImages = images.slice(0, 4).map(img => ({ id: img.id, url: img.url, alt: img.name, y: 0, scale: 0 }))
       }
     }
 
@@ -477,7 +475,6 @@ export default function Home() {
             data={data}
             onChange={setData}
             screenType={screenType}
-            orientation={orientation}
             slideRevision={slideRevision}
           />
         </aside>

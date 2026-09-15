@@ -1,6 +1,6 @@
 'use client'
 
-import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, staggerCount, Orientation } from '@/lib/types'
+import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, staggerCount } from '@/lib/types'
 import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
@@ -9,14 +9,6 @@ import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
 
 const MAX_LOGO_DIM = 400
-
-// Real pixel dimensions the slide renders at — needed to convert the image
-// heuristic's width_ratio (0-1 of full slide width) into an absolute pixel
-// size for stagger mode's "scale" control.
-const DIMS: Record<Orientation, { w: number; h: number }> = {
-  landscape: { w: 1920, h: 1080 },
-  portrait: { w: 1080, h: 1920 },
-}
 
 function staggerSlotLabel(mode: ImageMode, i: number): string {
   if (mode === 'three-triangle') return ['(top-left)', '(top-right)', '(bottom)'][i] ?? ''
@@ -35,7 +27,6 @@ interface EditorPanelProps {
   // in page.tsx now, since that's what it actually affects (training-data
   // logging on export), not anything in this panel.
   screenType: ScreenType
-  orientation: Orientation
   // Bumped by the parent whenever a genuinely new slide/template is loaded
   // (not on ordinary field edits) — resets the heuristic "manually
   // overridden" flags below so a fresh slide gets auto-suggestions again.
@@ -209,7 +200,7 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 }
 
 export default function EditorPanel({
-  data, onChange, screenType, orientation, slideRevision,
+  data, onChange, screenType, slideRevision,
 }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -288,19 +279,25 @@ export default function EditorPanel({
   }
 
   function handleCropComplete(croppedUrl: string) {
-    // TODO: the app doesn't classify uploaded images by content yet (e.g. a
-    // quick vision API call to detect a face/book-cover/poster/etc.) — until
-    // it does, every upload gets the generic "other" default rather than a
-    // more accurate type-specific one.
-    const suggestion = suggestImagePosition('other', screenType)
-
     if (cropTarget >= 0) {
-      const patch: Partial<StaggerImage> = { url: croppedUrl }
-      if (!imageSizeOverridden[cropTarget]) {
-        patch.scale = Math.max(80, Math.min(800, Math.round(suggestion.width * DIMS[orientation].w)))
-      }
-      updateStaggerImage(cropTarget, patch)
+      // Stagger mode intentionally gets NO auto-sizing here: the shared
+      // layout math in SlideCanvas.tsx (offsetX/shiftStep/lefts/tops) spaces
+      // images based only on data.staggerSize, while each image's own
+      // rendered width falls back to img.scale when set. Auto-applying a
+      // suggestFontSize-style width (fit for one large single-image slide)
+      // to an individual stagger image's `scale` made it render far wider
+      // than the space the layout allocated for it, badly overlapping its
+      // neighbors. suggestImagePosition was fit on single-image_1 training
+      // data only and has no valid mapping onto this shared-layout model, so
+      // stagger images just keep using the existing staggerSize/manual-scale
+      // behavior, unchanged from before auto-fill existed.
+      updateStaggerImage(cropTarget, { url: croppedUrl })
     } else {
+      // TODO: the app doesn't classify uploaded images by content yet (e.g.
+      // a quick vision API call to detect a face/book-cover/poster/etc.) —
+      // until it does, every upload gets the generic "other" default rather
+      // than a more accurate type-specific one.
+      const suggestion = suggestImagePosition('other', screenType)
       const patch: Partial<SlideData> = { imageUrl: croppedUrl }
       if (!imageSizeOverridden[-1]) {
         patch.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
@@ -487,10 +484,7 @@ export default function EditorPanel({
                         <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
                       </label>
                       {img?.url && (
-                        <button onClick={() => {
-                          updateStaggerImage(i, { url: '' })
-                          setImageSizeOverridden(prev => ({ ...prev, [i]: false }))
-                        }}
+                        <button onClick={() => updateStaggerImage(i, { url: '' })}
                           className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
                           Remove
                         </button>
@@ -507,8 +501,8 @@ export default function EditorPanel({
                     )}
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
-                        onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [i]: true })); updateStaggerImage(i, { scale: v }) }}
-                        min={80} max={800} badge={imageSizeOverridden[i] ? 'manual' : 'auto'} />
+                        onChange={v => updateStaggerImage(i, { scale: v })}
+                        min={80} max={800} />
                     </div>
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} />
