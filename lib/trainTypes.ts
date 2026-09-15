@@ -34,6 +34,13 @@ export interface TrainEntry {
   presentersFont: PresentersFont  // hardlocked to the same options the main editor offers
   presentersItalic: boolean
 
+  // Book/film/show title distinct from presenter names (e.g. "American
+  // Caprices"), rendered directly after presenters. No weight field here --
+  // /train's ground-truth schema doesn't ask for presenters' weight either.
+  programTitle: string
+  programTitleFont: PresentersFont
+  programTitleItalic: boolean
+
   seriesName: string       // '' = unused
   hasQrCode: boolean
   listeningCredit: string  // '' = unused; not restricted to a screen type
@@ -100,6 +107,9 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     presenters: '',
     presentersFont: 'Theinhardt',
     presentersItalic: false,
+    programTitle: '',
+    programTitleFont: 'Theinhardt',
+    programTitleItalic: true,
     seriesName: '',
     listeningCredit: '',
     backgroundColor: '',

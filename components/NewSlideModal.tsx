@@ -9,6 +9,7 @@
 
 import { useRef, useState } from 'react'
 import { ScreenType } from '@/lib/trainTypes'
+import { PresentersFont, TheinhardtWeight } from '@/lib/types'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 
 const MAX_IMAGE_DIM = 1600
@@ -26,6 +27,10 @@ export interface SlideFieldsInput {
   subtitle2: string
   presenters: string // newline-joined, one per line -- matches SlideData.presenters' own format
   presentersItalic: boolean
+  programTitle: string
+  programTitleFont: PresentersFont
+  programTitleWeight: TheinhardtWeight
+  programTitleItalic: boolean
   seriesName: string
 }
 
@@ -66,6 +71,10 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
   const [subtitle2, setSubtitle2] = useState('')
   const [presenters, setPresenters] = useState('')
   const [presentersItalic, setPresentersItalic] = useState(false)
+  const [programTitle, setProgramTitle] = useState('')
+  const [programTitleFont, setProgramTitleFont] = useState<PresentersFont>('Theinhardt')
+  const [programTitleWeight, setProgramTitleWeight] = useState<TheinhardtWeight>('regular')
+  const [programTitleItalic, setProgramTitleItalic] = useState(true)
   const [seriesName, setSeriesName] = useState('')
   const [images, setImages] = useState<DroppedImage[]>([])
   const [dragActive, setDragActive] = useState(false)
@@ -105,6 +114,10 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
         subtitle2,
         presenters: normalizePresenters(presenters),
         presentersItalic,
+        programTitle,
+        programTitleFont,
+        programTitleWeight,
+        programTitleItalic,
         seriesName,
       },
       images,
@@ -158,13 +171,47 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           </div>
 
           <div>
-            <label className={fieldLabelCls}>Presenters / Program (one per line, or semicolon-separated)</label>
+            <label className={fieldLabelCls}>Presenters (one per line, or semicolon-separated)</label>
             <textarea className={inputCls + ' resize-none font-mono'} rows={3} value={presenters}
               onChange={e => setPresenters(e.target.value)} placeholder={'Name One,\nName Two\n& Name Three'} />
             <div className="mt-1.5 flex items-center gap-2">
               <input type="checkbox" id="newSlidePresentersItalic" checked={presentersItalic}
                 onChange={e => setPresentersItalic(e.target.checked)} className="rounded" />
               <label htmlFor="newSlidePresentersItalic" className="text-sm text-zinc-300">Italic</label>
+            </div>
+          </div>
+
+          <div>
+            <label className={fieldLabelCls}>Program / Work Title</label>
+            <input className={inputCls} value={programTitle} onChange={e => setProgramTitle(e.target.value)} placeholder='e.g. "American Caprices"' />
+            <div className="mt-1.5 flex gap-1.5">
+              {(['Theinhardt', '92NY'] as const).map(font => (
+                <button key={font} onClick={() => setProgramTitleFont(font)}
+                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                    programTitleFont === font
+                      ? 'bg-white text-black border-white font-medium'
+                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                  }`}>
+                  {font}
+                </button>
+              ))}
+            </div>
+            <div className="mt-1.5 flex gap-1.5">
+              {([['regular', 'Regular'], ['bold', 'Bold'], ['heavy', 'Heavy']] as [TheinhardtWeight, string][]).map(([w, wLabel]) => (
+                <button key={w} onClick={() => setProgramTitleWeight(w)}
+                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                    programTitleWeight === w
+                      ? 'bg-white text-black border-white font-medium'
+                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                  }`}>
+                  {wLabel}
+                </button>
+              ))}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input type="checkbox" id="newSlideProgramTitleItalic" checked={programTitleItalic}
+                onChange={e => setProgramTitleItalic(e.target.checked)} className="rounded" />
+              <label htmlFor="newSlideProgramTitleItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
           </div>
 

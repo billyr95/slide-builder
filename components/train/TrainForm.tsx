@@ -317,14 +317,24 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
           <input className={inputCls} value={entry.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
         </div>
 
-        <div className="mb-0">
-          <label className={labelCls}>Presenters / Program (one per line)</label>
+        <div className="mb-3">
+          <label className={labelCls}>Presenters (one per line)</label>
           <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={entry.presenters}
             onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
           <div className="mt-1.5"><FontPicker value={entry.presentersFont} options={PRESENTERS_FONTS} onChange={v => set('presentersFont', v)} /></div>
           <div className="mt-2 flex items-center gap-2">
             <input type="checkbox" id="presentersItalic" checked={entry.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
             <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
+          </div>
+        </div>
+
+        <div className="mb-0">
+          <label className={labelCls}>Program / Work Title</label>
+          <input className={inputCls} value={entry.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
+          <div className="mt-1.5"><FontPicker value={entry.programTitleFont} options={PRESENTERS_FONTS} onChange={v => set('programTitleFont', v)} /></div>
+          <div className="mt-2 flex items-center gap-2">
+            <input type="checkbox" id="programTitleItalic" checked={entry.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
+            <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
           </div>
         </div>
       </div>

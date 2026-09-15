@@ -59,9 +59,11 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       }
     }
 
-    function presentersStyle(weight: TheinhardtWeight, sizePx: number) {
-      const fontStyle = data.presentersItalic ? 'italic' : 'normal'
-      if ((data.presentersFont ?? 'Theinhardt') === '92NY') {
+    // Shared by presenters and programTitle -- both are "body text that can
+    // switch to 92NY" fields with their own independent font/weight/italic.
+    function fontSwitchableStyle(font: 'Theinhardt' | '92NY', italic: boolean, weight: TheinhardtWeight, sizePx: number) {
+      const fontStyle = italic ? 'italic' : 'normal'
+      if (font === '92NY') {
         return {
           fontFamily: NY92,
           fontWeight: theinhardtWeight(weight),
@@ -75,6 +77,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         }
       }
       return { ...bodyStyle(weight, sizePx), fontStyle }
+    }
+
+    function presentersStyle(weight: TheinhardtWeight, sizePx: number) {
+      return fontSwitchableStyle(data.presentersFont ?? 'Theinhardt', data.presentersItalic, weight, sizePx)
+    }
+
+    function programTitleStyle(weight: TheinhardtWeight, sizePx: number) {
+      return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx)
     }
 
     const placeholderBox = (w: number, h: number) => (
@@ -206,6 +216,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                     })()
                   : data.presenters
                 }
+              </div>
+            )}
+
+            {data.programTitle && (
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, presenterSize) }}>
+                {data.programTitle}
               </div>
             )}
 
@@ -392,6 +408,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               </div>
             )}
 
+            {data.programTitle && (
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, presenterSize) }}>
+                {data.programTitle}
+              </div>
+            )}
+
             {/* Logo bar */}
             {data.logos && data.logos.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px` }}>
@@ -561,6 +583,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   })()
                 : data.presenters
               }
+            </div>
+          )}
+
+          {data.programTitle && (
+            <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, presenterSize) }}>
+              {data.programTitle}
             </div>
           )}
 

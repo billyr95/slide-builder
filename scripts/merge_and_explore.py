@@ -14,10 +14,10 @@ Usage:
 
 Most fields (screen_type, has_label, has_logos, has_qr_code, image_count,
 series_name, listening_credit) are top-level fields on each JSONL line
-already. Title/subtitle/subtitle2/presenters/background_color/text_color are
-NOT — they only exist inside the prompt text sent to the model, under a
-"Known ground-truth values:" bullet list, so this script re-parses that
-list back into fields.
+already. Title/subtitle/subtitle2/presenters/program_title/background_color/
+text_color are NOT — they only exist inside the prompt text sent to the
+model, under a "Known ground-truth values:" bullet list, so this script
+re-parses that list back into fields.
 
 Each attached image's position/crop is expected in the fixed schema the
 /train batch prompt now asks for: a top-level "images" array, each entry
@@ -98,7 +98,7 @@ def parse_known_values(prompt_text):
     string built by lib/trainExport.ts, returning {label: raw_value_string}.
 
     Values can themselves span multiple lines (e.g. a multi-line title, or
-    "Presenters / Program (one per line)" whose value is the raw lines that
+    "Presenters (one per line)" whose value is the raw lines that
     follow it) — anything that doesn't start a new "- " bullet is treated as a
     continuation of the current one. The one sharp edge: a value line that
     itself happens to start with "- " would be misread as a new bullet;
@@ -266,8 +266,9 @@ def build_rows(jsonl_entries, results):
         title = known.get("Title", "")
         subtitle = known.get("Subtitle", "")
         subtitle2 = known.get("Subtitle 2", "")
-        presenters_raw = known.get("Presenters / Program (one per line)", "")
+        presenters_raw = known.get("Presenters (one per line)", "")
         presenters_list = [p.strip() for p in presenters_raw.split("\n") if p.strip()]
+        program_title = known.get("Program / Work Title", "")
 
         row = {
             "custom_id": custom_id,
@@ -281,6 +282,7 @@ def build_rows(jsonl_entries, results):
             "subtitle": subtitle or None,
             "subtitle2": subtitle2 or None,
             "presenters": "; ".join(presenters_list) if presenters_list else None,
+            "program_title": program_title or None,
             "series_name": request_obj.get("series_name") or None,
             "listening_credit": request_obj.get("listening_credit") or None,
             "background_color": known.get("Background color") or None,

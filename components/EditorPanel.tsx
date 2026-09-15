@@ -376,8 +376,8 @@ export default function EditorPanel({
             <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
           </div>
 
-          <div className="mb-0">
-            <label className={labelCls}>Presenters / Program (one per line)</label>
+          <div className="mb-3">
+            <label className={labelCls}>Presenters (one per line)</label>
             <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
               onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
             <div className="mt-1.5 flex gap-1.5">
@@ -399,6 +399,29 @@ export default function EditorPanel({
             </div>
             <div className="mt-1.5"><WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)} /></div>
             <FontSizeSlider label="Font size" value={data.presentersSize} onChange={v => set('presentersSize', v)} min={24} max={160} />
+          </div>
+
+          <div className="mb-0">
+            <label className={labelCls}>Program / Work Title</label>
+            <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
+            <div className="mt-1.5 flex gap-1.5">
+              {(['Theinhardt', '92NY'] as const).map(font => (
+                <button key={font}
+                  onClick={() => set('programTitleFont', font)}
+                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                    (data.programTitleFont ?? 'Theinhardt') === font
+                      ? 'bg-white text-black border-white font-medium'
+                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                  }`}>
+                  {font}
+                </button>
+              ))}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
+              <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
+            </div>
+            <div className="mt-1.5"><WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)} /></div>
           </div>
         </div>
 

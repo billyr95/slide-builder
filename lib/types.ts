@@ -61,6 +61,14 @@ export interface SlideData {
   presentersItalic: boolean
   presentersWeight: TheinhardtWeight
   presentersSize: number
+  // Book/film/show title distinct from presenter names (e.g. "American
+  // Caprices" following a list of performers) -- rendered directly after
+  // presenters, styled independently. Shares presentersSize rather than
+  // having its own size control.
+  programTitle: string
+  programTitleFont: PresentersFont
+  programTitleWeight: TheinhardtWeight
+  programTitleItalic: boolean
 
   // Style
   backgroundColor: string
