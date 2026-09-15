@@ -1,11 +1,21 @@
 import { TrainEntry } from './trainTypes'
+import { Orientation } from './types'
 
 const MODEL = 'claude-haiku-4-5-20251001'
+
+// Real pixel dimensions from the main editor (SlideCanvas.tsx) — grounding
+// the prompt in these means the model's estimates map directly onto the
+// same coordinate space the app actually renders in.
+const DIMS: Record<Orientation, { w: number; h: number }> = {
+  landscape: { w: 1920, h: 1080 },
+  portrait: { w: 1080, h: 1920 },
+}
 
 // Fields common to both entry sources, as "known: value" lines.
 function commonKnownLines(entry: TrainEntry): string[] {
   const known: string[] = [
     `Screen type: ${entry.screenType}`,
+    `Orientation: ${entry.orientation}`,
     `Has label/kicker line: ${entry.hasLabel}`,
     `Has logos: ${entry.hasLogos}`,
     `Has QR code: ${entry.hasQrCode}`,
@@ -39,8 +49,15 @@ function buildEstimatePrompt(entry: TrainEntry): string {
   if (entry.backgroundColor) known.push(`Background color: ${entry.backgroundColor}`)
   if (entry.textColor) known.push(`Text color: ${entry.textColor}`)
 
-  const estimate: string[] = ['Title font size, as a ratio relative to slide height']
-  if (entry.subtitle) estimate.push('Subtitle font size, as a ratio relative to slide height')
+  const estimate: string[] = [
+    'title_font_size_px (24-160) and title_line_count for the title text (see guidance below)',
+  ]
+  if (entry.subtitle) {
+    estimate.push('subtitle_font_size_px (16-120) and subtitle_line_count for the subtitle text (see guidance below)')
+  }
+  if (entry.subtitle2) {
+    estimate.push('subtitle2_font_size_px (16-120) and subtitle2_line_count for the second subtitle line (see guidance below)')
+  }
   if (!entry.backgroundColor) estimate.push('Background color (hex)')
   if (!entry.textColor) estimate.push('Text color (hex)')
   if (attached.length > 0) {
@@ -56,6 +73,34 @@ function buildEstimatePrompt(entry: TrainEntry): string {
     countNote.push(attached.length === 0
       ? `Note: the slide is stated to have had ${entry.imageCount} image(s), but none of the original source files are attached — estimate style from the text/layout fields only, and do not assume any image content.`
       : `Note: the slide is stated to have had ${entry.imageCount} image(s), but only ${attached.length} source file(s) are attached below. Base image position/crop estimates only on the image(s) actually attached.`)
+  }
+
+  // Absolute pixel font sizes instead of an abstract ratio — these map
+  // directly onto the real editor's own font-size sliders (EditorPanel.tsx),
+  // so a downstream heuristic/model's output needs no conversion step to
+  // become a valid slider value; the ranges below are exactly those sliders'
+  // min/max, since the app literally cannot render outside them.
+  const dims = DIMS[entry.orientation]
+  const sizeGuidance: string[] = [
+    '',
+    `This slide renders at ${dims.w}x${dims.h}px (${entry.orientation}). Font sizes must fall within the real ` +
+      'editor\'s slider ranges, since it cannot render outside them: title 24-160px, subtitle 16-120px, subtitle 2 16-120px.',
+    '',
+    'For the title text, report:',
+    '- "title_font_size_px": the per-line font size of the title text, in pixels (24-160) — measure the height of a SINGLE line of the rendered title, not the full multi-line block; if the title wraps, divide the total block height by the line count to get the per-line size',
+    '- "title_line_count": the number of lines the title actually wraps to in the image',
+  ]
+  if (entry.subtitle) {
+    sizeGuidance.push(
+      '',
+      'Report the same pair for the subtitle: "subtitle_font_size_px" (16-120px, same per-line measurement approach) and "subtitle_line_count".'
+    )
+  }
+  if (entry.subtitle2) {
+    sizeGuidance.push(
+      '',
+      'And the same pair for the second subtitle line: "subtitle2_font_size_px" (16-120px, same per-line measurement approach) and "subtitle2_line_count".'
+    )
   }
 
   // A fixed schema for image entries, so every response uses the same key
@@ -85,6 +130,7 @@ function buildEstimatePrompt(entry: TrainEntry): string {
     '',
     'Based on the attached image(s), estimate ONLY the following visual style properties:',
     ...estimate.map(line => `- ${line}`),
+    ...sizeGuidance,
     ...imageSchema,
     '',
     'Respond with a single JSON object containing your estimates, keyed by the property names above.',

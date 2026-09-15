@@ -1,4 +1,4 @@
-import { TheinhardtWeight, TitleFont, PresentersFont } from './types'
+import { TheinhardtWeight, TitleFont, PresentersFont, Orientation } from './types'
 
 export type ScreenType = 'projector' | 'lobby'
 // 'upload' = hand-entered via /train from an old/scanned slide (style values
@@ -19,6 +19,7 @@ export interface TrainEntry {
   source: EntrySource
 
   screenType: ScreenType
+  orientation: Orientation  // needed to know the slide's real pixel dimensions (1920x1080 vs 1080x1920)
   hasLabel: boolean
   hasLogos: boolean
 
@@ -54,12 +55,13 @@ export interface TrainEntry {
   liveStyle?: Record<string, unknown>
 }
 
-export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenType' | 'hasLabel' | 'hasLogos' | 'hasQrCode'>>): TrainEntry {
+export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenType' | 'orientation' | 'hasLabel' | 'hasLogos' | 'hasQrCode'>>): TrainEntry {
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     createdAt: new Date().toISOString(),
     source: 'upload',
     screenType: overrides?.screenType ?? 'projector',
+    orientation: overrides?.orientation ?? 'landscape',
     hasLabel: overrides?.hasLabel ?? false,
     hasLogos: overrides?.hasLogos ?? false,
     hasQrCode: overrides?.hasQrCode ?? false,

@@ -28,6 +28,17 @@ Results from before this schema existed won't match it — those rows are
 left blank for the image_N_* columns rather than guessing at their old,
 inconsistent shapes, and are listed at the end so they can be reprocessed
 under the new prompt if needed.
+
+Title/subtitle/subtitle2 size is expected as absolute pixels — the fixed
+range each control's slider actually allows in the app — rather than the
+old ratio-of-slide-height fields: title_font_size_px (24-160) +
+title_line_count, subtitle_font_size_px (16-120) + subtitle_line_count,
+subtitle2_font_size_px (16-120) + subtitle2_line_count. These need no unit
+conversion to become a valid slider value. Results from before this schema
+existed (still using title_font_size_ratio) are left blank for these
+columns and flagged, same as the image schema migration. Any pixel value
+outside its stated range is flagged separately as needs-review, since the
+app cannot actually render outside those bounds.
 """
 import argparse
 import json
@@ -192,10 +203,57 @@ def extract_image_fields(result):
     return fields, True
 
 
+# (field_prefix, min_px, max_px) — matches the real editor's font-size
+# slider ranges in lib/trainExport.ts's sizeGuidance, since the app cannot
+# render outside them.
+FONT_SIZE_RANGES = {
+    "title": (24, 160),
+    "subtitle": (16, 120),
+    "subtitle2": (16, 120),
+}
+
+
+def extract_font_size_fields(result):
+    """Pull the pixel-based title/subtitle/subtitle2 font size + line count
+    fields out of a result, validating each present size against its
+    stated slider range.
+
+    Returns (fields, out_of_range, is_old_schema):
+    - fields: {field_name: value} for whichever of title/subtitle/subtitle2
+      font_size_px + line_count keys are present in the result.
+    - out_of_range: list of (field_name, value, min, max) for any present
+      pixel value outside its stated range.
+    - is_old_schema: True if the result has no pixel-based fields at all but
+      does have the old title_font_size_ratio field, meaning it predates
+      this schema and should be flagged for reprocessing.
+    """
+    fields = {}
+    out_of_range = []
+    any_pixel_field = False
+
+    for prefix, (lo, hi) in FONT_SIZE_RANGES.items():
+        size_key = f"{prefix}_font_size_px"
+        count_key = f"{prefix}_line_count"
+        if size_key in result:
+            any_pixel_field = True
+            value = result.get(size_key)
+            fields[size_key] = value
+            if isinstance(value, (int, float)) and not (lo <= value <= hi):
+                out_of_range.append((size_key, value, lo, hi))
+        if count_key in result:
+            any_pixel_field = True
+            fields[count_key] = result.get(count_key)
+
+    is_old_schema = not any_pixel_field and "title_font_size_ratio" in result
+    return fields, out_of_range, is_old_schema
+
+
 def build_rows(jsonl_entries, results):
     rows = []
     skipped = []
     old_format_ids = []
+    old_font_schema_ids = []
+    out_of_range_flags = []
 
     for custom_id, request_obj in jsonl_entries.items():
         result = results.get(custom_id)
@@ -234,10 +292,13 @@ def build_rows(jsonl_entries, results):
             "has_subtitle2": bool(subtitle2),
         }
 
-        # --- from results.json: named fields explicitly ---
-        row["title_font_size_ratio"] = result.get("title_font_size_ratio")
-        if "subtitle_font_size_ratio" in result:
-            row["subtitle_font_size_ratio"] = result.get("subtitle_font_size_ratio")
+        # --- from results.json: pixel-based font size fields ---
+        font_fields, out_of_range, is_old_schema = extract_font_size_fields(result)
+        row.update(font_fields)
+        if is_old_schema:
+            old_font_schema_ids.append(custom_id)
+        for field_name, value, lo, hi in out_of_range:
+            out_of_range_flags.append((custom_id, field_name, value, lo, hi))
         if "had_trailing_text" in result:
             row["had_trailing_text"] = result.get("had_trailing_text")
 
@@ -249,7 +310,7 @@ def build_rows(jsonl_entries, results):
 
         rows.append(row)
 
-    return rows, skipped, old_format_ids
+    return rows, skipped, old_format_ids, old_font_schema_ids, out_of_range_flags
 
 
 def print_exploration(df):
@@ -262,47 +323,50 @@ def print_exploration(df):
     print("point for what to look at, not a conclusion.")
     print()
 
-    # --- 1. title_font_size_ratio by screen_type ---
+    # --- 1. title_font_size_px by screen_type ---
     print("-" * 70)
-    print("title_font_size_ratio by screen_type")
+    print("title_font_size_px by screen_type")
     print("-" * 70)
-    if "title_font_size_ratio" in df.columns and df["title_font_size_ratio"].notna().any():
-        summary = df.groupby("screen_type")["title_font_size_ratio"].agg(["mean", "min", "max", "count"])
+    if "title_font_size_px" in df.columns and df["title_font_size_px"].notna().any():
+        summary = df.groupby("screen_type")["title_font_size_px"].agg(["mean", "min", "max", "count"])
         print(summary.to_string())
     else:
-        print("(no title_font_size_ratio values found)")
+        print("(no title_font_size_px values found)")
     print()
 
-    # --- 2. title_char_count vs title_font_size_ratio ---
+    # --- 2. title_char_count vs title_font_size_px ---
     print("-" * 70)
-    print("title_char_count vs title_font_size_ratio (sorted by char count)")
+    print("title_char_count vs title_font_size_px (sorted by char count)")
     print("-" * 70)
-    cols = [c for c in ["custom_id", "title_char_count", "title_font_size_ratio"] if c in df.columns]
+    cols = [c for c in ["custom_id", "title_char_count", "title_font_size_px"] if c in df.columns]
     print(df[cols].sort_values("title_char_count").to_string(index=False))
     print()
 
     # --- 3. Outlier flagging ---
     print("-" * 70)
-    print("Potential outliers: |title_font_size_ratio - median| > 1.5x IQR")
+    print("Potential outliers: |title_font_size_px - median| > 1.5x IQR")
     print("-" * 70)
-    series = df["title_font_size_ratio"].dropna()
-    if len(series) >= 4:
-        q1 = series.quantile(0.25)
-        q3 = series.quantile(0.75)
-        iqr = q3 - q1
-        median = series.median()
-        if iqr == 0:
-            print("(IQR is 0 — all values identical or too little spread to flag outliers)")
-        else:
-            threshold = 1.5 * iqr
-            outliers = df[(df["title_font_size_ratio"] - median).abs() > threshold]
-            if outliers.empty:
-                print("(none found)")
-            else:
-                print(outliers[["custom_id", "title_font_size_ratio"]].to_string(index=False))
-            print(f"(median={median:.4f}, IQR={iqr:.4f}, flagged if farther than {threshold:.4f} from the median)")
+    if "title_font_size_px" not in df.columns:
+        print("(no title_font_size_px values found)")
     else:
-        print(f"(only {len(series)} non-null value(s) — need at least 4 to compute a meaningful IQR)")
+        series = df["title_font_size_px"].dropna()
+        if len(series) >= 4:
+            q1 = series.quantile(0.25)
+            q3 = series.quantile(0.75)
+            iqr = q3 - q1
+            median = series.median()
+            if iqr == 0:
+                print("(IQR is 0 — all values identical or too little spread to flag outliers)")
+            else:
+                threshold = 1.5 * iqr
+                outliers = df[(df["title_font_size_px"] - median).abs() > threshold]
+                if outliers.empty:
+                    print("(none found)")
+                else:
+                    print(outliers[["custom_id", "title_font_size_px"]].to_string(index=False))
+                print(f"(median={median:.4f}, IQR={iqr:.4f}, flagged if farther than {threshold:.4f} from the median)")
+        else:
+            print(f"(only {len(series)} non-null value(s) — need at least 4 to compute a meaningful IQR)")
     print()
 
     # --- 4. Sparse screen_type / has_label combinations ---
@@ -333,7 +397,7 @@ def main():
     with open(args.results_path, "r", encoding="utf-8") as f:
         results = json.load(f)
 
-    rows, skipped, old_format_ids = build_rows(jsonl_entries, results)
+    rows, skipped, old_format_ids, old_font_schema_ids, out_of_range_flags = build_rows(jsonl_entries, results)
 
     if skipped:
         print(f"Warning: {len(skipped)} entr{'y' if len(skipped) == 1 else 'ies'} in {args.jsonl_path} had no "
@@ -347,6 +411,20 @@ def main():
               f"Reprocess under the current prompt schema if you need their image data:")
         for cid in old_format_ids:
             print(f"  - {cid}")
+
+    if old_font_schema_ids:
+        print(f"Note: {len(old_font_schema_ids)} entr{'y' if len(old_font_schema_ids) == 1 else 'ies'} used the "
+              f"older ratio-based font size format (title_font_size_ratio) instead of the current pixel-based "
+              f"schema — font size columns were left blank for these. Reprocess under the current prompt if "
+              f"you need their font size data:")
+        for cid in old_font_schema_ids:
+            print(f"  - {cid}")
+
+    if out_of_range_flags:
+        print(f"Note: {len(out_of_range_flags)} font size value(s) fell outside their stated slider range — "
+              f"flagged as needs-review, since the app can't render outside those bounds:")
+        for cid, field_name, value, lo, hi in out_of_range_flags:
+            print(f"  - {cid}: {field_name}={value} (expected {lo}-{hi})")
 
     if not rows:
         print("Error: no matched entries to build a dataset from.", file=sys.stderr)

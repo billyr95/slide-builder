@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TheinhardtWeight, TitleFont, PresentersFont } from '@/lib/types'
+import { TheinhardtWeight, TitleFont, PresentersFont, Orientation } from '@/lib/types'
 import { TrainEntry, TrainImage, ScreenType, createBlankEntry } from '@/lib/trainTypes'
 import ColorPalette from '@/components/ColorPalette'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
@@ -83,10 +83,11 @@ async function readImageFile(file: File): Promise<{ url: string; mediaType: stri
 
 export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }: TrainFormProps) {
   const [screenType, setScreenType] = useState<ScreenType>('projector')
+  const [orientation, setOrientation] = useState<Orientation>('landscape')
   const [hasLabel, setHasLabel] = useState(false)
   const [hasLogos, setHasLogos] = useState(false)
   const [hasQrCode, setHasQrCode] = useState(false)
-  const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', hasLabel: false, hasLogos: false, hasQrCode: false }))
+  const [entry, setEntry] = useState<TrainEntry>(() => createBlankEntry({ screenType: 'projector', orientation: 'landscape', hasLabel: false, hasLogos: false, hasQrCode: false }))
   const [error, setError] = useState<string | null>(null)
   // Once the user directly edits "Images on screen", stop auto-syncing it to
   // the filled-slot count — their number wins until the form resets.
@@ -97,6 +98,7 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
   useEffect(() => {
     if (!editingEntry) return
     setScreenType(editingEntry.screenType)
+    setOrientation(editingEntry.orientation)
     setHasLabel(editingEntry.hasLabel)
     setHasLogos(editingEntry.hasLogos)
     setHasQrCode(editingEntry.hasQrCode)
@@ -156,19 +158,19 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
     if (editingEntry) {
       // Keep the original id/createdAt (and custom_id, which is derived from
       // id at export time) — this updates the entry in place, not a new one.
-      onSave({ ...entry, screenType, hasLabel, hasLogos, hasQrCode, id: editingEntry.id, createdAt: editingEntry.createdAt })
+      onSave({ ...entry, screenType, orientation, hasLabel, hasLogos, hasQrCode, id: editingEntry.id, createdAt: editingEntry.createdAt })
     } else {
-      onAdd({ ...entry, screenType, hasLabel, hasLogos, hasQrCode, id: entry.id, createdAt: new Date().toISOString() })
+      onAdd({ ...entry, screenType, orientation, hasLabel, hasLogos, hasQrCode, id: entry.id, createdAt: new Date().toISOString() })
     }
     // Reset content fields for the next entry, but keep screen type / has-label
     // sticky — batches of old slides are usually entered a screen-type at a time.
-    setEntry(createBlankEntry({ screenType, hasLabel, hasLogos, hasQrCode }))
+    setEntry(createBlankEntry({ screenType, orientation, hasLabel, hasLogos, hasQrCode }))
     setImageCountTouched(false)
   }
 
   function handleCancelEdit() {
     onCancelEdit()
-    setEntry(createBlankEntry({ screenType, hasLabel, hasLogos, hasQrCode }))
+    setEntry(createBlankEntry({ screenType, orientation, hasLabel, hasLogos, hasQrCode }))
     setImageCountTouched(false)
     setError(null)
   }
@@ -191,6 +193,23 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
                 }`}
               >
                 {t === 'projector' ? 'Projector' : 'Lobby'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <label className={labelCls}>Orientation</label>
+          <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+            {(['landscape', 'portrait'] as Orientation[]).map(o => (
+              <button
+                key={o}
+                onClick={() => setOrientation(o)}
+                className={`flex-1 text-xs px-4 py-1.5 rounded-md transition-colors font-medium ${
+                  orientation === o ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {o === 'landscape' ? '16:9 Landscape' : '9:16 Portrait'}
               </button>
             ))}
           </div>

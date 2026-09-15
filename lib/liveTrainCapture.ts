@@ -40,6 +40,7 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
     source: 'live',
 
     screenType,
+    orientation,
     hasLabel: !!data.label.trim(),
     hasLogos: (data.logos || []).length > 0,
 
@@ -64,7 +65,6 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
     imageCount: images.length, // live captures always know the exact real count
 
     liveStyle: {
-      orientation,
       accentColor: data.accentColor,
       labelWeight: data.labelWeight,
 
