@@ -50,6 +50,7 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
     subtitleWeight: data.subtitleWeight,
     subtitle2: data.subtitle2,
     presenters: data.presenters,
+    presentersFont: data.presentersFont,
 
     seriesName: data.showSeriesName ? data.seriesName : '',
     hasQrCode: false, // the main editor has no QR code feature
@@ -76,7 +77,6 @@ export function buildLiveTrainEntry(data: SlideData, orientation: Orientation, s
       subtitle2Size: data.subtitle2Size,
       subtitle2SizeRatio: data.subtitle2Size / h,
 
-      presentersFont: data.presentersFont,
       presentersWeight: data.presentersWeight,
       presentersSize: data.presentersSize,
       presentersSizeRatio: data.presentersSize / h,

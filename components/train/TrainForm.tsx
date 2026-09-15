@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { TheinhardtWeight, TitleFont } from '@/lib/types'
+import { TheinhardtWeight, TitleFont, PresentersFont } from '@/lib/types'
 import { TrainEntry, TrainImage, ScreenType, createBlankEntry } from '@/lib/trainTypes'
 import ColorPalette from '@/components/ColorPalette'
 
@@ -37,10 +37,10 @@ function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: 
   )
 }
 
-function TitleFontPicker({ value, onChange }: { value: TitleFont; onChange: (f: TitleFont) => void }) {
+function FontPicker<T extends string>({ value, options, onChange }: { value: T; options: readonly T[]; onChange: (f: T) => void }) {
   return (
     <div className="flex gap-1.5">
-      {(['92NY', 'Theinhardt Heavy'] as const).map(font => (
+      {options.map(font => (
         <button
           key={font}
           onClick={() => onChange(font)}
@@ -56,6 +56,9 @@ function TitleFontPicker({ value, onChange }: { value: TitleFont; onChange: (f: 
     </div>
   )
 }
+
+const TITLE_FONTS: readonly TitleFont[] = ['92NY', 'Theinhardt Heavy']
+const PRESENTERS_FONTS: readonly PresentersFont[] = ['Theinhardt', '92NY']
 
 async function readImageFile(file: File): Promise<{ url: string; mediaType: string; name: string }> {
   const url = await new Promise<string>((resolve, reject) => {
@@ -205,7 +208,7 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
         <div className="mb-3">
           <label className={labelCls}>Title</label>
           <textarea className={inputCls + ' resize-none'} rows={3} value={entry.title} onChange={e => set('title', e.target.value)} placeholder="Event title" />
-          <div className="mt-1.5"><TitleFontPicker value={entry.titleFont} onChange={v => set('titleFont', v)} /></div>
+          <div className="mt-1.5"><FontPicker value={entry.titleFont} options={TITLE_FONTS} onChange={v => set('titleFont', v)} /></div>
           <div className="mt-2 flex items-center gap-2">
             <input type="checkbox" id="titleItalic" checked={entry.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
             <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
@@ -227,6 +230,7 @@ export default function TrainForm({ onAdd }: TrainFormProps) {
           <label className={labelCls}>Presenters (one per line)</label>
           <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={entry.presenters}
             onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+          <div className="mt-1.5"><FontPicker value={entry.presentersFont} options={PRESENTERS_FONTS} onChange={v => set('presentersFont', v)} /></div>
         </div>
       </div>
 

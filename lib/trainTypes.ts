@@ -1,4 +1,4 @@
-import { TheinhardtWeight, TitleFont } from './types'
+import { TheinhardtWeight, TitleFont, PresentersFont } from './types'
 
 export type ScreenType = 'projector' | 'lobby'
 // 'upload' = hand-entered via /train from an old/scanned slide (style values
@@ -30,6 +30,7 @@ export interface TrainEntry {
   subtitleWeight: TheinhardtWeight
   subtitle2: string
   presenters: string
+  presentersFont: PresentersFont  // hardlocked to the same options the main editor offers
 
   seriesName: string       // '' = unused
   hasQrCode: boolean
@@ -65,6 +66,7 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     subtitleWeight: 'regular',
     subtitle2: '',
     presenters: '',
+    presentersFont: 'Theinhardt',
     seriesName: '',
     listeningCredit: '',
     backgroundColor: '',

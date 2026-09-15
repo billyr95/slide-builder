@@ -20,7 +20,10 @@ function commonKnownLines(entry: TrainEntry): string[] {
     known.push(`Subtitle weight: ${entry.subtitleWeight}`)
   }
   if (entry.subtitle2) known.push(`Subtitle 2: "${entry.subtitle2}"`)
-  if (entry.presenters) known.push(`Presenters (one per line):\n${entry.presenters}`)
+  if (entry.presenters) {
+    known.push(`Presenters (one per line):\n${entry.presenters}`)
+    known.push(`Presenters font: ${entry.presentersFont}`)
+  }
   if (entry.seriesName) known.push(`Series name: "${entry.seriesName}"`)
   if (entry.listeningCredit) known.push(`Listening credit: "${entry.listeningCredit}"`)
   return known
