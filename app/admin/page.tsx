@@ -3,26 +3,17 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
+import SlideCard from '@/components/SlideCard'
+import { Orientation } from '@/lib/types'
 
 interface SlideSummary {
   id: string
   title: string
+  orientation: Orientation
   createdAt: string
   updatedAt: string
   userId: string
   ownerEmail: string
-}
-
-function timeAgo(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime()
-  const mins = Math.round(diffMs / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  if (days < 30) return `${days}d ago`
-  return new Date(iso).toLocaleDateString()
 }
 
 export default function AdminPage() {
@@ -103,18 +94,8 @@ export default function AdminPage() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {filtered.map(slide => (
-              <Link
-                key={slide.id}
-                href={`/editor/${slide.id}`}
-                className="block bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-600 transition-colors"
-              >
-                <div className="aspect-video bg-zinc-800 rounded-lg mb-3 flex items-center justify-center">
-                  <span className="text-zinc-600 text-xs">No preview</span>
-                </div>
-                <p className="text-sm font-medium truncate">{slide.title}</p>
-                <p className="text-xs text-zinc-500 mt-1 truncate">{slide.ownerEmail}</p>
-                <p className="text-xs text-zinc-600 mt-0.5">Updated {timeAgo(slide.updatedAt)}</p>
-              </Link>
+              <SlideCard key={slide.id} id={slide.id} title={slide.title} orientation={slide.orientation}
+                updatedAt={slide.updatedAt} subtitle={slide.ownerEmail} />
             ))}
           </div>
         )}

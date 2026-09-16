@@ -36,6 +36,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const body = await req.json()
   const patch: Partial<typeof slides.$inferInsert> = { updatedAt: new Date() }
   if (typeof body.title === 'string') patch.title = body.title.trim() || 'Untitled Slide'
+  if (body.orientation === 'landscape' || body.orientation === 'portrait') patch.orientation = body.orientation
   if (body.data !== undefined) patch.data = body.data
 
   const [updated] = await db.update(slides).set(patch).where(eq(slides.id, params.id)).returning()

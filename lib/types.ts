@@ -21,6 +21,7 @@ export interface StaggerImage {
   id: string
   url: string
   alt: string
+  x?: number     // horizontal offset (px); undefined/0 = algorithmic default
   y: number      // vertical offset (px)
   scale: number  // width override (px); 0 means use staggerSize
 }
@@ -53,6 +54,9 @@ export interface SlideData {
   presentersItalic: boolean
   presentersWeight: TheinhardtWeight
   presentersSize: number
+  // When true, presentersSize is kept equal to titleSize instead of being
+  // independently adjustable -- toggled from a checkbox near Title.
+  presentersMatchTitleSize: boolean
   // Book/film/show title distinct from presenter names (e.g. "American
   // Caprices" following a list of performers) -- rendered directly after
   // presenters, styled fully independently.
@@ -61,6 +65,7 @@ export interface SlideData {
   programTitleWeight: TheinhardtWeight
   programTitleItalic: boolean
   programTitleSize: number
+  programTitleMatchTitleSize: boolean
 
   // Style
   backgroundColor: string

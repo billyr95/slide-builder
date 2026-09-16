@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, timestamp, jsonb, boolean, integer, doublePrecision, pgEnum, index } from 'drizzle-orm/pg-core'
 
 export const roleEnum = pgEnum('role', ['admin', 'member'])
+export const orientationEnum = pgEnum('orientation', ['landscape', 'portrait'])
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -14,6 +15,11 @@ export const slides = pgTable('slides', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   title: text('title').notNull().default('Untitled Slide'),
+  // Which canvas shape this slide was last being edited/previewed in --
+  // a single slide's content can be exported as either, this is just a
+  // remembered preference so reopening a portrait slide doesn't silently
+  // default back to the landscape preview.
+  orientation: orientationEnum('orientation').notNull().default('landscape'),
   // Full editor state (SlideData) -- text fields, image data URLs, every
   // font/size/position setting. One JSONB blob rather than a flattened
   // column-per-field schema, since SlideData's shape evolves often (new

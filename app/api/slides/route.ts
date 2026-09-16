@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
       .select({
         id: slides.id,
         title: slides.title,
+        orientation: slides.orientation,
         createdAt: slides.createdAt,
         updatedAt: slides.updatedAt,
         userId: slides.userId,
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
     .select({
       id: slides.id,
       title: slides.title,
+      orientation: slides.orientation,
       createdAt: slides.createdAt,
       updatedAt: slides.updatedAt,
     })
@@ -52,6 +54,7 @@ export async function POST(req: NextRequest) {
   const [created] = await db.insert(slides).values({
     userId: session.user.id,
     title: (body.title || 'Untitled Slide').trim() || 'Untitled Slide',
+    orientation: body.orientation === 'portrait' ? 'portrait' : 'landscape',
     data: body.data,
   }).returning()
 

@@ -61,15 +61,19 @@ function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: 
   )
 }
 
-function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge }: {
+function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge, disabled }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
   // Displayed after the value (e.g. "px" for a real pixel size, "%" for a
   // percentage-based control like single-image mode's size) — defaults to
   // "px" since that's what most callers are.
   unit?: string
-  // Small, unobtrusive indicator of whether `value` came from the heuristic
-  // or a manual override — omit to render no badge at all.
-  badge?: 'auto' | 'manual'
+  // Small, unobtrusive indicator of whether `value` came from the heuristic,
+  // a manual override, or a "match another field's size" link — omit to
+  // render no badge at all.
+  badge?: 'auto' | 'manual' | 'linked'
+  // Greys out the slider when its value is being driven by something else
+  // (e.g. linked to Title's size) rather than adjustable directly here.
+  disabled?: boolean
 }) {
   return (
     <div className="mt-1.5">
@@ -78,9 +82,9 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
           {label}
           {badge && (
             <span
-              title={badge === 'auto' ? 'Auto-suggested from training data' : 'Manually set'}
+              title={badge === 'auto' ? 'Auto-suggested from training data' : badge === 'linked' ? 'Matches Title\'s font size' : 'Manually set'}
               className={`text-[9px] uppercase tracking-wide px-1 py-px rounded ${
-                badge === 'auto' ? 'text-zinc-500 bg-zinc-800' : 'text-zinc-300 bg-zinc-700'
+                badge === 'auto' ? 'text-zinc-500 bg-zinc-800' : badge === 'linked' ? 'text-blue-300 bg-blue-950' : 'text-zinc-300 bg-zinc-700'
               }`}
             >
               {badge}
@@ -90,8 +94,9 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
         <span className="text-xs font-mono text-zinc-400">{value}{unit}</span>
       </div>
       <input type="range" min={min} max={max} step={1} value={value}
+        disabled={disabled}
         onChange={e => onChange(Number(e.target.value))}
-        className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-white" />
+        className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-white disabled:opacity-40 disabled:cursor-not-allowed" />
     </div>
   )
 }
@@ -229,11 +234,21 @@ export default function EditorPanel({
   // same onChange call — two sequential `set()` calls here would each
   // spread the same stale `data` closure and the second call would clobber
   // the first's field.
+  // Applies a new title size to the given patch, and propagates it to
+  // presenters/programTitle too if their "match Title's size" checkbox is
+  // on -- called from both the auto-fill path and the manual slider so
+  // linked fields never lag behind by an edit.
+  function applyTitleSize(patch: Partial<SlideData>, newTitleSize: number) {
+    patch.titleSize = newTitleSize
+    if (data.presentersMatchTitleSize) patch.presentersSize = newTitleSize
+    if (data.programTitleMatchTitleSize) patch.programTitleSize = newTitleSize
+  }
+
   function handleTitleChange(value: string) {
     const patch: Partial<SlideData> = { title: value }
     if (!titleSizeOverridden) {
       const lineCount = Math.max(1, value.split('\n').length)
-      patch.titleSize = suggestTitleFontSize(value.length, lineCount, screenType, !!data.subtitle)
+      applyTitleSize(patch, suggestTitleFontSize(value.length, lineCount, screenType, !!data.subtitle))
     }
     onChange({ ...data, ...patch })
   }
@@ -253,10 +268,27 @@ export default function EditorPanel({
       id: existing?.id ?? Math.random().toString(36).slice(2),
       url: existing?.url ?? '',
       alt: existing?.alt ?? `Image ${index + 1}`,
+      x: existing?.x ?? 0,
       y: existing?.y ?? 0,
       scale: existing?.scale ?? 0,
       ...patch,
     }
+    set('staggerImages', images)
+  }
+
+  // Swaps a slot with its neighbor -- since each slot's position AND
+  // stacking depth are both driven by its index (see staggerSlotLabel's own
+  // back/front framing and computeStaggerLayout's index-based offsets),
+  // moving an image to a different slot is exactly "change what it stacks
+  // in front of/behind."
+  function moveStaggerImage(index: number, direction: -1 | 1) {
+    const images = [...(data.staggerImages || [])]
+    const target = index + direction
+    if (target < 0 || target >= images.length) return
+    const a = images[index]
+    const b = images[target]
+    images[index] = b
+    images[target] = a
     set('staggerImages', images)
   }
 
@@ -350,8 +382,35 @@ export default function EditorPanel({
               <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
             <FontSizeSlider label="Font size" value={data.titleSize}
-              onChange={v => { setTitleSizeOverridden(true); set('titleSize', v) }}
+              onChange={v => {
+                setTitleSizeOverridden(true)
+                const patch: Partial<SlideData> = {}
+                applyTitleSize(patch, v)
+                onChange({ ...data, ...patch })
+              }}
               min={24} max={250} badge={titleSizeOverridden ? 'manual' : 'auto'} />
+            <div className="mt-1.5 flex flex-col gap-1">
+              <label className="flex items-center gap-2 text-xs text-zinc-400">
+                <input type="checkbox" checked={data.presentersMatchTitleSize} className="rounded"
+                  onChange={e => {
+                    const checked = e.target.checked
+                    const patch: Partial<SlideData> = { presentersMatchTitleSize: checked }
+                    if (checked) patch.presentersSize = data.titleSize
+                    onChange({ ...data, ...patch })
+                  }} />
+                Match Presenters font size to Title
+              </label>
+              <label className="flex items-center gap-2 text-xs text-zinc-400">
+                <input type="checkbox" checked={data.programTitleMatchTitleSize} className="rounded"
+                  onChange={e => {
+                    const checked = e.target.checked
+                    const patch: Partial<SlideData> = { programTitleMatchTitleSize: checked }
+                    if (checked) patch.programTitleSize = data.titleSize
+                    onChange({ ...data, ...patch })
+                  }} />
+                Match Program / Work Title font size to Title
+              </label>
+            </div>
           </div>
 
           <div className="mb-3">
@@ -398,7 +457,9 @@ export default function EditorPanel({
               <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
             <div className="mt-1.5"><WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)} /></div>
-            <FontSizeSlider label="Font size" value={data.presentersSize} onChange={v => set('presentersSize', v)} min={24} max={250} />
+            <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
+              onChange={v => set('presentersSize', v)} min={24} max={250}
+              disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
           </div>
 
           <div className="mb-0">
@@ -422,7 +483,9 @@ export default function EditorPanel({
               <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
             <div className="mt-1.5"><WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)} /></div>
-            <FontSizeSlider label="Font size" value={data.programTitleSize} onChange={v => set('programTitleSize', v)} min={24} max={250} />
+            <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
+              onChange={v => set('programTitleSize', v)} min={24} max={250}
+              disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
           </div>
         </div>
 
@@ -499,9 +562,33 @@ export default function EditorPanel({
               {Array.from({ length: staggerCount(data.imageMode) }).map((_, i) => {
                 const img = data.staggerImages?.[i]
                 const position = staggerSlotLabel(data.imageMode, i)
+                const prevImg = data.staggerImages?.[i - 1]
+                const nextImg = data.staggerImages?.[i + 1]
                 return (
                   <div key={i} className={i > 0 ? 'mt-4' : ''}>
-                    <p className="text-xs text-zinc-500 mb-1.5">Image {i + 1} {position}</p>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs text-zinc-500">Image {i + 1} {position}</p>
+                      {img?.url && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => moveStaggerImage(i, -1)}
+                            disabled={i === 0 || !prevImg?.url}
+                            title="Move back in the stack"
+                            className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                          >
+                            ◀
+                          </button>
+                          <button
+                            onClick={() => moveStaggerImage(i, 1)}
+                            disabled={!nextImg?.url}
+                            title="Move forward in the stack"
+                            className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                          >
+                            ▶
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <div className="flex gap-2">
                       <label className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white text-sm py-2 px-3 rounded-lg transition-colors text-center cursor-pointer">
                         {img?.url ? 'Replace' : 'Upload'}
@@ -527,6 +614,9 @@ export default function EditorPanel({
                       <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
                         onChange={v => updateStaggerImage(i, { scale: v })}
                         min={80} max={800} />
+                    </div>
+                    <div className="mt-2">
+                      <FontSizeSlider label={`Image ${i + 1} X`} value={img?.x ?? 0} onChange={v => updateStaggerImage(i, { x: v })} min={-600} max={600} />
                     </div>
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} />

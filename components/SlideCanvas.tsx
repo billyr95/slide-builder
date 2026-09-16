@@ -121,18 +121,19 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       const rowH = heights[0] ?? baseSize * 1.35 * scale
       const rowDrop = rowH * (1 - overlapPct)
 
-      let lefts: number[]
+      let baseLefts: number[]
       let baseTops: number[]
       if (mode === 'three-triangle') {
-        lefts = [0, offsetX, offsetX / 2]
+        baseLefts = [0, offsetX, offsetX / 2]
         baseTops = [0, shiftStep, rowDrop + shiftStep]
       } else if (mode === 'four-squared') {
-        lefts = [0, offsetX, shiftStep, offsetX + shiftStep]
+        baseLefts = [0, offsetX, shiftStep, offsetX + shiftStep]
         baseTops = [0, shiftStep, rowDrop, rowDrop + shiftStep]
       } else {
-        lefts = widths.map((_, i) => i * offsetX)
+        baseLefts = widths.map((_, i) => i * offsetX)
         baseTops = widths.map((_, i) => i * shiftStep)
       }
+      const lefts = baseLefts.map((l, i) => l + (images[i]?.x ?? 0) * scale)
       const tops = baseTops.map((t, i) => t + (images[i]?.y ?? 0) * scale)
 
       const groupW = Math.max(...lefts.map((l, i) => l + widths[i]))

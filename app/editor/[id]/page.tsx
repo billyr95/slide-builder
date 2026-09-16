@@ -51,10 +51,13 @@ export default function EditorPage() {
   // keystroke (which would otherwise reset the 60s countdown constantly).
   const savedTitleRef = useRef('')
   const savedDataRef = useRef<SlideData>(DEFAULT_SLIDE_DATA)
+  const savedOrientationRef = useRef<Orientation>('landscape')
   const dataRef = useRef(data)
   const titleRef = useRef(title)
+  const orientationRef = useRef(orientation)
   dataRef.current = data
   titleRef.current = title
+  orientationRef.current = orientation
 
   function showToast(msg: string) {
     setToast(msg)
@@ -62,7 +65,9 @@ export default function EditorPage() {
   }
 
   function isDirty() {
-    return titleRef.current !== savedTitleRef.current || JSON.stringify(dataRef.current) !== JSON.stringify(savedDataRef.current)
+    return titleRef.current !== savedTitleRef.current
+      || orientationRef.current !== savedOrientationRef.current
+      || JSON.stringify(dataRef.current) !== JSON.stringify(savedDataRef.current)
   }
 
   const saveNow = useCallback(async (force = false) => {
@@ -72,12 +77,13 @@ export default function EditorPage() {
       const res = await fetch(`/api/slides/${slideId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: titleRef.current, data: dataRef.current }),
+        body: JSON.stringify({ title: titleRef.current, orientation: orientationRef.current, data: dataRef.current }),
       })
       if (!res.ok) throw new Error(`Save failed (${res.status})`)
       const updated = await res.json()
       savedTitleRef.current = titleRef.current
       savedDataRef.current = dataRef.current
+      savedOrientationRef.current = orientationRef.current
       setLastSavedAt(new Date(updated.updatedAt))
       setStatus('saved')
     } catch (e) {
@@ -100,8 +106,10 @@ export default function EditorPage() {
         const slide = await res.json()
         resetData(slide.data)
         setTitle(slide.title)
+        setOrientation(slide.orientation)
         savedTitleRef.current = slide.title
         savedDataRef.current = slide.data
+        savedOrientationRef.current = slide.orientation
         setLastSavedAt(new Date(slide.updatedAt))
         setSlideRevision(r => r + 1)
         setStatus('saved')
@@ -266,6 +274,13 @@ export default function EditorPage() {
             className="flex-1 bg-zinc-900 border border-zinc-700 hover:border-zinc-500 focus:border-zinc-400 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors text-center"
             placeholder="Untitled Slide"
           />
+          <button
+            onClick={() => saveNow(true)}
+            disabled={status === 'saving'}
+            className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white"
+          >
+            Save
+          </button>
           <span className="text-xs text-zinc-500 w-28 flex-shrink-0">{saveStatusText}</span>
         </div>
 
