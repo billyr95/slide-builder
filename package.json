@@ -19,7 +19,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.24",
-    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",
     "next": "^14.2.35",
     "next-auth": "^4.24.15",
@@ -36,7 +36,6 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
-    "@types/bcrypt": "^6.0.0",
     "@vitejs/plugin-react": "^6.1.1",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",

@@ -9,7 +9,7 @@
  * db:studio`. TODO: build an admin "add user" UI if the account count ever
  * makes one-off script runs annoying.
  */
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { loadEnvLocal } from '../lib/loadEnvLocal'
 
 loadEnvLocal()
