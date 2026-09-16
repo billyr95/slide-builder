@@ -10,7 +10,7 @@ interface SlideCanvasProps {
 type TheinhardtWeight = 'regular' | 'bold' | 'heavy'
 
 const THEINHARDT = "'Theinhardt', sans-serif"
-const NY92 = "'92NY', sans-serif"
+const NY92 = "'92NY Text', sans-serif"
 
 function theinhardtWeight(w: TheinhardtWeight): number {
   if (w === 'heavy') return 900
@@ -25,7 +25,42 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
   ({ data, orientation, scale = 1 }, ref) => {
     const dim = orientation === 'landscape' ? LANDSCAPE : PORTRAIT
 
-    const titleFont = data.titleFont ?? '92NY'
+    // Text alignment is a single slide-level toggle applied uniformly --
+    // text-align is CSS-inherited, so setting it once on each layout's text
+    // container covers every text block inside (label/title/subtitle/
+    // subtitle2/presenters/programTitle) without touching each one. The
+    // historical default differs by layout (portrait and no-image slides
+    // were always centered; landscape-with-image was always left-aligned
+    // implicitly) so slides saved before this field existed keep their
+    // exact prior appearance rather than jumping to a new default.
+    const historicalAlign = data.imageMode !== 'none' && orientation === 'landscape' ? 'left' : 'center'
+    const textAlign = data.textAlign ?? historicalAlign
+    const textAlignItems = textAlign === 'center' ? 'center' : 'flex-start'
+    const imageOnRight = data.imageSide === 'right'
+
+    // Every text block in a layout's column sits in a flex column with a
+    // fixed `gap` (below), so spacing between blocks is already independent
+    // of how many lines any one block wraps to -- gap is measured between
+    // box edges, not proportional to content height. The one exception the
+    // spec calls out is the Title -> next-block transition, which should
+    // read tighter than the rest. A fixed negative marginTop on whichever
+    // block actually follows Title (subtitle, subtitle2, presenters, or
+    // programTitle, in render order -- exactly one of these renders
+    // immediately after Title for any given slide) shaves a constant amount
+    // off that one gap without touching the others, and stays exact
+    // regardless of Title's wrap count since margin doesn't scale with it.
+    const TITLE_GAP_TIGHTEN = 8
+    const elementAfterTitle: 'subtitle' | 'subtitle2' | 'presenters' | 'programTitle' | null =
+      (data.subtitle && !data.subtitleInline) ? 'subtitle'
+      : data.subtitle2 ? 'subtitle2'
+      : data.presenters ? 'presenters'
+      : data.programTitle ? 'programTitle'
+      : null
+    function titleGapAdjust(key: NonNullable<typeof elementAfterTitle>) {
+      return elementAfterTitle === key ? { marginTop: `${-TITLE_GAP_TIGHTEN * scale}px` } : undefined
+    }
+
+    const titleFont = data.titleFont ?? '92NY Text'
     const titleWeight = titleFont === 'Theinhardt Heavy' ? 900 : 700
     const titleStyle = titleFont === 'Theinhardt Heavy'
       ? {
@@ -60,10 +95,10 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     // Shared by presenters and programTitle -- both are "body text that can
-    // switch to 92NY" fields with their own independent font/weight/italic.
-    function fontSwitchableStyle(font: 'Theinhardt' | '92NY', italic: boolean, weight: TheinhardtWeight, sizePx: number) {
+    // switch to 92NY Text" fields with their own independent font/weight/italic.
+    function fontSwitchableStyle(font: 'Theinhardt' | '92NY Text', italic: boolean, weight: TheinhardtWeight, sizePx: number) {
       const fontStyle = italic ? 'italic' : 'normal'
-      if (font === '92NY') {
+      if (font === '92NY Text') {
         return {
           fontFamily: NY92,
           fontWeight: theinhardtWeight(weight),
@@ -167,14 +202,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             overflow: 'hidden',
             position: 'relative',
             flexShrink: 0,
-            textAlign: 'center',
+            textAlign,
             padding: `${80 * scale}px`,
           }}
         >
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
+            alignItems: textAlignItems,
             gap: `${16 * scale}px`,
             maxWidth: maxTextW * scale,
           }}>
@@ -189,19 +224,19 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize) }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize), ...titleGapAdjust('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size) }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size), ...titleGapAdjust('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize) }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -221,7 +256,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize) }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -255,7 +290,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   fontSize: `${38 * scale}px`,
                   lineHeight: 1,
                   fontFamily: THEINHARDT,
-                  fontWeight: 700,
+                  fontWeight: theinhardtWeight('heavy'),
                   color: data.textColor,
                   letterSpacing: '0.05em',
                   textTransform: 'uppercase',
@@ -286,6 +321,15 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       const titleSize = data.titleSize
       const presenterSize = data.presentersSize
       const bottomPad = hasFooter ? (footerH + 60) : 80
+      // The text column's own padding and its footer's offsets are
+      // deliberately asymmetric (a tight gap on the image-adjacent side, a
+      // full margin on the outer slide edge) -- when flipped, that
+      // asymmetry has to flip sides too, or the tight gap ends up on the
+      // slide's outer edge and the full margin ends up hugging the image.
+      const textPadLeft = imageOnRight ? 80 : 20
+      const textPadRight = imageOnRight ? 20 : 80
+      const footerLeft = imageOnRight ? 100 : 20
+      const footerRight = imageOnRight ? 20 : 100
 
       return (
         <div
@@ -297,7 +341,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             backgroundColor: data.backgroundColor,
             color: data.textColor,
             display: 'flex',
-            flexDirection: 'row',
+            flexDirection: imageOnRight ? 'row-reverse' : 'row',
             alignItems: 'center',
             overflow: 'hidden',
             position: 'relative',
@@ -354,15 +398,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )
           })()}
 
-          {/* Right: Text — flex:1 so it takes remaining space */}
+          {/* Text — flex:1 so it takes remaining space. No alignItems override
+              here: children default to 'stretch' (full column width), which
+              text-align then wraps/aligns within -- switching alignItems to
+              flex-start/center would shrink each block to its own content
+              width instead and break wrapping against the column's edge. */}
           <div style={{
             flex: 1,
             minWidth: 0,
             height: '100%',
-            padding: `${80 * scale}px ${80 * scale}px ${bottomPad * scale}px ${20 * scale}px`,
+            padding: `${80 * scale}px ${textPadRight * scale}px ${bottomPad * scale}px ${textPadLeft * scale}px`,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
+            textAlign,
             gap: `${16 * scale}px`,
             position: 'relative',
           }}>
@@ -378,19 +427,19 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize) }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize), ...titleGapAdjust('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size) }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size), ...titleGapAdjust('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize) }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -410,7 +459,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize) }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -430,8 +479,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               <div style={{
                 position: 'absolute',
                 bottom: `${48 * scale}px`,
-                left: `${20 * scale}px`,
-                right: `${100 * scale}px`,
+                left: `${footerLeft * scale}px`,
+                right: `${footerRight * scale}px`,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: `${6 * scale}px`,
@@ -441,7 +490,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                     fontSize: `${38 * scale}px`,
                     lineHeight: 1,
                     fontFamily: THEINHARDT,
-                    fontWeight: 700,
+                    fontWeight: theinhardtWeight('heavy'),
                     color: data.textColor,
                     letterSpacing: '0.05em',
                     textTransform: 'uppercase',
@@ -473,38 +522,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const titleSize = data.titleSize
     const presenterSize = data.presentersSize
 
-    return (
-      <div
-        ref={ref}
-        id="slide-canvas"
-        style={{
-          width: dim.w * scale,
-          height: dim.h * scale,
-          backgroundColor: data.backgroundColor,
-          color: data.textColor,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          position: 'relative',
-          flexShrink: 0,
-        }}
-      >
-        {/* Top label */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          paddingTop: `${80 * scale}px`,
-          paddingBottom: `${40 * scale}px`,
-        }}>
-          {data.label && (
-            <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
-              {data.label}
-            </div>
-          )}
-        </div>
-
-        {/* Image */}
+    // Two swappable sections -- label now lives inside the text section
+    // (rather than a separate top-of-slide block) so "flip" has an actual
+    // single text block to trade places with the image, matching how
+    // landscape already treats label as part of the same text column.
+    const portraitImageSection = (
+      <React.Fragment key="image">
         {staggerCount(data.imageMode) > 0 ? (
           (() => {
             const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data.imageMode)
@@ -541,68 +564,105 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             }
           </div>
         )}
+      </React.Fragment>
+    )
 
-        {/* Text block */}
-        <div style={{
+    const portraitTextSection = (
+      <div key="text" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: textAlignItems,
+        padding: `${60 * scale}px ${80 * scale}px`,
+        gap: `${16 * scale}px`,
+        textAlign,
+      }}>
+        {data.label && (
+          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+            {data.label}
+          </div>
+        )}
+
+        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+          {data.title}
+        </div>
+
+        {data.subtitle && !data.subtitleInline && (
+          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize), ...titleGapAdjust('subtitle') }}>
+            {data.subtitle}
+          </div>
+        )}
+
+        {data.subtitle2 && (
+          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size), ...titleGapAdjust('subtitle2') }}>
+            {data.subtitle2}
+          </div>
+        )}
+
+        {data.presenters && (
+          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
+            {data.subtitleInline && data.subtitle
+              ? (() => {
+                  const lines = data.presenters.split('\n')
+                  return (
+                    <>
+                      <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
+                        {data.subtitle}{' '}
+                      </span>
+                      <span>{lines[0]}</span>
+                      {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
+                    </>
+                  )
+                })()
+              : data.presenters
+            }
+          </div>
+        )}
+
+        {data.programTitle && (
+          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
+            {data.programTitle}
+          </div>
+        )}
+
+        {/* Logo bar */}
+        {data.logos && data.logos.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px` }}>
+            {data.logos.map(logo => (
+              <img key={logo.id} src={logo.url} alt={logo.alt}
+                style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+
+    return (
+      <div
+        ref={ref}
+        id="slide-canvas"
+        style={{
+          width: dim.w * scale,
+          height: dim.h * scale,
+          backgroundColor: data.backgroundColor,
+          color: data.textColor,
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          padding: `${60 * scale}px ${80 * scale}px`,
-          gap: `${16 * scale}px`,
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
-            {data.title}
-          </div>
-
-          {data.subtitle && !data.subtitleInline && (
-            <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize) }}>
-              {data.subtitle}
-            </div>
-          )}
-
-          {data.subtitle2 && (
-            <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size) }}>
-              {data.subtitle2}
-            </div>
-          )}
-
-          {data.presenters && (
-            <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize) }}>
-              {data.subtitleInline && data.subtitle
-                ? (() => {
-                    const lines = data.presenters.split('\n')
-                    return (
-                      <>
-                        <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
-                          {data.subtitle}{' '}
-                        </span>
-                        <span>{lines[0]}</span>
-                        {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
-                      </>
-                    )
-                  })()
-                : data.presenters
-              }
-            </div>
-          )}
-
-          {data.programTitle && (
-            <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize) }}>
-              {data.programTitle}
-            </div>
-          )}
-
-          {/* Logo bar */}
-          {data.logos && data.logos.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px` }}>
-              {data.logos.map(logo => (
-                <img key={logo.id} src={logo.url} alt={logo.alt}
-                  style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
-              ))}
-            </div>
-          )}
-        </div>
+          overflow: 'hidden',
+          position: 'relative',
+          flexShrink: 0,
+          // Matches the 80px edge margin used everywhere else in this file
+          // (landscape's text column padding, portrait text section's own
+          // horizontal padding, the footer's left/right offsets) -- the top
+          // of the slide reads consistently with those regardless of
+          // whether the image or the text section (with label) sits first.
+          paddingTop: `${80 * scale}px`,
+        }}
+      >
+        {imageOnRight ? (
+          <>{portraitTextSection}{portraitImageSection}</>
+        ) : (
+          <>{portraitImageSection}{portraitTextSection}</>
+        )}
 
         {/* Fixed footer */}
         {hasFooter && (
@@ -620,7 +680,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 fontSize: `${38 * scale}px`,
                 lineHeight: 1,
                 fontFamily: THEINHARDT,
-                fontWeight: 700,
+                fontWeight: theinhardtWeight('heavy'),
                 color: data.textColor,
                 letterSpacing: '0.05em',
                 textTransform: 'uppercase',

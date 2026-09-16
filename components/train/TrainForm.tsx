@@ -64,8 +64,8 @@ function FontPicker<T extends string>({ value, options, onChange }: { value: T; 
   )
 }
 
-const TITLE_FONTS: readonly TitleFont[] = ['92NY', 'Theinhardt Heavy']
-const PRESENTERS_FONTS: readonly PresentersFont[] = ['Theinhardt', '92NY']
+const TITLE_FONTS: readonly TitleFont[] = ['92NY Text', 'Theinhardt Heavy']
+const PRESENTERS_FONTS: readonly PresentersFont[] = ['Theinhardt', '92NY Text']
 
 // Compressed once here at add-time (not at export) so the stored/queued
 // entry already holds the small version — downscaled to a max dimension and
@@ -282,6 +282,23 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
             How many images actually appeared on the slide — this is what gets exported, independent of how many
             source files are attached above. Defaults to the attached count; edit it if the originals no longer exist.
           </p>
+        </div>
+
+        <div className="mt-4">
+          <label className={labelCls}>Image side</label>
+          <div className="flex gap-1.5">
+            {(['left', 'right'] as const).map(side => (
+              <button
+                key={side}
+                onClick={() => set('imageSide', side)}
+                className={`flex-1 py-1.5 px-2 rounded-md text-xs border transition-colors capitalize ${
+                  entry.imageSide === side ? 'bg-white text-black border-white' : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                }`}
+              >
+                {side}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

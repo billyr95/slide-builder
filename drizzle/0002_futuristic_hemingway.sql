@@ -1,0 +1,1 @@
+ALTER TABLE "training_entries" ADD COLUMN "image_side" text DEFAULT 'left' NOT NULL;

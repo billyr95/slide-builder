@@ -63,6 +63,9 @@ export const trainingEntries = pgTable('training_entries', {
   programTitleFont: text('program_title_font'),
   programTitleItalic: boolean('program_title_italic').notNull().default(false),
 
+  // Which side the image sits on vs. the text block -- see SlideData.imageSide.
+  imageSide: text('image_side').notNull().default('left'),
+
   seriesName: text('series_name').notNull().default(''),
   listeningCredit: text('listening_credit').notNull().default(''),
   backgroundColor: text('background_color').notNull().default(''),

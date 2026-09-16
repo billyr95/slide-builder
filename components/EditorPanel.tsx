@@ -365,11 +365,11 @@ export default function EditorPanel({
             <label className={labelCls}>Title</label>
             <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
             <div className="mt-1.5 flex gap-1.5">
-              {(['92NY', 'Theinhardt Heavy'] as const).map(font => (
+              {(['92NY Text', 'Theinhardt Heavy'] as const).map(font => (
                 <button key={font}
                   onClick={() => set('titleFont', font)}
                   className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                    (data.titleFont ?? '92NY') === font
+                    (data.titleFont ?? '92NY Text') === font
                       ? 'bg-white text-black border-white font-medium'
                       : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
                   }`}>
@@ -440,7 +440,7 @@ export default function EditorPanel({
             <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
               onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
             <div className="mt-1.5 flex gap-1.5">
-              {(['Theinhardt', '92NY'] as const).map(font => (
+              {(['Theinhardt', '92NY Text'] as const).map(font => (
                 <button key={font}
                   onClick={() => set('presentersFont', font)}
                   className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
@@ -466,7 +466,7 @@ export default function EditorPanel({
             <label className={labelCls}>Program / Work Title</label>
             <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
             <div className="mt-1.5 flex gap-1.5">
-              {(['Theinhardt', '92NY'] as const).map(font => (
+              {(['Theinhardt', '92NY Text'] as const).map(font => (
                 <button key={font}
                   onClick={() => set('programTitleFont', font)}
                   className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
@@ -632,6 +632,44 @@ export default function EditorPanel({
               </div>
             </>
           )}
+        </div>
+
+        {/* Layout */}
+        <div className={sectionCls}>
+          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Layout</p>
+
+          <div className="mb-4">
+            <label className={labelCls}>Image side</label>
+            <button
+              onClick={() => set('imageSide', data.imageSide === 'right' ? 'left' : 'right')}
+              className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
+              title="Swap which side the image sits on vs. the text"
+            >
+              <span>⇄</span> Flip ({data.imageSide === 'right' ? 'image right' : 'image left'})
+            </button>
+          </div>
+
+          <div>
+            <label className={labelCls}>Text alignment</label>
+            {/* Highlights against a plain 'left' fallback rather than the
+                canvas's actual mode-dependent historical default (which
+                needs orientation, not passed to this panel) -- purely
+                cosmetic until the user picks one explicitly, which this
+                button does immediately regardless. */}
+            <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+              {(['left', 'center'] as const).map(align => (
+                <button
+                  key={align}
+                  onClick={() => set('textAlign', align)}
+                  className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
+                    (data.textAlign ?? 'left') === align ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {align === 'left' ? 'Left' : 'Center'}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Style */}

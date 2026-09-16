@@ -25,6 +25,7 @@ export function buildNewSlideData({ screenType, fields, images }: BuildResult): 
     programTitleItalic: fields.programTitleItalic,
     seriesName: fields.seriesName,
     showSeriesName: !!fields.seriesName,
+    textAlign: fields.textAlign,
     titleSize: suggestTitleFontSize(fields.title.length, titleLineCount, screenType, hasSubtitle),
     subtitleSize: hasSubtitle ? suggestSubtitleFontSize(fields.subtitle.length) : DEFAULT_SLIDE_DATA.subtitleSize,
     imageMode: 'single',

@@ -1,5 +1,5 @@
 @font-face {
-  font-family: '92NY';
+  font-family: '92NY Text';
   src: url('/fonts/92NY_Variable.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
@@ -45,7 +45,7 @@
 @tailwind utilities;
 
 :root {
-  --font-title: '92NY', sans-serif;
+  --font-title: '92NY Text', sans-serif;
   --font-body: 'Theinhardt', sans-serif;
 }
 

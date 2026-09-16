@@ -8,8 +8,8 @@ export type ImageMode =
   | 'four-stagger'
   | 'four-squared'
   | 'none'
-export type TitleFont = '92NY' | 'Theinhardt Heavy'
-export type PresentersFont = 'Theinhardt' | '92NY'
+export type TitleFont = '92NY Text' | 'Theinhardt Heavy'
+export type PresentersFont = 'Theinhardt' | '92NY Text'
 
 export interface LogoItem {
   id: string
@@ -71,6 +71,16 @@ export interface SlideData {
   backgroundColor: string
   textColor: string
   accentColor: string
+  // Slide-level layout decisions, worth their own training signal --
+  // imageSide mirrors which side the image(s) sit on vs. the text block (in
+  // landscape: left/right; in portrait, reused as top/bottom), textAlign
+  // applies to every text block uniformly rather than per-field.
+  imageSide: 'left' | 'right'
+  // Optional (not set in DEFAULT_SLIDE_DATA either): SlideCanvas falls back
+  // to a mode-dependent historical default when unset, so both brand-new
+  // slides and slides saved before this field existed render with their
+  // traditional alignment until a user explicitly picks one via the toggle.
+  textAlign?: 'left' | 'center'
 
   // Images
   imageMode: ImageMode

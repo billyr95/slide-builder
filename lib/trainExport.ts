@@ -20,6 +20,7 @@ function commonKnownLines(entry: TrainEntry): string[] {
     `Has logos: ${entry.hasLogos}`,
     `Has QR code: ${entry.hasQrCode}`,
     `Image count: ${entry.imageCount}`,
+    `Image side: ${entry.imageSide}`,
   ]
   if (entry.hasLabel && entry.label) known.push(`Label: "${entry.label}"`)
   if (entry.title) known.push(`Title: "${entry.title}"`)

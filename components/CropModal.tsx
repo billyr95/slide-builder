@@ -19,23 +19,33 @@ interface CropModalProps {
 }
 
 async function getCroppedImg(image: HTMLImageElement, pixelCrop: PixelCrop): Promise<string> {
-  const canvas = document.createElement('canvas')
-  canvas.width = pixelCrop.width
-  canvas.height = pixelCrop.height
-  const ctx = canvas.getContext('2d')!
-
   const scaleX = image.naturalWidth / image.width
   const scaleY = image.naturalHeight / image.height
+
+  // The crop selection's pixelCrop is in on-screen CSS pixels (the <img>
+  // element is constrained to maxHeight: 420 above), which can be far
+  // smaller than the source's natural resolution. Sizing the canvas -- and
+  // the drawImage destination rect -- to those CSS pixels instead of the
+  // natural-resolution equivalent throws away real source resolution before
+  // resizeImageDataUrl ever gets a chance to make a quality-preserving
+  // downscale decision, which is what made every crop come out blurry.
+  const outputWidth = pixelCrop.width * scaleX
+  const outputHeight = pixelCrop.height * scaleY
+
+  const canvas = document.createElement('canvas')
+  canvas.width = outputWidth
+  canvas.height = outputHeight
+  const ctx = canvas.getContext('2d')!
 
   ctx.drawImage(
     image,
     pixelCrop.x * scaleX,
     pixelCrop.y * scaleY,
-    pixelCrop.width * scaleX,
-    pixelCrop.height * scaleY,
+    outputWidth,
+    outputHeight,
     0, 0,
-    pixelCrop.width,
-    pixelCrop.height,
+    outputWidth,
+    outputHeight,
   )
   return resizeImageDataUrl(canvas.toDataURL('image/png'), MAX_CROPPED_DIM)
 }

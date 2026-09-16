@@ -41,6 +41,10 @@ export interface TrainEntry {
   programTitleFont: PresentersFont
   programTitleItalic: boolean
 
+  // Which side the image sits on vs. the text block -- a real layout
+  // decision, not just a style tweak, so it's worth its own training signal.
+  imageSide: 'left' | 'right'
+
   seriesName: string       // '' = unused
   hasQrCode: boolean
   listeningCredit: string  // '' = unused; not restricted to a screen type
@@ -118,7 +122,7 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     hasQrCode: overrides?.hasQrCode ?? false,
     label: '',
     title: '',
-    titleFont: '92NY',
+    titleFont: '92NY Text',
     titleItalic: false,
     subtitle: '',
     subtitleWeight: 'regular',
@@ -129,6 +133,7 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     programTitle: '',
     programTitleFont: 'Theinhardt',
     programTitleItalic: true,
+    imageSide: 'left',
     seriesName: '',
     listeningCredit: '',
     backgroundColor: '',

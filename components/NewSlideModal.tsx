@@ -32,6 +32,7 @@ export interface SlideFieldsInput {
   programTitleWeight: TheinhardtWeight
   programTitleItalic: boolean
   seriesName: string
+  textAlign: 'left' | 'center'
 }
 
 export interface BuildResult {
@@ -76,6 +77,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
   const [programTitleWeight, setProgramTitleWeight] = useState<TheinhardtWeight>('regular')
   const [programTitleItalic, setProgramTitleItalic] = useState(true)
   const [seriesName, setSeriesName] = useState('')
+  const [textAlign, setTextAlign] = useState<'left' | 'center'>('left')
   const [images, setImages] = useState<DroppedImage[]>([])
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -119,6 +121,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
         programTitleWeight,
         programTitleItalic,
         seriesName,
+        textAlign,
       },
       images,
     })
@@ -185,7 +188,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
             <label className={fieldLabelCls}>Program / Work Title</label>
             <input className={inputCls} value={programTitle} onChange={e => setProgramTitle(e.target.value)} placeholder='e.g. "American Caprices"' />
             <div className="mt-1.5 flex gap-1.5">
-              {(['Theinhardt', '92NY'] as const).map(font => (
+              {(['Theinhardt', '92NY Text'] as const).map(font => (
                 <button key={font} onClick={() => setProgramTitleFont(font)}
                   className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
                     programTitleFont === font
@@ -218,6 +221,20 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           <div>
             <label className={fieldLabelCls}>Series name</label>
             <input className={inputCls} value={seriesName} onChange={e => setSeriesName(e.target.value)} placeholder="RECANATI-KAPLAN TALKS" />
+          </div>
+
+          <div>
+            <label className={fieldLabelCls}>Text alignment</label>
+            <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+              {(['left', 'center'] as const).map(align => (
+                <button key={align} type="button" onClick={() => setTextAlign(align)}
+                  className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
+                    textAlign === align ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                  }`}>
+                  {align === 'left' ? 'Left' : 'Center'}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>

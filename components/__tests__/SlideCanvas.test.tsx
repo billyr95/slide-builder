@@ -145,7 +145,7 @@ describe('SlideCanvas', () => {
   it.each(ORIENTATIONS)('defaults the title to 92NY at weight 700 in %s mode', (orientation) => {
     render(<SlideCanvas data={DEFAULT_SLIDE_DATA} orientation={orientation} />)
     const titleEl = screen.getByText(DEFAULT_SLIDE_DATA.title)
-    expect(titleEl).toHaveStyle({ fontFamily: "'92NY', sans-serif", fontWeight: '700' })
+    expect(titleEl).toHaveStyle({ fontFamily: "'92NY Text', sans-serif", fontWeight: '700' })
   })
 
   it.each(ORIENTATIONS)('switches the title to Theinhardt Heavy when selected in %s mode', (orientation) => {
@@ -162,10 +162,10 @@ describe('SlideCanvas', () => {
   })
 
   it.each(ORIENTATIONS)('switches presenters to 92NY when selected in %s mode', (orientation) => {
-    const data = withData({ presentersFont: '92NY' })
+    const data = withData({ presentersFont: '92NY Text' })
     render(<SlideCanvas data={data} orientation={orientation} />)
     const presentersEl = screen.getByText(/Vinson Cunningham/)
-    expect(presentersEl).toHaveStyle({ fontFamily: "'92NY', sans-serif" })
+    expect(presentersEl).toHaveStyle({ fontFamily: "'92NY Text', sans-serif" })
   })
 
   it.each(ORIENTATIONS)('imageMode "none" centers the text content in %s mode', (orientation) => {
