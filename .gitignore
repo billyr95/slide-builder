@@ -2,3 +2,8 @@ node_modules/
 .next/
 data/templates.json
 tsconfig.tsbuildinfo
+.env
+.env.local
+.env*.local
+.vercel
+.env*

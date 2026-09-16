@@ -220,7 +220,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, presenterSize) }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize) }}>
                 {data.programTitle}
               </div>
             )}
@@ -409,7 +409,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, presenterSize) }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize) }}>
                 {data.programTitle}
               </div>
             )}
@@ -587,7 +587,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           )}
 
           {data.programTitle && (
-            <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, presenterSize) }}>
+            <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize) }}>
               {data.programTitle}
             </div>
           )}

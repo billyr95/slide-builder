@@ -4,11 +4,14 @@ import { useState } from 'react'
 import { TrainEntry, ScreenType } from '@/lib/trainTypes'
 
 export type QueueFilter = 'all' | ScreenType
+export type QueueScope = 'all' | 'mine'
 
 interface TrainQueuePanelProps {
   queue: TrainEntry[]
   filter: QueueFilter
   onFilterChange: (f: QueueFilter) => void
+  scope: QueueScope
+  onScopeChange: (s: QueueScope) => void
   onEdit: (entry: TrainEntry) => void
   onRemove: (id: string) => void
   onExport: () => void
@@ -24,7 +27,7 @@ function filterLabel(f: QueueFilter): string {
 }
 
 export default function TrainQueuePanel({
-  queue, filter, onFilterChange, onEdit, onRemove, onExport, onClear, storageWarning, editingId,
+  queue, filter, onFilterChange, scope, onScopeChange, onEdit, onRemove, onExport, onClear, storageWarning, editingId,
 }: TrainQueuePanelProps) {
   const [confirmingClear, setConfirmingClear] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -62,6 +65,21 @@ export default function TrainQueuePanel({
           <span className="font-semibold text-white">{projectorCount}</span> projector /{' '}
           <span className="font-semibold text-white">{lobbyCount}</span> lobby
         </p>
+
+        {/* Ownership scope: everyone's pooled entries, or just this admin's own */}
+        <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg mb-2">
+          {(['all', 'mine'] as QueueScope[]).map(s => (
+            <button
+              key={s}
+              onClick={() => onScopeChange(s)}
+              className={`flex-1 text-xs px-2 py-1.5 rounded-md transition-colors font-medium ${
+                scope === s ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {s === 'all' ? 'All users' : 'Mine'}
+            </button>
+          ))}
+        </div>
 
         {/* Filter toggle */}
         <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg mb-3">

@@ -64,6 +64,21 @@ export interface TrainEntry {
   subtitleFontSizePx?: number   // only set if a subtitle is present
   subtitle2FontSizePx?: number  // only set if a subtitle2 is present
 
+  // What the heuristic would suggest right now for these same inputs
+  // (title/subtitle text, screen_type, has_subtitle), vs. the real final
+  // value above, so later analysis can see exactly where the heuristic was
+  // wrong without re-deriving it. wasOverridden is just suggested !==
+  // final -- a reasonable proxy for "did the user manually move the
+  // slider," not literal override tracking (which would require lifting
+  // EditorPanel's local override state up to this call). Known edge case:
+  // if the user changes screen_type or presence-of-subtitle AFTER the
+  // slider already got its value, the recomputed suggestion can differ
+  // from the stored final value even though nothing was manually touched.
+  titleFontSizeSuggestedPx?: number
+  titleFontSizeWasOverridden?: boolean
+  subtitleFontSizeSuggestedPx?: number
+  subtitleFontSizeWasOverridden?: boolean
+
   // Approximate image_1 position, derived from the editor's actual size
   // controls (imageSize % for single mode, scale px for stagger mode) and,
   // for height, the image's own natural aspect ratio. x/y position and crop
@@ -78,6 +93,10 @@ export interface TrainEntry {
   // auto-fill path).
   imageWidthRatio?: number
   imageHeightRatio?: number
+  // Same suggested-vs-final proxy as the font sizes above, applied to the
+  // image's width ratio (the only piece of suggestImagePosition's output
+  // this app actually has a control for -- see the comment above).
+  imagePositionWasOverridden?: boolean
 
   // Extra known style data, populated only for source: 'live' entries
   // (remaining sizes, image placement, font choices, footer content, etc.)

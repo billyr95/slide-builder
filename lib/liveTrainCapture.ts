@@ -1,6 +1,7 @@
 import { SlideData, Orientation } from './types'
 import { TrainEntry, TrainImage, ScreenType } from './trainTypes'
 import { getImageDimensions, resizeImageDataUrl } from './resizeImage'
+import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from './slideHeuristics'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
@@ -89,6 +90,31 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     }
   }
 
+  // Recompute what the heuristic would suggest right now for the same
+  // inputs, and compare against the real final value -- see TrainEntry's
+  // comment on titleFontSizeSuggestedPx for why this is a proxy for "was
+  // this manually overridden," not literal tracking.
+  const titleLineCount = Math.max(1, data.title.split('\n').length)
+  const titleFontSizeSuggestedPx = suggestTitleFontSize(data.title.length, titleLineCount, screenType, !!data.subtitle)
+  const titleSuggestion = {
+    titleFontSizeSuggestedPx,
+    titleFontSizeWasOverridden: data.titleSize !== titleFontSizeSuggestedPx,
+  }
+
+  const subtitleSuggestion = data.subtitle
+    ? (() => {
+        const subtitleFontSizeSuggestedPx = suggestSubtitleFontSize(data.subtitle.length)
+        return {
+          subtitleFontSizeSuggestedPx,
+          subtitleFontSizeWasOverridden: data.subtitleSize !== subtitleFontSizeSuggestedPx,
+        }
+      })()
+    : {}
+
+  const imagePositionWasOverridden = widthRatio !== undefined
+    ? Math.abs(widthRatio - suggestImagePosition('other', screenType).width) > 0.005
+    : undefined
+
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     createdAt: new Date().toISOString(),
@@ -133,8 +159,11 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     titleFontSizePx: data.titleSize,
     subtitleFontSizePx: data.subtitle ? data.subtitleSize : undefined,
     subtitle2FontSizePx: data.subtitle2 ? data.subtitle2Size : undefined,
+    ...titleSuggestion,
+    ...subtitleSuggestion,
     imageWidthRatio: widthRatio,
     imageHeightRatio,
+    imagePositionWasOverridden,
 
     liveStyle: {
       accentColor: data.accentColor,
@@ -146,6 +175,7 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       presentersWeight: data.presentersWeight,
       presentersSize: data.presentersSize,
       programTitleWeight: data.programTitleWeight,
+      programTitleSize: data.programTitleSize,
 
       imageMode: data.imageMode,
       imageSize: data.imageSize,

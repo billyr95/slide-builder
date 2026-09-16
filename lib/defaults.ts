@@ -23,6 +23,7 @@ export const DEFAULT_SLIDE_DATA: SlideData = {
   programTitleFont: 'Theinhardt',
   programTitleWeight: 'regular',
   programTitleItalic: true,
+  programTitleSize: 48,
   backgroundColor: '#000000',
   textColor: '#ffffff',
   accentColor: '#f5c842',

@@ -6,17 +6,23 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@sparticuz/chromium": "^152.0.0",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.24",
-    "idb-keyval": "^6.3.0",
+    "bcrypt": "^6.0.0",
+    "drizzle-orm": "^0.45.2",
     "next": "^14.2.35",
+    "next-auth": "^4.24.15",
     "postcss": "^8.5.6",
     "puppeteer-core": "^25.10.0",
     "react": "^18.3.1",
@@ -30,7 +36,9 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
+    "@types/bcrypt": "^6.0.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",
     "puppeteer": "^25.10.0",
     "vitest": "^5.0.0"

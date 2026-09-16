@@ -1,15 +1,15 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import TrainForm from '@/components/train/TrainForm'
-import TrainQueuePanel, { QueueFilter } from '@/components/train/TrainQueuePanel'
-import { useTrainQueue } from '@/lib/useTrainQueue'
-import { downloadJsonl } from '@/lib/trainExport'
+import TrainQueuePanel, { QueueFilter, QueueScope } from '@/components/train/TrainQueuePanel'
 import { TrainEntry } from '@/lib/trainTypes'
 
 export default function TrainPage() {
-  const { queue, storageWarning, addEntry, updateEntry, removeEntry, clearQueue } = useTrainQueue()
+  const [queue, setQueue] = useState<TrainEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [scope, setScope] = useState<QueueScope>('all')
   const [filter, setFilter] = useState<QueueFilter>('all')
   const [toast, setToast] = useState<string | null>(null)
   const [editingEntry, setEditingEntry] = useState<TrainEntry | null>(null)
@@ -20,15 +20,53 @@ export default function TrainPage() {
     setTimeout(() => setToast(null), 2500)
   }
 
-  function handleAdd(entry: TrainEntry) {
-    addEntry(entry)
-    showToast(`Added "${entry.title}" to queue`)
+  const refetch = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/training-entries?scope=${scope}`)
+      if (!res.ok) throw new Error(`Fetch failed (${res.status})`)
+      setQueue(await res.json())
+    } catch (e) {
+      console.error(e)
+      showToast('Failed to load queue')
+    } finally {
+      setLoading(false)
+    }
+  }, [scope])
+
+  useEffect(() => { refetch() }, [refetch])
+
+  async function handleAdd(entry: TrainEntry) {
+    try {
+      const res = await fetch('/api/training-entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      })
+      if (!res.ok) throw new Error(`Create failed (${res.status})`)
+      await refetch()
+      showToast(`Added "${entry.title}" to queue`)
+    } catch (e) {
+      console.error(e)
+      showToast('Failed to add entry')
+    }
   }
 
-  function handleSave(entry: TrainEntry) {
-    updateEntry(entry)
-    setEditingEntry(null)
-    showToast(`Updated "${entry.title}"`)
+  async function handleSave(entry: TrainEntry) {
+    try {
+      const res = await fetch(`/api/training-entries/${entry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      })
+      if (!res.ok) throw new Error(`Update failed (${res.status})`)
+      setEditingEntry(null)
+      await refetch()
+      showToast(`Updated "${entry.title}"`)
+    } catch (e) {
+      console.error(e)
+      showToast('Failed to save changes')
+    }
   }
 
   function handleEdit(entry: TrainEntry) {
@@ -40,29 +78,38 @@ export default function TrainPage() {
     setEditingEntry(null)
   }
 
-  function handleRemove(id: string) {
+  async function handleRemove(id: string) {
     if (editingEntry?.id === id) setEditingEntry(null)
-    removeEntry(id)
+    try {
+      const res = await fetch(`/api/training-entries/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`)
+      setQueue(q => q.filter(e => e.id !== id))
+    } catch (e) {
+      console.error(e)
+      showToast('Failed to remove entry')
+    }
   }
 
   function handleExport() {
-    const entries = filter === 'all' ? queue : queue.filter(e => e.screenType === filter)
-    if (entries.length === 0) return
-
-    let tag: string = filter
-    if (filter === 'all') {
-      const types = Array.from(new Set(entries.map(e => e.screenType)))
-      tag = types.length === 1 ? types[0] : 'mixed'
-    }
-
-    downloadJsonl(entries, tag)
-    showToast(`Exported ${entries.length} ${tag === 'mixed' ? 'entries' : tag} entries`)
+    const url = `/api/training-entries/export-batch?scope=${scope}`
+    window.location.href = url
+    showToast('Downloading export…')
   }
 
-  function handleClear() {
-    clearQueue()
+  async function handleClear() {
+    // Deletes only what's currently visible under the active scope +
+    // screen-type filter -- not a blanket wipe of the whole shared pool,
+    // since "All users" scope holds everyone's pooled data.
+    const filtered = filter === 'all' ? queue : queue.filter(e => e.screenType === filter)
     setEditingEntry(null)
-    showToast('Queue cleared')
+    try {
+      await Promise.all(filtered.map(e => fetch(`/api/training-entries/${e.id}`, { method: 'DELETE' })))
+      await refetch()
+      showToast('Queue cleared')
+    } catch (e) {
+      console.error(e)
+      showToast('Failed to clear queue')
+    }
   }
 
   return (
@@ -96,17 +143,23 @@ export default function TrainPage() {
 
         {/* Right: queue panel */}
         <aside className="w-80 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 p-4 overflow-hidden flex flex-col">
-          <TrainQueuePanel
-            queue={queue}
-            filter={filter}
-            onFilterChange={setFilter}
-            onEdit={handleEdit}
-            onRemove={handleRemove}
-            onExport={handleExport}
-            onClear={handleClear}
-            storageWarning={storageWarning}
-            editingId={editingEntry?.id ?? null}
-          />
+          {loading ? (
+            <p className="text-sm text-zinc-500">Loading…</p>
+          ) : (
+            <TrainQueuePanel
+              queue={queue}
+              filter={filter}
+              onFilterChange={setFilter}
+              scope={scope}
+              onScopeChange={setScope}
+              onEdit={handleEdit}
+              onRemove={handleRemove}
+              onExport={handleExport}
+              onClear={handleClear}
+              storageWarning={null}
+              editingId={editingEntry?.id ?? null}
+            />
+          )}
         </aside>
       </div>
 

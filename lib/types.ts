@@ -11,14 +11,6 @@ export type ImageMode =
 export type TitleFont = '92NY' | 'Theinhardt Heavy'
 export type PresentersFont = 'Theinhardt' | '92NY'
 
-export interface SlideTemplate {
-  id: string
-  name: string
-  createdAt: string
-  updatedAt: string
-  data: SlideData
-}
-
 export interface LogoItem {
   id: string
   url: string
@@ -63,12 +55,12 @@ export interface SlideData {
   presentersSize: number
   // Book/film/show title distinct from presenter names (e.g. "American
   // Caprices" following a list of performers) -- rendered directly after
-  // presenters, styled independently. Shares presentersSize rather than
-  // having its own size control.
+  // presenters, styled fully independently.
   programTitle: string
   programTitleFont: PresentersFont
   programTitleWeight: TheinhardtWeight
   programTitleItalic: boolean
+  programTitleSize: number
 
   // Style
   backgroundColor: string

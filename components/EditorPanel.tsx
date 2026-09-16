@@ -398,7 +398,7 @@ export default function EditorPanel({
               <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
             <div className="mt-1.5"><WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)} /></div>
-            <FontSizeSlider label="Font size" value={data.presentersSize} onChange={v => set('presentersSize', v)} min={24} max={160} />
+            <FontSizeSlider label="Font size" value={data.presentersSize} onChange={v => set('presentersSize', v)} min={24} max={250} />
           </div>
 
           <div className="mb-0">
@@ -422,6 +422,7 @@ export default function EditorPanel({
               <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
             <div className="mt-1.5"><WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)} /></div>
+            <FontSizeSlider label="Font size" value={data.programTitleSize} onChange={v => set('programTitleSize', v)} min={24} max={250} />
           </div>
         </div>
 
