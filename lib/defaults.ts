@@ -37,6 +37,7 @@ export const DEFAULT_SLIDE_DATA: SlideData = {
   staggerImages: [],
   imageOverlap: 30,
   staggerSize: 250,
+  imagesLinkedSize: false,
   logos: [],
   logoSize: 60,
   showSeriesName: false,

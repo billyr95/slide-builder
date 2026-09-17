@@ -90,6 +90,10 @@ export interface SlideData {
   staggerImages: StaggerImage[]  // used by all multi-image modes (stagger, triangle, squared)
   imageOverlap: number  // 0–60, percentage overlap between consecutive stagger images
   staggerSize: number   // pixels, default width of each image in stagger layout
+  // When true, Image 1 and Image 2's size sliders stay in sync -- adjusting
+  // either one applies the same scale to both. Starts scoped to just the
+  // first two slots (see EditorPanel's updateStaggerScale).
+  imagesLinkedSize: boolean
 
   // Logos
   logos: LogoItem[]

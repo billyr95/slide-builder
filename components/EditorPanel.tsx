@@ -276,6 +276,28 @@ export default function EditorPanel({
     set('staggerImages', images)
   }
 
+  // Sets one stagger slot's scale, or -- when Image 1 & 2 are linked and
+  // this is one of those two slots -- both slots' scale in the same
+  // onChange call. Two sequential updateStaggerImage calls would each spread
+  // the same stale data.staggerImages closure and the second would clobber
+  // the first (same hazard applyTitleSize's comment above describes).
+  function updateStaggerScale(index: number, value: number) {
+    const images = [...(data.staggerImages || [])]
+    const targets = data.imagesLinkedSize && (index === 0 || index === 1) ? [0, 1] : [index]
+    for (const i of targets) {
+      const existing = images[i]
+      images[i] = {
+        id: existing?.id ?? Math.random().toString(36).slice(2),
+        url: existing?.url ?? '',
+        alt: existing?.alt ?? `Image ${i + 1}`,
+        x: existing?.x ?? 0,
+        y: existing?.y ?? 0,
+        scale: value,
+      }
+    }
+    set('staggerImages', images)
+  }
+
   // Swaps a slot with its neighbor -- since each slot's position AND
   // stacking depth are both driven by its index (see staggerSlotLabel's own
   // back/front framing and computeStaggerLayout's index-based offsets),
@@ -612,9 +634,35 @@ export default function EditorPanel({
                     )}
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
-                        onChange={v => updateStaggerImage(i, { scale: v })}
-                        min={80} max={800} />
+                        onChange={v => updateStaggerScale(i, v)}
+                        min={80} max={800}
+                        badge={data.imagesLinkedSize && (i === 0 || i === 1) ? 'linked' : undefined} />
                     </div>
+                    {i === 1 && (
+                      <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
+                        <input type="checkbox" checked={data.imagesLinkedSize} className="rounded"
+                          onChange={e => {
+                            const checked = e.target.checked
+                            const patch: Partial<SlideData> = { imagesLinkedSize: checked }
+                            if (checked) {
+                              const img0Scale = data.staggerImages?.[0]?.scale || data.staggerSize || 250
+                              const images = [...(data.staggerImages || [])]
+                              const existing1 = images[1]
+                              images[1] = {
+                                id: existing1?.id ?? Math.random().toString(36).slice(2),
+                                url: existing1?.url ?? '',
+                                alt: existing1?.alt ?? 'Image 2',
+                                x: existing1?.x ?? 0,
+                                y: existing1?.y ?? 0,
+                                scale: img0Scale,
+                              }
+                              patch.staggerImages = images
+                            }
+                            onChange({ ...data, ...patch })
+                          }} />
+                        Link size (Image 1 &amp; 2)
+                      </label>
+                    )}
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} X`} value={img?.x ?? 0} onChange={v => updateStaggerImage(i, { x: v })} min={-600} max={600} />
                     </div>

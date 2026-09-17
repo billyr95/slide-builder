@@ -122,6 +122,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx)
     }
 
+    // 92NY Text renders tighter (0.88) than Theinhardt's body line-height
+    // (0.95, used by label/subtitle/subtitle2, which have no font choice and
+    // are always Theinhardt) -- matches Title, which is always 0.88 since
+    // its own two font options (92NY Text / Theinhardt Heavy) both read
+    // better tight.
+    const presentersLineHeight = (data.presentersFont ?? 'Theinhardt') === '92NY Text' ? 0.88 : 0.95
+    const programTitleLineHeight = (data.programTitleFont ?? 'Theinhardt') === '92NY Text' ? 0.88 : 0.95
+
     const placeholderBox = (w: number, h: number) => (
       <div style={{
         width: w, height: h,
@@ -143,6 +151,13 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     //  - cascade (two/three/four-stagger): each subsequent image steps right and down from the previous one
     //  - triangle (three-triangle): two images side by side on top, one centered below overlapping both
     //  - squared (four-squared): a 2x2 grid, each quadrant nudged toward its neighbors
+    // Callers render this result's `images` array with an explicit
+    // `zIndex: i + 1` per slot (matching EditorPanel's moveStaggerImage,
+    // which treats array index as the slot's stacking depth) rather than
+    // relying on DOM/paint order -- that kept working by coincidence, but
+    // was one conditional-render or key change away from silently
+    // reordering the visual stack. Pinned this way, stacking is stable and
+    // untouched by the flip toggle, which only mirrors left/right position.
     function computeStaggerLayout(mode: ImageMode) {
       const count = staggerCount(mode)
       const overlapPct = (data.imageOverlap ?? 30) / 100
@@ -236,7 +251,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -256,7 +271,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -368,7 +383,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 }}>
                   <div style={{ position: 'relative', width: groupW, height: groupH, flexShrink: 0 }}>
                     {images.map((img, i) => (
-                      <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i] }}>
+                      <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: i + 1 }}>
                         {img?.url
                           ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
                           : placeholderBox(widths[i], widths[i] * 1.35)
@@ -439,7 +454,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -459,7 +474,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -540,7 +555,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 flexShrink: 0,
               }}>
                 {images.map((img, i) => (
-                  <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i] }}>
+                  <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: i + 1 }}>
                     {img?.url
                       ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
                       : placeholderBox(widths[i], widths[i] * 1.35)
@@ -599,7 +614,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         )}
 
         {data.presenters && (
-          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
+          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
             {data.subtitleInline && data.subtitle
               ? (() => {
                   const lines = data.presenters.split('\n')
@@ -619,7 +634,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         )}
 
         {data.programTitle && (
-          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: 0.95, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
+          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
             {data.programTitle}
           </div>
         )}
