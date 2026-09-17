@@ -10,11 +10,13 @@ import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } f
 
 const MAX_LOGO_DIM = 400
 
+// Purely positional -- describes where in the layout each slot sits, not
+// stacking depth (that's StaggerImage.zIndex, set independently via its own
+// "layer" slider below).
 function staggerSlotLabel(mode: ImageMode, i: number): string {
   if (mode === 'three-triangle') return ['(top-left)', '(top-right)', '(bottom)'][i] ?? ''
   if (mode === 'four-squared') return ['(top-left)', '(top-right)', '(bottom-left)', '(bottom-right)'][i] ?? ''
-  const count = staggerCount(mode)
-  return i === 0 ? '(back)' : i === count - 1 ? '(front)' : `(${i + 1})`
+  return `(${i + 1})`
 }
 
 const CropModal = dynamic(() => import('./CropModal'), { ssr: false })
@@ -82,7 +84,7 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
           {label}
           {badge && (
             <span
-              title={badge === 'auto' ? 'Auto-suggested from training data' : badge === 'linked' ? 'Matches Title\'s font size' : 'Manually set'}
+              title={badge === 'auto' ? 'Auto-suggested from training data' : badge === 'linked' ? 'Linked to another control\'s value' : 'Manually set'}
               className={`text-[9px] uppercase tracking-wide px-1 py-px rounded ${
                 badge === 'auto' ? 'text-zinc-500 bg-zinc-800' : badge === 'linked' ? 'text-blue-300 bg-blue-950' : 'text-zinc-300 bg-zinc-700'
               }`}
@@ -271,19 +273,26 @@ export default function EditorPanel({
       x: existing?.x ?? 0,
       y: existing?.y ?? 0,
       scale: existing?.scale ?? 0,
+      // Sensible default the first time this slot is created (increasing by
+      // slot order); preserved as-is afterward so unrelated edits (moving,
+      // resizing, replacing the image) never silently reset a manually-set
+      // layer value.
+      zIndex: existing?.zIndex ?? (index + 1),
       ...patch,
     }
     set('staggerImages', images)
   }
 
-  // Sets one stagger slot's scale, or -- when Image 1 & 2 are linked and
-  // this is one of those two slots -- both slots' scale in the same
-  // onChange call. Two sequential updateStaggerImage calls would each spread
-  // the same stale data.staggerImages closure and the second would clobber
-  // the first (same hazard applyTitleSize's comment above describes).
+  // Sets one stagger slot's scale. Image 1 is the source of truth while
+  // linked: updating it also updates Image 2 to match, in the same
+  // onChange call (two sequential updateStaggerImage calls would each
+  // spread the same stale data.staggerImages closure and the second would
+  // clobber the first -- same hazard applyTitleSize's comment above
+  // describes). Image 2's own slider is disabled while linked (see render),
+  // so this never runs the sync in the other direction.
   function updateStaggerScale(index: number, value: number) {
     const images = [...(data.staggerImages || [])]
-    const targets = data.imagesLinkedSize && (index === 0 || index === 1) ? [0, 1] : [index]
+    const targets = data.imagesLinkedSize && index === 0 ? [0, 1] : [index]
     for (const i of targets) {
       const existing = images[i]
       images[i] = {
@@ -293,16 +302,18 @@ export default function EditorPanel({
         x: existing?.x ?? 0,
         y: existing?.y ?? 0,
         scale: value,
+        zIndex: existing?.zIndex ?? (i + 1),
       }
     }
     set('staggerImages', images)
   }
 
-  // Swaps a slot with its neighbor -- since each slot's position AND
-  // stacking depth are both driven by its index (see staggerSlotLabel's own
-  // back/front framing and computeStaggerLayout's index-based offsets),
-  // moving an image to a different slot is exactly "change what it stacks
-  // in front of/behind."
+  // Swaps a slot's layout position with its neighbor (computeStaggerLayout's
+  // per-index offsets, e.g. which corner an image lands in). Purely
+  // positional -- each image's own zIndex travels with it (it's a field on
+  // the StaggerImage object being swapped), so this no longer doubles as a
+  // stacking control the way it did before z-index became its own explicit,
+  // independently-set value.
   function moveStaggerImage(index: number, direction: -1 | 1) {
     const images = [...(data.staggerImages || [])]
     const target = index + direction
@@ -595,7 +606,7 @@ export default function EditorPanel({
                           <button
                             onClick={() => moveStaggerImage(i, -1)}
                             disabled={i === 0 || !prevImg?.url}
-                            title="Move back in the stack"
+                            title="Swap layout position with the previous slot"
                             className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                           >
                             ◀
@@ -603,7 +614,7 @@ export default function EditorPanel({
                           <button
                             onClick={() => moveStaggerImage(i, 1)}
                             disabled={!nextImg?.url}
-                            title="Move forward in the stack"
+                            title="Swap layout position with the next slot"
                             className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                           >
                             ▶
@@ -636,6 +647,7 @@ export default function EditorPanel({
                       <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
                         onChange={v => updateStaggerScale(i, v)}
                         min={80} max={800}
+                        disabled={data.imagesLinkedSize && i === 1}
                         badge={data.imagesLinkedSize && (i === 0 || i === 1) ? 'linked' : undefined} />
                     </div>
                     {i === 1 && (
@@ -655,6 +667,7 @@ export default function EditorPanel({
                                 x: existing1?.x ?? 0,
                                 y: existing1?.y ?? 0,
                                 scale: img0Scale,
+                                zIndex: existing1?.zIndex ?? 2,
                               }
                               patch.staggerImages = images
                             }
@@ -668,6 +681,11 @@ export default function EditorPanel({
                     </div>
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} />
+                    </div>
+                    <div className="mt-2">
+                      <FontSizeSlider label={`Image ${i + 1} layer`} value={img?.zIndex ?? (i + 1)}
+                        onChange={v => updateStaggerImage(i, { zIndex: v })}
+                        min={1} max={10} unit="" />
                     </div>
                   </div>
                 )

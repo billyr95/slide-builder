@@ -151,13 +151,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     //  - cascade (two/three/four-stagger): each subsequent image steps right and down from the previous one
     //  - triangle (three-triangle): two images side by side on top, one centered below overlapping both
     //  - squared (four-squared): a 2x2 grid, each quadrant nudged toward its neighbors
-    // Callers render this result's `images` array with an explicit
-    // `zIndex: i + 1` per slot (matching EditorPanel's moveStaggerImage,
-    // which treats array index as the slot's stacking depth) rather than
-    // relying on DOM/paint order -- that kept working by coincidence, but
-    // was one conditional-render or key change away from silently
-    // reordering the visual stack. Pinned this way, stacking is stable and
-    // untouched by the flip toggle, which only mirrors left/right position.
+    // Callers render this result's `images` array with `zIndex: img?.zIndex
+    // ?? (i + 1)` per slot -- stacking depth is an explicit, user-set value
+    // per image (a "layer" slider in EditorPanel writes StaggerImage.zIndex
+    // directly), not something inferred from array/DOM order. The `i + 1`
+    // fallback only covers images that predate this field or haven't been
+    // touched yet, so slides still look reasonable before manual adjustment.
     // The group's own wrapper also needs `isolation: 'isolate'` (see both
     // call sites) -- position:relative alone does NOT create a stacking
     // context, so without it these positive z-indexes escape upward and
@@ -165,10 +164,10 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // z-index:auto layer). Per the CSS stacking spec, ANY positive z-index
     // always paints above z-index:auto content in the same context
     // regardless of DOM order, so an un-isolated image could unexpectedly
-    // paint over the footer/text if a large X/Y nudge or size ever pushed it
-    // into that space. Isolating contains the 1..N ordering to *within* this
-    // group, so from the outside the whole group is back to being one plain
-    // DOM-ordered box relative to its siblings, exactly like before.
+    // paint over the footer/text if a large X/Y nudge, size, or manually-set
+    // layer value ever pushed it into that space. Isolating contains the
+    // ordering to *within* this group, so from the outside the whole group
+    // is back to being one plain DOM-ordered box relative to its siblings.
     function computeStaggerLayout(mode: ImageMode) {
       const count = staggerCount(mode)
       const overlapPct = (data.imageOverlap ?? 30) / 100
@@ -394,7 +393,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 }}>
                   <div style={{ position: 'relative', width: groupW, height: groupH, flexShrink: 0, isolation: 'isolate' }}>
                     {images.map((img, i) => (
-                      <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: i + 1 }}>
+                      <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: img?.zIndex ?? (i + 1) }}>
                         {img?.url
                           ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
                           : placeholderBox(widths[i], widths[i] * 1.35)
@@ -567,7 +566,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 isolation: 'isolate',
               }}>
                 {images.map((img, i) => (
-                  <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: i + 1 }}>
+                  <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: img?.zIndex ?? (i + 1) }}>
                     {img?.url
                       ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
                       : placeholderBox(widths[i], widths[i] * 1.35)

@@ -123,7 +123,7 @@ describe('SlideCanvas', () => {
     expect(screen.getByAltText('Image D')).toBeInTheDocument()
   })
 
-  it.each(ORIENTATIONS)('keeps stagger image z-index pinned to slot order, unaffected by imageSide flip in %s mode', (orientation) => {
+  it.each(ORIENTATIONS)('defaults stagger image z-index to slot order, unaffected by imageSide flip in %s mode', (orientation) => {
     const staggerImages = [
       { id: 'A', url: 'data:image/png;base64,AAA', alt: 'Image A', y: 0, scale: 0 },
       { id: 'B', url: 'data:image/png;base64,BBB', alt: 'Image B', y: 0, scale: 0 },
@@ -146,6 +146,21 @@ describe('SlideCanvas', () => {
       expect(groupWrapper.style.isolation).toBe('isolate')
       unmount()
     }
+  })
+
+  it.each(ORIENTATIONS)('applies an explicit per-image zIndex over the slot-order default in %s mode', (orientation) => {
+    // A user-set "layer" value (e.g. Image A pushed behind Image C despite
+    // being slot 0) must render exactly as set -- z-index is no longer
+    // inferred from array/DOM order once it's explicitly present.
+    const staggerImages = [
+      { id: 'A', url: 'data:image/png;base64,AAA', alt: 'Image A', y: 0, scale: 0, zIndex: 9 },
+      { id: 'B', url: 'data:image/png;base64,BBB', alt: 'Image B', y: 0, scale: 0, zIndex: 1 },
+      { id: 'C', url: 'data:image/png;base64,CCC', alt: 'Image C', y: 0, scale: 0, zIndex: 5 },
+    ]
+    const data = withData({ imageMode: 'three-stagger', staggerImages })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    const zIndexes = ['Image A', 'Image B', 'Image C'].map(alt => (screen.getByAltText(alt).parentElement as HTMLElement).style.zIndex)
+    expect(zIndexes).toEqual(['9', '1', '5'])
   })
 
   it.each(ORIENTATIONS)('wraps long unbroken text instead of overflowing in %s mode', (orientation) => {

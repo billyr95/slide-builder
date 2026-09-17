@@ -53,7 +53,7 @@ export function buildNewSlideData({ screenType, fields, images }: BuildResult): 
       // matching comment in EditorPanel.tsx's handleCropComplete.
       const mode: ImageMode = images.length === 2 ? 'two-stagger' : images.length === 3 ? 'three-stagger' : 'four-stagger'
       newData.imageMode = mode
-      newData.staggerImages = images.slice(0, 4).map(img => ({ id: img.id, url: img.url, alt: img.name, y: 0, scale: 0 }))
+      newData.staggerImages = images.slice(0, 4).map((img, i) => ({ id: img.id, url: img.url, alt: img.name, y: 0, scale: 0, zIndex: i + 1 }))
     }
   }
 

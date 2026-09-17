@@ -24,6 +24,11 @@ export interface StaggerImage {
   x?: number     // horizontal offset (px); undefined/0 = algorithmic default
   y: number      // vertical offset (px)
   scale: number  // width override (px); 0 means use staggerSize
+  // Explicit stacking depth, user-controlled via a per-image slider in
+  // EditorPanel -- replaces relying on array order/DOM paint order to infer
+  // front/back. Undefined (e.g. a slide saved before this field existed)
+  // falls back to slot order (index + 1) in SlideCanvas.
+  zIndex?: number
 }
 
 // Number of images used by a given stagger mode (0 for non-stagger modes).

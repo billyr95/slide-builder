@@ -184,7 +184,7 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       staggerSize: data.staggerSize,
       staggerImagePlacements: (data.staggerImages || [])
         .filter(img => img.url)
-        .map(img => ({ y: img.y, scale: img.scale })),
+        .map(img => ({ y: img.y, scale: img.scale, zIndex: img.zIndex })),
 
       logoCount: (data.logos || []).length,
       logoSize: data.logoSize,
