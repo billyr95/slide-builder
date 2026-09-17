@@ -1,6 +1,13 @@
 @font-face {
   font-family: '92NY Text';
-  src: url('/fonts/92NY_Variable.woff2') format('woff2');
+  src: url('/fonts/92NYText-Regular.woff2') format('woff2');
+  /* This is a static Regular-only face -- the old 92NY_Variable.woff2 it
+     replaces had no weight axis either (only `opsz`), so declaring a wide
+     weight range here doesn't regress anything: bold/heavy requests already
+     relied on the browser's synthetic-bold fallback before this swap, and
+     still do. Narrowing this to 400 would instead make weight:700/900
+     requests fail to match this @font-face at all, falling back to the
+     stack's plain sans-serif -- worse than synthesis. */
   font-weight: 100 900;
   font-style: normal;
 }

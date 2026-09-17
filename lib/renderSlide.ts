@@ -10,7 +10,10 @@ const DIMS: Record<Orientation, { w: number; h: number }> = {
 }
 
 const FONT_FILES: { family: string; file: string; weight: string; style: string }[] = [
-  { family: '92NY Text', file: '92NY_Variable.woff2', weight: '100 900', style: 'normal' },
+  // Static Regular-only face (correct internal name "92NY Text" -- the
+  // 92NY_Variable.woff2 file this replaced was internally named "92NY
+  // Variable" and had no weight axis anyway, see globals.css's own comment).
+  { family: '92NY Text', file: '92NYText-Regular.woff2', weight: '100 900', style: 'normal' },
   { family: 'Theinhardt', file: 'Theinhardt-Pan-Regular.woff2', weight: '400', style: 'normal' },
   { family: 'Theinhardt', file: 'Theinhardt-Pan-Italic.woff2', weight: '400', style: 'italic' },
   { family: 'Theinhardt', file: 'Theinhardt-Pan-Bold.woff2', weight: '700', style: 'normal' },
