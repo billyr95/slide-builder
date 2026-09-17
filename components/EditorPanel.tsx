@@ -1,6 +1,6 @@
 'use client'
 
-import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, Orientation, staggerCount } from '@/lib/types'
+import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, Orientation, FaceCropBox, staggerCount } from '@/lib/types'
 import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
@@ -347,6 +347,11 @@ export default function EditorPanel({
       // resizing, replacing the image) never silently reset a manually-set
       // layer value.
       zIndex: existing?.zIndex ?? (index + 1),
+      // Preserved as-is (undefined for images with no detected face) so
+      // unrelated edits never silently drop face-crop correction tracking.
+      faceCropSuggested: existing?.faceCropSuggested,
+      faceCropFinal: existing?.faceCropFinal,
+      faceCropWasOverridden: existing?.faceCropWasOverridden,
       ...patch,
     }
     set('staggerImages', images)
@@ -372,6 +377,9 @@ export default function EditorPanel({
         y: existing?.y ?? 0,
         scale: value,
         zIndex: existing?.zIndex ?? (i + 1),
+        faceCropSuggested: existing?.faceCropSuggested,
+        faceCropFinal: existing?.faceCropFinal,
+        faceCropWasOverridden: existing?.faceCropWasOverridden,
       }
     }
     set('staggerImages', images)
@@ -398,12 +406,69 @@ export default function EditorPanel({
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      setCropTarget(target)
-      setCropSrc(ev.target?.result as string)
+    reader.onload = async (ev) => {
+      const rawUrl = ev.target?.result as string
+      // Dynamically imported rather than a normal top-level import -- this
+      // module pulls in @vladmandic/face-api (and, transitively,
+      // @tensorflow/tfjs), which crashed Next's server-side page prerendering
+      // for /train when it was statically imported (tfjs runs environment
+      // setup at module-init time, which doesn't work in Next's server
+      // runtime). A dynamic import keeps that whole dependency graph out of
+      // any server-evaluated bundle, matching why CropModal is already
+      // loaded via next/dynamic with ssr: false.
+      const [{ detectFaceCropBox }, { cropImageByRatioBox }] = await Promise.all([
+        import('@/lib/faceDetect'),
+        import('@/lib/cropImage'),
+      ])
+      const detection = await detectFaceCropBox(rawUrl).catch((e: unknown) => {
+        console.warn('Face detection failed, skipping auto-crop', e)
+        return null
+      })
+      if (detection) {
+        // A face was found -- auto-crop immediately with a standard headshot
+        // framing, same "auto-applied but overridable" pattern as font size:
+        // the user can still fine-tune via "Edit crop" afterward (which
+        // shows this already-cropped result as its starting point), but
+        // doesn't have to open the crop modal just to accept a sensible
+        // default for the common case.
+        const croppedUrl = await cropImageByRatioBox(rawUrl, detection.cropBox)
+        applyAutoCroppedImage(target, croppedUrl, detection.cropBox)
+      } else {
+        // No face detected (book cover, poster, graphic, or detection
+        // failed) -- unchanged from before this feature: open the crop
+        // modal so the user frames it manually.
+        setCropTarget(target)
+        setCropSrc(rawUrl)
+      }
     }
     reader.readAsDataURL(file)
     e.target.value = ''
+  }
+
+  function applyAutoCroppedImage(target: number, croppedUrl: string, cropBox: FaceCropBox) {
+    if (target >= 0) {
+      updateStaggerImage(target, {
+        url: croppedUrl,
+        faceCropSuggested: cropBox,
+        faceCropFinal: cropBox,
+        faceCropWasOverridden: false,
+      })
+    } else {
+      // TODO: the app doesn't classify uploaded images by content beyond
+      // face-or-not yet -- until it does, a detected face still gets the
+      // generic "other" sizing suggestion rather than a face-specific one.
+      const suggestion = suggestImagePosition('other', screenType)
+      const patch: Partial<SlideData> = {
+        imageUrl: croppedUrl,
+        imageFaceCropSuggested: cropBox,
+        imageFaceCropFinal: cropBox,
+        imageFaceCropWasOverridden: false,
+      }
+      if (!imageSizeOverridden[-1]) {
+        patch.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
+      }
+      onChange({ ...data, ...patch })
+    }
   }
 
   function clearImage() {
@@ -412,7 +477,7 @@ export default function EditorPanel({
     if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
-  function handleCropComplete(croppedUrl: string) {
+  function handleCropComplete(croppedUrl: string, cropBox: FaceCropBox) {
     if (cropTarget >= 0) {
       // Stagger mode intentionally gets NO auto-sizing here: the shared
       // layout math in SlideCanvas.tsx (offsetX/shiftStep/lefts/tops) spaces
@@ -425,14 +490,24 @@ export default function EditorPanel({
       // data only and has no valid mapping onto this shared-layout model, so
       // stagger images just keep using the existing staggerSize/manual-scale
       // behavior, unchanged from before auto-fill existed.
-      updateStaggerImage(cropTarget, { url: croppedUrl })
+      const hadSuggestion = !!data.staggerImages?.[cropTarget]?.faceCropSuggested
+      updateStaggerImage(cropTarget, {
+        url: croppedUrl,
+        faceCropFinal: cropBox,
+        // Only a face-detected auto-crop counts as something to "override" --
+        // a manual crop on an image that was never auto-cropped (no face
+        // found) has nothing to compare against, so this stays unset rather
+        // than false.
+        ...(hadSuggestion ? { faceCropWasOverridden: true } : {}),
+      })
     } else {
       // TODO: the app doesn't classify uploaded images by content yet (e.g.
       // a quick vision API call to detect a face/book-cover/poster/etc.) —
       // until it does, every upload gets the generic "other" default rather
       // than a more accurate type-specific one.
       const suggestion = suggestImagePosition('other', screenType)
-      const patch: Partial<SlideData> = { imageUrl: croppedUrl }
+      const patch: Partial<SlideData> = { imageUrl: croppedUrl, imageFaceCropFinal: cropBox }
+      if (data.imageFaceCropSuggested) patch.imageFaceCropWasOverridden = true
       if (!imageSizeOverridden[-1]) {
         patch.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
       }
@@ -738,6 +813,9 @@ export default function EditorPanel({
                                 y: existing1?.y ?? 0,
                                 scale: img0Scale,
                                 zIndex: existing1?.zIndex ?? 2,
+                                faceCropSuggested: existing1?.faceCropSuggested,
+                                faceCropFinal: existing1?.faceCropFinal,
+                                faceCropWasOverridden: existing1?.faceCropWasOverridden,
                               }
                               patch.staggerImages = images
                             }

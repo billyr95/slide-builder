@@ -1,0 +1,639 @@
+{
+  "id": "0b35b31a-a374-4fe4-b41b-76af90cef6a3",
+  "prevId": "914153aa-9419-4191-b95c-0f29cc8b8c4a",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.slides": {
+      "name": "slides",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Untitled Slide'"
+        },
+        "orientation": {
+          "name": "orientation",
+          "type": "orientation",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'landscape'"
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "slides_user_id_idx": {
+          "name": "slides_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "slides_user_id_users_id_fk": {
+          "name": "slides_user_id_users_id_fk",
+          "tableFrom": "slides",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.training_entries": {
+      "name": "training_entries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "training_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "screen_type": {
+          "name": "screen_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "orientation": {
+          "name": "orientation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "has_label": {
+          "name": "has_label",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "has_logos": {
+          "name": "has_logos",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "has_qr_code": {
+          "name": "has_qr_code",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "title_font": {
+          "name": "title_font",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title_italic": {
+          "name": "title_italic",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "subtitle": {
+          "name": "subtitle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "subtitle_weight": {
+          "name": "subtitle_weight",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtitle2": {
+          "name": "subtitle2",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "presenters": {
+          "name": "presenters",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "presenters_font": {
+          "name": "presenters_font",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "presenters_italic": {
+          "name": "presenters_italic",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "program_title": {
+          "name": "program_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "program_title_font": {
+          "name": "program_title_font",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "program_title_italic": {
+          "name": "program_title_italic",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "image_side": {
+          "name": "image_side",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'left'"
+        },
+        "text_align": {
+          "name": "text_align",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "images_linked_size": {
+          "name": "images_linked_size",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "presenters_match_title_size": {
+          "name": "presenters_match_title_size",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "program_title_match_title_size": {
+          "name": "program_title_match_title_size",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "series_name": {
+          "name": "series_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "listening_credit": {
+          "name": "listening_credit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "background_color": {
+          "name": "background_color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "text_color": {
+          "name": "text_color",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "image_count": {
+          "name": "image_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "image_1_type": {
+          "name": "image_1_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_position_x": {
+          "name": "image_1_position_x",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_position_y": {
+          "name": "image_1_position_y",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_width_ratio": {
+          "name": "image_1_width_ratio",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_height_ratio": {
+          "name": "image_1_height_ratio",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_crop": {
+          "name": "image_1_crop",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_position_was_overridden": {
+          "name": "image_position_was_overridden",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_y": {
+          "name": "image_1_y",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_scale": {
+          "name": "image_1_scale",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_1_z_index": {
+          "name": "image_1_z_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_2_y": {
+          "name": "image_2_y",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_2_scale": {
+          "name": "image_2_scale",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_2_z_index": {
+          "name": "image_2_z_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_3_y": {
+          "name": "image_3_y",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_3_scale": {
+          "name": "image_3_scale",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_3_z_index": {
+          "name": "image_3_z_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_4_y": {
+          "name": "image_4_y",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_4_scale": {
+          "name": "image_4_scale",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "image_4_z_index": {
+          "name": "image_4_z_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inferred_image_side": {
+          "name": "inferred_image_side",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inferred_text_align": {
+          "name": "inferred_text_align",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inferred_sizes_appear_matched": {
+          "name": "inferred_sizes_appear_matched",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inferred_presenters_size_matches_title": {
+          "name": "inferred_presenters_size_matches_title",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title_font_size_suggested_px": {
+          "name": "title_font_size_suggested_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title_font_size_final_px": {
+          "name": "title_font_size_final_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title_font_size_was_overridden": {
+          "name": "title_font_size_was_overridden",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtitle_font_size_suggested_px": {
+          "name": "subtitle_font_size_suggested_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtitle_font_size_final_px": {
+          "name": "subtitle_font_size_final_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtitle_font_size_was_overridden": {
+          "name": "subtitle_font_size_was_overridden",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "subtitle2_font_size_final_px": {
+          "name": "subtitle2_font_size_final_px",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "images": {
+          "name": "images",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "live_style": {
+          "name": "live_style",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "training_entries_user_id_idx": {
+          "name": "training_entries_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "training_entries_user_id_users_id_fk": {
+          "name": "training_entries_user_id_users_id_fk",
+          "tableFrom": "training_entries",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'member'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.orientation": {
+      "name": "orientation",
+      "schema": "public",
+      "values": [
+        "landscape",
+        "portrait"
+      ]
+    },
+    "public.role": {
+      "name": "role",
+      "schema": "public",
+      "values": [
+        "admin",
+        "member"
+      ]
+    },
+    "public.training_source": {
+      "name": "training_source",
+      "schema": "public",
+      "values": [
+        "upload",
+        "live"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

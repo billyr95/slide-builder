@@ -33,9 +33,15 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Excludes Next internals, the favicon, and /fonts/* (public/fonts,
-  // referenced directly by @font-face in globals.css) -- without that last
-  // one, font requests get redirected to /login too, which silently broke
-  // the login page's own typography for anyone not yet authenticated.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|fonts/).*)'],
+  // Excludes Next internals, the favicon, /fonts/* (public/fonts, referenced
+  // directly by @font-face in globals.css -- without this, font requests
+  // redirected to /login too, silently breaking the login page's own
+  // typography for anyone not yet authenticated), and /models/* (public/
+  // models, the face-detection model files lib/faceDetect.ts fetches
+  // client-side). Face detection only ever runs from pages already behind
+  // auth (the editor, /train), so gating /models/* wasn't strictly breaking
+  // anything the way ungated fonts would have -- excluded anyway for the
+  // same reason fonts are: a generic static asset with nothing to do with
+  // authorization shouldn't pay for a JWT check on every request.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|fonts/|models/).*)'],
 }

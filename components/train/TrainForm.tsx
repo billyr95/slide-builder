@@ -70,15 +70,37 @@ const PRESENTERS_FONTS: readonly PresentersFont[] = ['Theinhardt', '92NY Text']
 // Compressed once here at add-time (not at export) so the stored/queued
 // entry already holds the small version — downscaled to a max dimension and
 // re-encoded as JPEG, matching what actually gets sent to the vision model.
-async function readImageFile(file: File): Promise<{ url: string; mediaType: string; name: string }> {
+// Face detection (and, if a face is found, auto-crop) runs on the raw
+// full-resolution upload first, same as the main editor -- crop quality
+// depends on having enough source resolution to crop into, and running
+// detection after compression would both blur the result and hand the
+// detector a smaller image to work with. Unlike the main editor, there's no
+// crop-editing UI here to override the result afterward -- /train's images
+// are flat reference attachments, not positioned slide content -- so this
+// is detect-and-apply only, no suggested/final tracking.
+async function readImageFile(file: File): Promise<{ url: string; mediaType: string; name: string; faceDetected: boolean }> {
   const rawUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as string)
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
   })
-  const url = await resizeImageDataUrl(rawUrl, TRAIN_IMAGE_MAX_DIM, TRAIN_IMAGE_QUALITY, 'image/jpeg')
-  return { url, mediaType: 'image/jpeg', name: file.name }
+  // Dynamically imported -- this pulls in @vladmandic/face-api and,
+  // transitively, @tensorflow/tfjs, which crashes Next's server-side page
+  // prerendering if statically imported (tfjs runs environment setup at
+  // module-init time, incompatible with Next's server runtime). See
+  // EditorPanel.tsx's matching comment.
+  const [{ detectFaceCropBox }, { cropImageByRatioBox }] = await Promise.all([
+    import('@/lib/faceDetect'),
+    import('@/lib/cropImage'),
+  ])
+  const detection = await detectFaceCropBox(rawUrl).catch((e: unknown) => {
+    console.warn('Face detection failed, skipping auto-crop', e)
+    return null
+  })
+  const croppedUrl = detection ? await cropImageByRatioBox(rawUrl, detection.cropBox) : rawUrl
+  const url = await resizeImageDataUrl(croppedUrl, TRAIN_IMAGE_MAX_DIM, TRAIN_IMAGE_QUALITY, 'image/jpeg')
+  return { url, mediaType: 'image/jpeg', name: file.name, faceDetected: !!detection }
 }
 
 export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }: TrainFormProps) {
@@ -139,8 +161,12 @@ export default function TrainForm({ editingEntry, onAdd, onSave, onCancelEdit }:
 
   async function handleImageUpload(index: number, file: File | undefined) {
     if (!file) return
-    const { url, mediaType, name } = await readImageFile(file)
+    const { url, mediaType, name, faceDetected } = await readImageFile(file)
     updateImage(index, { url, mediaType, name })
+    // Ground truth captured directly by this app (unlike inferred_image_side
+    // etc., which need a full batch round-trip) -- scoped to image 1, same
+    // image1-only convention already used for image_type/position/crop.
+    if (index === 0) set('faceDetected', faceDetected)
   }
 
   function handleImageCountChange(value: string) {

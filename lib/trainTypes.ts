@@ -1,4 +1,4 @@
-import { TheinhardtWeight, TitleFont, PresentersFont, Orientation } from './types'
+import { TheinhardtWeight, TitleFont, PresentersFont, Orientation, FaceCropBox } from './types'
 
 export type ScreenType = 'projector' | 'lobby'
 // 'upload' = hand-entered via /train from an old/scanned slide (style values
@@ -45,6 +45,18 @@ export interface TrainEntry {
   // decision, not just a style tweak, so it's worth its own training signal.
   imageSide: 'left' | 'right'
 
+  // Slide-level layout ground truth, populated only for 'live' entries (the
+  // editor is the only place these are ever actually set -- 'upload' has no
+  // manual-entry equivalent for any of these). For 'upload' entries, the
+  // model estimates its own best guess instead (trainExport.ts's
+  // inferred_image_side/inferred_text_align/etc.), which is a genuinely
+  // separate, vision-based signal rather than a value that belongs on this
+  // shared request-time type.
+  textAlign?: 'left' | 'center'
+  imagesLinkedSize?: boolean
+  presentersMatchTitleSize?: boolean
+  programTitleMatchTitleSize?: boolean
+
   seriesName: string       // '' = unused
   hasQrCode: boolean
   listeningCredit: string  // '' = unused; not restricted to a screen type
@@ -85,16 +97,17 @@ export interface TrainEntry {
 
   // Approximate image_1 position, derived from the editor's actual size
   // controls (imageSize % for single mode, scale px for stagger mode) and,
-  // for height, the image's own natural aspect ratio. x/y position and crop
-  // are NOT included here: this app has no absolute image-position control
-  // in either image mode (single mode has no x/y at all; stagger's "y" is a
-  // manual nudge off an algorithmic default, not an absolute position), and
-  // crop is baked into the image's pixels via the crop tool rather than
-  // stored as separate top/bottom/left/right metadata — so there's nothing
-  // real to report for those, and faking a value would be worse than
-  // omitting it. image_1_type is also omitted: the app doesn't classify
-  // uploaded images by content (same TODO as the manual-upload heuristic
-  // auto-fill path).
+  // for height, the image's own natural aspect ratio. Sent to the model as
+  // labeled ground-truth facts (trainExport.ts's buildConfirmPrompt), using
+  // the same width_ratio/height_ratio names 'upload' entries get back from
+  // the model's own estimate, so both sources are directly comparable.
+  // Absolute x/y position and crop are still NOT included here: single-image
+  // mode has no x/y control at all, and crop is baked into the image's
+  // pixels via the crop tool rather than stored as separate
+  // top/bottom/left/right metadata — so there's nothing real to report for
+  // those, and faking a value would be worse than omitting it. image_1_type
+  // is also omitted: the app doesn't classify uploaded images by content
+  // (same TODO as the manual-upload heuristic auto-fill path).
   imageWidthRatio?: number
   imageHeightRatio?: number
   // Same suggested-vs-final proxy as the font sizes above, applied to the
@@ -102,11 +115,43 @@ export interface TrainEntry {
   // this app actually has a control for -- see the comment above).
   imagePositionWasOverridden?: boolean
 
+  // Client-side face-detection results (lib/faceDetect.ts), scoped to image
+  // 1 -- same convention as imageWidthRatio/imageHeightRatio above.
+  // faceDetected: whether a face was found at all, captured directly by
+  // this app (unlike inferred_image_side etc., which need a full batch
+  // round-trip) -- true ground truth for both sources, since /train also
+  // runs real client-side detection on upload, not a manual guess.
+  faceDetected?: boolean
+  // 'live' only: the auto-computed headshot crop box, and whatever the user
+  // ultimately ended up with after any manual re-crop (equal to suggested
+  // until they override it) -- same suggested/final/wasOverridden shape as
+  // the font-size fields above, so this can eventually be used the same way
+  // to refit lib/faceDetect.ts's padding multipliers from real corrections.
+  // DB-only: not sent to the vision model prompt (see trainExport.ts).
+  faceCropSuggested?: FaceCropBox
+  faceCropFinal?: FaceCropBox
+  faceCropWasOverridden?: boolean
+  // Not yet computable by this app (needs the model's own image_type from
+  // its batch response, which nothing here parses back in yet -- see
+  // inferred_image_side's own comment) -- reserved for a future step that
+  // flags entries where faceDetected and the model's "face" classification
+  // disagree. Always undefined for now.
+  faceDetectionMismatch?: boolean
+
+  // Per-stagger-image placement ground truth ('live' only, up to 4 slots --
+  // single-image mode has no equivalent, see imageWidthRatio above instead).
+  // Individually labeled facts in the batch prompt and their own DB columns
+  // (image_1_y, image_1_scale, image_1_z_index, ...) rather than values a
+  // model has to read back out of a stringified JSON blob. Index 0 = Image 1.
+  imagePlacements?: { y: number; scale: number; zIndex?: number }[]
+
   // Extra known style data, populated only for source: 'live' entries
-  // (remaining sizes, image placement, font choices, footer content, etc.)
-  // — /train's manual-entry schema has no equivalent for these, so they're
-  // carried as a free-form bag rather than forcing every field onto the
-  // shared type.
+  // (remaining sizes, font choices, footer content, etc.) — /train's
+  // manual-entry schema has no equivalent for these, so they're carried as a
+  // free-form bag rather than forcing every field onto the shared type. Only
+  // for style that isn't otherwise worth a first-class field/column; prefer
+  // promoting something out of here (like imagePlacements above did) once it
+  // turns out to matter.
   liveStyle?: Record<string, unknown>
 }
 

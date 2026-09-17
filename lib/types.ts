@@ -17,6 +17,18 @@ export interface LogoItem {
   alt: string
 }
 
+// Ratios (0-1) of how much is trimmed off each edge of an image's full
+// natural size -- same shape the vision model already returns for uploaded
+// images (lib/trainExport.ts's "crop" schema) and lib/db/schema.ts's
+// image1Crop, so face-detection auto-crop (lib/faceDetect.ts) produces
+// directly comparable data.
+export interface FaceCropBox {
+  top: number
+  bottom: number
+  left: number
+  right: number
+}
+
 export interface StaggerImage {
   id: string
   url: string
@@ -29,6 +41,16 @@ export interface StaggerImage {
   // front/back. Undefined (e.g. a slide saved before this field existed)
   // falls back to slot order (index + 1) in SlideCanvas.
   zIndex?: number
+  // Face-detection auto-crop correction tracking (lib/faceDetect.ts).
+  // `faceCropSuggested` is the box computed from the detected face at
+  // upload time; `faceCropFinal` is whatever crop the image actually ended
+  // up with (equal to suggested until the user re-crops it manually via
+  // CropModal, at which point faceCropWasOverridden flips true). All
+  // undefined for images with no detected face (no auto-crop ran) or that
+  // predate this feature.
+  faceCropSuggested?: FaceCropBox
+  faceCropFinal?: FaceCropBox
+  faceCropWasOverridden?: boolean
 }
 
 // Number of images used by a given stagger mode (0 for non-stagger modes).
@@ -92,6 +114,11 @@ export interface SlideData {
   imageUrl: string       // single-image mode only
   imageAlt: string
   imageSize: number
+  // Single-image-mode counterpart of StaggerImage's face-crop fields --
+  // see the comment there.
+  imageFaceCropSuggested?: FaceCropBox
+  imageFaceCropFinal?: FaceCropBox
+  imageFaceCropWasOverridden?: boolean
   staggerImages: StaggerImage[]  // used by all multi-image modes (stagger, triangle, squared)
   imageOverlap: number  // 0–60, percentage overlap between consecutive stagger images
   staggerSize: number   // pixels, default width of each image in stagger layout

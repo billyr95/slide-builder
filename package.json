@@ -14,10 +14,12 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@sparticuz/chromium": "^152.0.0",
+    "@tensorflow/tfjs": "^4.22.0",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
+    "@vladmandic/face-api": "^1.7.15",
     "autoprefixer": "^10.4.24",
     "bcryptjs": "^3.0.3",
     "drizzle-orm": "^0.45.2",

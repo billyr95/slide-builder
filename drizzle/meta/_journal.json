@@ -22,6 +22,20 @@
       "when": 1789601201206,
       "tag": "0002_futuristic_hemingway",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789615429640,
+      "tag": "0003_curly_ares",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789616936741,
+      "tag": "0004_silent_starfox",
+      "breakpoints": true
     }
   ]
 }

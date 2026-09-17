@@ -1,0 +1,20 @@
+ALTER TABLE "training_entries" ADD COLUMN "text_align" text;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "images_linked_size" boolean;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "presenters_match_title_size" boolean;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "program_title_match_title_size" boolean;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_1_y" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_1_scale" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_1_z_index" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_2_y" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_2_scale" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_2_z_index" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_3_y" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_3_scale" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_3_z_index" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_4_y" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_4_scale" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "image_4_z_index" integer;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "inferred_image_side" text;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "inferred_text_align" text;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "inferred_sizes_appear_matched" boolean;--> statement-breakpoint
+ALTER TABLE "training_entries" ADD COLUMN "inferred_presenters_size_matches_title" boolean;

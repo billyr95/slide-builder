@@ -9,13 +9,30 @@ import ReactCrop, {
 } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
+import { FaceCropBox } from '@/lib/types'
 
 const MAX_CROPPED_DIM = 1600
 
 interface CropModalProps {
   imageSrc: string
-  onComplete: (croppedDataUrl: string) => void
+  // Second argument is the applied crop as a {top,bottom,left,right} ratio
+  // box (same shape as face-detection's suggested box, lib/faceDetect.ts) --
+  // lets a caller that pre-populated an auto-crop compare what the user
+  // actually ended up with against what was suggested.
+  onComplete: (croppedDataUrl: string, cropBox: FaceCropBox) => void
   onCancel: () => void
+}
+
+// pixelCrop is in on-screen CSS pixels relative to the displayed <img>
+// (image.width/height) -- dividing by those, rather than natural
+// width/height, gives the same ratios without needing scaleX/scaleY here.
+function pixelCropToRatioBox(image: HTMLImageElement, pixelCrop: PixelCrop): FaceCropBox {
+  return {
+    left: pixelCrop.x / image.width,
+    top: pixelCrop.y / image.height,
+    right: (image.width - (pixelCrop.x + pixelCrop.width)) / image.width,
+    bottom: (image.height - (pixelCrop.y + pixelCrop.height)) / image.height,
+  }
 }
 
 async function getCroppedImg(image: HTMLImageElement, pixelCrop: PixelCrop): Promise<string> {
@@ -97,7 +114,7 @@ export default function CropModal({ imageSrc, onComplete, onCancel }: CropModalP
   async function handleApply() {
     if (!completedCrop || !imgRef.current) return
     const cropped = await getCroppedImg(imgRef.current, completedCrop)
-    onComplete(cropped)
+    onComplete(cropped, pixelCropToRatioBox(imgRef.current, completedCrop))
   }
 
   return (

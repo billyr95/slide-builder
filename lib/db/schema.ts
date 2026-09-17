@@ -66,6 +66,15 @@ export const trainingEntries = pgTable('training_entries', {
   // Which side the image sits on vs. the text block -- see SlideData.imageSide.
   imageSide: text('image_side').notNull().default('left'),
 
+  // Slide-level layout ground truth, populated only for 'live' entries (the
+  // editor is the only place these are ever actually set) -- null for
+  // 'upload' entries. See inferred_image_side/inferred_text_align etc. below
+  // for the vision-estimated counterpart for those.
+  textAlign: text('text_align'),
+  imagesLinkedSize: boolean('images_linked_size'),
+  presentersMatchTitleSize: boolean('presenters_match_title_size'),
+  programTitleMatchTitleSize: boolean('program_title_match_title_size'),
+
   seriesName: text('series_name').notNull().default(''),
   listeningCredit: text('listening_credit').notNull().default(''),
   backgroundColor: text('background_color').notNull().default(''),
@@ -85,6 +94,56 @@ export const trainingEntries = pgTable('training_entries', {
   // final position pair -- the suggestion is a whole {x,y,width,height,crop}
   // object, not one comparable number like the font sizes below.)
   imagePositionWasOverridden: boolean('image_position_was_overridden'),
+
+  // Client-side face-detection results (lib/faceDetect.ts), scoped to image
+  // 1 -- same convention as image1WidthRatio/image1HeightRatio above.
+  // Populated for BOTH sources (unlike inferred_image_side etc. below,
+  // which need a full batch round-trip, this app runs real detection
+  // directly at upload time in either flow).
+  image1FaceDetected: boolean('image_1_face_detected'),
+  // 'live' only: {top,bottom,left,right} ratio boxes, same shape as
+  // image1Crop above -- the auto-computed suggestion, and whatever the user
+  // ultimately ended up with (equal to suggested until manually re-cropped).
+  image1FaceCropSuggested: jsonb('image_1_face_crop_suggested'),
+  image1FaceCropFinal: jsonb('image_1_face_crop_final'),
+  image1FaceCropWasOverridden: boolean('image_1_face_crop_was_overridden'),
+  // Not yet populated by any code path -- needs the model's own image_type
+  // from its batch response, which nothing here parses back in yet (same
+  // not-yet-wired state as inferred_image_side below). Reserved for a
+  // future step that flags entries where image1FaceDetected and the
+  // model's "face" classification disagree.
+  image1FaceDetectionMismatch: boolean('image_1_face_detection_mismatch'),
+
+  // Per-stagger-image placement ground truth ('live' only, up to 4 slots --
+  // single-image mode has no equivalent, see image1WidthRatio/HeightRatio
+  // above instead). Unbottled from the old liveStyle.staggerImagePlacements
+  // JSON blob into individually queryable columns, matching every other
+  // structured field instead of relying on a model (or a query) to read
+  // values back out of a stringified blob.
+  image1Y: integer('image_1_y'),
+  image1Scale: integer('image_1_scale'),
+  image1ZIndex: integer('image_1_z_index'),
+  image2Y: integer('image_2_y'),
+  image2Scale: integer('image_2_scale'),
+  image2ZIndex: integer('image_2_z_index'),
+  image3Y: integer('image_3_y'),
+  image3Scale: integer('image_3_scale'),
+  image3ZIndex: integer('image_3_z_index'),
+  image4Y: integer('image_4_y'),
+  image4Scale: integer('image_4_scale'),
+  image4ZIndex: integer('image_4_z_index'),
+
+  // Vision-model-estimated counterparts of textAlign/imagesLinkedSize/
+  // presentersMatchTitleSize/imageSide, for 'upload' entries -- old slides
+  // have no ground truth for these, so the model infers them from the
+  // rendered image instead (see trainExport.ts's buildEstimatePrompt).
+  // Columns exist so a future results-parsing step has somewhere to write;
+  // nothing currently populates them, same not-yet-wired state as
+  // image1Type/image1PositionX/image1PositionY above.
+  inferredImageSide: text('inferred_image_side'),
+  inferredTextAlign: text('inferred_text_align'),
+  inferredSizesAppearMatched: boolean('inferred_sizes_appear_matched'),
+  inferredPresentersSizeMatchesTitle: boolean('inferred_presenters_size_matches_title'),
 
   // Suggested (from suggestTitleFontSize/suggestSubtitleFontSize), final
   // (the real slider value at export time), and whether the user manually

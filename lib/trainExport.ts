@@ -70,6 +70,21 @@ function buildEstimatePrompt(entry: TrainEntry): string {
   if (attached.length > 0) {
     estimate.push(`An "images" array (see schema below) describing each of the ${attached.length} attached image(s), in the order given`)
   }
+  // Old slides have no ground truth for these layout choices -- they only
+  // exist as real settings in the live editor (imageSide/textAlign/etc, see
+  // buildConfirmPrompt). Asking the model to read them off the rendered
+  // image is the same pattern already used for color and image
+  // position/crop above.
+  if (attached.length > 0) {
+    estimate.push('inferred_image_side ("left" or "right"): which side of the slide the image(s) appear on relative to the text block, inferred visually')
+  }
+  if (attached.length > 1) {
+    estimate.push('inferred_sizes_appear_matched (boolean): for the attached images, whether they appear to be roughly the same size on the slide')
+  }
+  estimate.push('inferred_text_align ("left" or "center"): whether the text block appears left-aligned or center-aligned, inferred visually')
+  if (entry.presenters) {
+    estimate.push('inferred_presenters_size_matches_title (boolean): whether the presenters text appears to be styled at roughly the same font size as the title, as opposed to noticeably smaller')
+  }
 
   // The stated image count (what actually appeared on the slide) can differ
   // from how many source image files are attached below — e.g. the original
@@ -151,6 +166,25 @@ function buildConfirmPrompt(entry: TrainEntry): string {
   const known = commonKnownLines(entry)
   known.push(`Background color: ${entry.backgroundColor}`)
   known.push(`Text color: ${entry.textColor}`)
+  // Layout-level ground truth that only 'live' entries have (the editor is
+  // the only place these are ever actually set) -- 'upload' entries get the
+  // model's own visual estimate of these instead (see buildEstimatePrompt's
+  // inferred_* fields), so they're deliberately absent from commonKnownLines.
+  if (entry.textAlign) known.push(`Text alignment: ${entry.textAlign}`)
+  if (entry.imagesLinkedSize !== undefined) known.push(`Image 1 & 2 sizes linked: ${entry.imagesLinkedSize}`)
+  if (entry.presentersMatchTitleSize !== undefined) known.push(`Presenters font size matches Title: ${entry.presentersMatchTitleSize}`)
+  if (entry.programTitleMatchTitleSize !== undefined) known.push(`Program title font size matches Title: ${entry.programTitleMatchTitleSize}`)
+  // Same width_ratio/height_ratio names 'upload' entries get back from the
+  // model's own image-position estimate, so both sources are comparable.
+  if (entry.imageWidthRatio !== undefined) known.push(`Image 1 width ratio: ${entry.imageWidthRatio.toFixed(3)}`)
+  if (entry.imageHeightRatio !== undefined) known.push(`Image 1 height ratio: ${entry.imageHeightRatio.toFixed(3)}`)
+  // Individually labeled per-image facts (not buried in the liveStyle JSON
+  // blob below) -- e.g. "Image 2 layer/z-index: 3".
+  entry.imagePlacements?.forEach((placement, i) => {
+    known.push(`Image ${i + 1} vertical offset (px): ${placement.y}`)
+    known.push(`Image ${i + 1} size override (px): ${placement.scale}`)
+    if (placement.zIndex !== undefined) known.push(`Image ${i + 1} layer/z-index: ${placement.zIndex}`)
+  })
   if (entry.liveStyle) {
     known.push(`Additional exact style data (from the original editor state, as JSON): ${JSON.stringify(entry.liveStyle)}`)
   }

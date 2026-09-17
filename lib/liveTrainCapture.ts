@@ -115,6 +115,24 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     ? Math.abs(widthRatio - suggestImagePosition('other', screenType).width) > 0.005
     : undefined
 
+  // Mirrors SlideCanvas.tsx's own historicalAlign fallback exactly, so this
+  // reports what's actually rendered (a slide saved before textAlign existed
+  // has data.textAlign === undefined but still renders with a real,
+  // mode-dependent alignment) rather than the possibly-unset raw field.
+  const historicalAlign = data.imageMode !== 'none' && orientation === 'landscape' ? 'left' : 'center'
+  const textAlign = data.textAlign ?? historicalAlign
+
+  const imagePlacements = (data.staggerImages || [])
+    .filter(img => img.url)
+    .map(img => ({ y: img.y, scale: img.scale, zIndex: img.zIndex }))
+
+  // Image 1's face-detection auto-crop tracking (lib/faceDetect.ts) -- same
+  // image-1-only convention as imageWidthRatio/imageHeightRatio above.
+  const firstStaggerImage = (data.staggerImages || []).find(img => img.url)
+  const image1FaceCrop = data.imageMode === 'single'
+    ? { suggested: data.imageFaceCropSuggested, final: data.imageFaceCropFinal, wasOverridden: data.imageFaceCropWasOverridden }
+    : { suggested: firstStaggerImage?.faceCropSuggested, final: firstStaggerImage?.faceCropFinal, wasOverridden: firstStaggerImage?.faceCropWasOverridden }
+
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     createdAt: new Date().toISOString(),
@@ -139,6 +157,10 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     programTitleFont: data.programTitleFont,
     programTitleItalic: data.programTitleItalic,
     imageSide: data.imageSide,
+    textAlign,
+    imagesLinkedSize: data.imagesLinkedSize,
+    presentersMatchTitleSize: data.presentersMatchTitleSize,
+    programTitleMatchTitleSize: data.programTitleMatchTitleSize,
 
     seriesName: data.showSeriesName ? data.seriesName : '',
     // TODO: the main editor has no QR code feature yet -- always false
@@ -165,6 +187,11 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     imageWidthRatio: widthRatio,
     imageHeightRatio,
     imagePositionWasOverridden,
+    imagePlacements,
+    faceDetected: image1FaceCrop.suggested !== undefined,
+    faceCropSuggested: image1FaceCrop.suggested,
+    faceCropFinal: image1FaceCrop.final,
+    faceCropWasOverridden: image1FaceCrop.wasOverridden,
 
     liveStyle: {
       accentColor: data.accentColor,
@@ -182,9 +209,6 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       imageSize: data.imageSize,
       imageOverlap: data.imageOverlap,
       staggerSize: data.staggerSize,
-      staggerImagePlacements: (data.staggerImages || [])
-        .filter(img => img.url)
-        .map(img => ({ y: img.y, scale: img.scale, zIndex: img.zIndex })),
 
       logoCount: (data.logos || []).length,
       logoSize: data.logoSize,
