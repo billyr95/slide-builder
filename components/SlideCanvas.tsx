@@ -158,6 +158,17 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // was one conditional-render or key change away from silently
     // reordering the visual stack. Pinned this way, stacking is stable and
     // untouched by the flip toggle, which only mirrors left/right position.
+    // The group's own wrapper also needs `isolation: 'isolate'` (see both
+    // call sites) -- position:relative alone does NOT create a stacking
+    // context, so without it these positive z-indexes escape upward and
+    // compare directly against the footer/text (which sit at the default
+    // z-index:auto layer). Per the CSS stacking spec, ANY positive z-index
+    // always paints above z-index:auto content in the same context
+    // regardless of DOM order, so an un-isolated image could unexpectedly
+    // paint over the footer/text if a large X/Y nudge or size ever pushed it
+    // into that space. Isolating contains the 1..N ordering to *within* this
+    // group, so from the outside the whole group is back to being one plain
+    // DOM-ordered box relative to its siblings, exactly like before.
     function computeStaggerLayout(mode: ImageMode) {
       const count = staggerCount(mode)
       const overlapPct = (data.imageOverlap ?? 30) / 100
@@ -381,7 +392,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   padding: `${colPad}px`,
                   overflow: 'visible',
                 }}>
-                  <div style={{ position: 'relative', width: groupW, height: groupH, flexShrink: 0 }}>
+                  <div style={{ position: 'relative', width: groupW, height: groupH, flexShrink: 0, isolation: 'isolate' }}>
                     {images.map((img, i) => (
                       <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: i + 1 }}>
                         {img?.url
@@ -553,6 +564,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 height: groupH,
                 alignSelf: 'center',
                 flexShrink: 0,
+                isolation: 'isolate',
               }}>
                 {images.map((img, i) => (
                   <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: i + 1 }}>

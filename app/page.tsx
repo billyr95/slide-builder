@@ -84,7 +84,8 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {filtered.map(slide => (
-              <SlideCard key={slide.id} id={slide.id} title={slide.title} orientation={slide.orientation} updatedAt={slide.updatedAt} />
+              <SlideCard key={slide.id} id={slide.id} title={slide.title} orientation={slide.orientation} updatedAt={slide.updatedAt}
+                onDeleted={deletedId => setSlides(prev => prev.filter(s => s.id !== deletedId))} />
             ))}
           </div>
         )}

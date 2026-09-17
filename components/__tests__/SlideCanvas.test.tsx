@@ -123,6 +123,31 @@ describe('SlideCanvas', () => {
     expect(screen.getByAltText('Image D')).toBeInTheDocument()
   })
 
+  it.each(ORIENTATIONS)('keeps stagger image z-index pinned to slot order, unaffected by imageSide flip in %s mode', (orientation) => {
+    const staggerImages = [
+      { id: 'A', url: 'data:image/png;base64,AAA', alt: 'Image A', y: 0, scale: 0 },
+      { id: 'B', url: 'data:image/png;base64,BBB', alt: 'Image B', y: 0, scale: 0 },
+      { id: 'C', url: 'data:image/png;base64,CCC', alt: 'Image C', y: 0, scale: 0 },
+      { id: 'D', url: 'data:image/png;base64,DDD', alt: 'Image D', y: 0, scale: 0 },
+    ]
+    for (const imageSide of ['left', 'right'] as const) {
+      const data = withData({ imageMode: 'four-squared', staggerImages, imageSide })
+      const { container, unmount } = render(<SlideCanvas data={data} orientation={orientation} />)
+      const zIndexes = ['Image A', 'Image B', 'Image C', 'Image D'].map(alt => {
+        const img = screen.getByAltText(alt)
+        return (img.parentElement as HTMLElement).style.zIndex
+      })
+      expect(zIndexes).toEqual(['1', '2', '3', '4'])
+      // The group wrapper must isolate its own stacking context, or these
+      // positive z-indexes would escape and paint over the footer/text
+      // (which sit at the default z-index:auto layer) if they ever
+      // geometrically overlapped -- see computeStaggerLayout's own comment.
+      const groupWrapper = container.querySelector('img[alt="Image A"]')!.parentElement!.parentElement as HTMLElement
+      expect(groupWrapper.style.isolation).toBe('isolate')
+      unmount()
+    }
+  })
+
   it.each(ORIENTATIONS)('wraps long unbroken text instead of overflowing in %s mode', (orientation) => {
     const data = withData({ title: 'A'.repeat(200) })
     render(<SlideCanvas data={data} orientation={orientation} />)

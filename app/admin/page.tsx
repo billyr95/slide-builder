@@ -95,7 +95,8 @@ export default function AdminPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {filtered.map(slide => (
               <SlideCard key={slide.id} id={slide.id} title={slide.title} orientation={slide.orientation}
-                updatedAt={slide.updatedAt} subtitle={slide.ownerEmail} />
+                updatedAt={slide.updatedAt} subtitle={slide.ownerEmail}
+                onDeleted={deletedId => setSlides(prev => prev.filter(s => s.id !== deletedId))} />
             ))}
           </div>
         )}
