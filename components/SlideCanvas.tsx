@@ -547,10 +547,13 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const titleSize = data.titleSize
     const presenterSize = data.presentersSize
 
-    // Two swappable sections -- label now lives inside the text section
-    // (rather than a separate top-of-slide block) so "flip" has an actual
-    // single text block to trade places with the image, matching how
-    // landscape already treats label as part of the same text column.
+    // Label needs to behave differently from the rest of the text block:
+    // when not flipped it stays inline as the text section's first child
+    // (unchanged from before), but when flipped it must lead the WHOLE
+    // slide -- above the image, not just above Title -- so it's pulled out
+    // into its own standalone section only for that state (portraitLabelSection,
+    // defined below) and excluded from portraitTextSection there to avoid
+    // rendering it twice.
     const portraitImageSection = (
       <React.Fragment key="image">
         {staggerCount(data.imageMode) > 0 ? (
@@ -593,6 +596,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       </React.Fragment>
     )
 
+    // Only when flipped -- leads the entire slide, above the image. When
+    // not flipped, Label instead renders inline inside portraitTextSection
+    // below (unchanged), since Image already comes first there.
+    const portraitLabelSection = (imageOnRight && data.label) ? (
+      <div key="label" style={{
+        padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
+        textAlign,
+      }}>
+        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+          {data.label}
+        </div>
+      </div>
+    ) : null
+
     const portraitTextSection = (
       <div key="text" style={{
         display: 'flex',
@@ -602,7 +619,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         gap: `${16 * scale}px`,
         textAlign,
       }}>
-        {data.label && (
+        {!imageOnRight && data.label && (
           <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
             {data.label}
           </div>
@@ -685,7 +702,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         }}
       >
         {imageOnRight ? (
-          <>{portraitTextSection}{portraitImageSection}</>
+          <>{portraitLabelSection}{portraitImageSection}{portraitTextSection}</>
         ) : (
           <>{portraitImageSection}{portraitTextSection}</>
         )}

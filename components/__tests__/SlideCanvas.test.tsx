@@ -163,25 +163,39 @@ describe('SlideCanvas', () => {
     expect(zIndexes).toEqual(['9', '1', '5'])
   })
 
-  it('flips portrait mode vertically (image/text order), not horizontally', () => {
+  it('portrait: Image always renders before the Title/Subtitle/Presenters block, flipped or not', () => {
+    // Flip's vertical effect in portrait is scoped to where Label sits (see
+    // the two tests below) -- it does not reorder Image relative to the
+    // rest of the text, per the exact stack order requested: Label, Image,
+    // Title/Subtitle/Presenters/etc, in both states (Label just moves
+    // in/out of that text block depending on flip).
     const base = { imageMode: 'single' as const, imageUrl: 'data:image/png;base64,AAA', imageAlt: 'photo' }
-    const { container: notFlipped } = render(<SlideCanvas data={withData({ ...base, imageSide: 'left' })} orientation="portrait" />)
-    const imgNotFlipped = notFlipped.querySelector('img[alt="photo"]')!
-    const textNotFlipped = screen.getByText(DEFAULT_SLIDE_DATA.title)
-    // Not flipped: image renders before the text block in DOM order, which
-    // is what puts it on top in this portrait layout's column flow.
-    expect(!!(imgNotFlipped.compareDocumentPosition(textNotFlipped) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
-
-    const { container: flipped } = render(<SlideCanvas data={withData({ ...base, imageSide: 'right' })} orientation="portrait" />)
-    const imgFlipped = flipped.querySelector('img[alt="photo"]')!
-    const textFlipped = screen.getAllByText(DEFAULT_SLIDE_DATA.title)[1]
-    // Flipped: the text block now renders before the image -- portrait's
-    // outer container is flexDirection: column, so swapping DOM order here
-    // swaps top/bottom placement, not left/right.
-    expect(!!(textFlipped.compareDocumentPosition(imgFlipped) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    for (const imageSide of ['left', 'right'] as const) {
+      const { container, unmount } = render(<SlideCanvas data={withData({ ...base, imageSide })} orientation="portrait" />)
+      const img = container.querySelector('img[alt="photo"]')!
+      const title = screen.getByText(DEFAULT_SLIDE_DATA.title)
+      expect(!!(img.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+      unmount()
+    }
   })
 
-  it('keeps the Label above the image in portrait mode when flipped', () => {
+  it('portrait, not flipped: Label stays between Image and Title (unchanged from before this fix)', () => {
+    const data = withData({
+      imageSide: 'left',
+      label: 'THE LABEL TEXT',
+      imageMode: 'single',
+      imageUrl: 'data:image/png;base64,AAA',
+      imageAlt: 'photo',
+    })
+    const { container } = render(<SlideCanvas data={data} orientation="portrait" />)
+    const img = container.querySelector('img[alt="photo"]')!
+    const label = screen.getByText('THE LABEL TEXT')
+    const title = screen.getByText(DEFAULT_SLIDE_DATA.title)
+    expect(!!(img.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(!!(label.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('portrait, flipped: Label leads the whole slide, above both the image and the rest of the text', () => {
     const data = withData({
       imageSide: 'right',
       label: 'THE LABEL TEXT',
@@ -192,8 +206,24 @@ describe('SlideCanvas', () => {
     const { container } = render(<SlideCanvas data={data} orientation="portrait" />)
     const label = screen.getByText('THE LABEL TEXT')
     const img = container.querySelector('img[alt="photo"]')!
-    // Label must never end up below or beside the image once flipped.
+    const title = screen.getByText(DEFAULT_SLIDE_DATA.title)
+    // Exact requested order: Label, then Image, then Title/Subtitle/Presenters.
     expect(!!(label.compareDocumentPosition(img) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+    expect(!!(img.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('does not add a leading Label section in landscape mode (flip is left/right there, not a Label reorder)', () => {
+    const data = withData({
+      imageSide: 'right',
+      label: 'THE LABEL TEXT',
+      imageMode: 'single',
+      imageUrl: 'data:image/png;base64,AAA',
+      imageAlt: 'photo',
+    })
+    render(<SlideCanvas data={data} orientation="landscape" />)
+    // Landscape's own flip (left/right column swap) is untouched by this
+    // portrait-only fix -- Label still renders exactly once, inline with title.
+    expect(screen.getAllByText('THE LABEL TEXT')).toHaveLength(1)
   })
 
   it.each(ORIENTATIONS)('wraps long unbroken text instead of overflowing in %s mode', (orientation) => {
