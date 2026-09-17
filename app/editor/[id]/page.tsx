@@ -437,6 +437,7 @@ export default function EditorPage() {
             onChange={setData}
             screenType={screenType}
             slideRevision={slideRevision}
+            orientation={orientation}
           />
         </aside>
       </div>

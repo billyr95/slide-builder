@@ -1,6 +1,6 @@
 'use client'
 
-import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, staggerCount } from '@/lib/types'
+import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, Orientation, staggerCount } from '@/lib/types'
 import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
@@ -33,6 +33,9 @@ interface EditorPanelProps {
   // (not on ordinary field edits) — resets the heuristic "manually
   // overridden" flags below so a fresh slide gets auto-suggestions again.
   slideRevision: number
+  // Needed to word the Flip control correctly -- portrait's outer container
+  // is a column flex, so imageSide there swaps top/bottom, not left/right.
+  orientation: Orientation
 }
 
 const inputCls = `w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 transition-colors placeholder-zinc-500`
@@ -63,7 +66,60 @@ function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: 
   )
 }
 
-function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge, disabled }: {
+// Paired numeric input for a FontSizeSlider -- own component so its typing
+// state (the raw text being edited) doesn't get clobbered mid-keystroke by
+// the `value` prop re-rendering, but still stays in sync with it whenever
+// the slider (or a linked field) changes it from outside.
+function SliderNumberInput({ value, onChange, min, max, disabled }: {
+  value: number; onChange: (v: number) => void; min: number; max: number; disabled?: boolean
+}) {
+  const [text, setText] = useState(String(value))
+  const [focused, setFocused] = useState(false)
+
+  useEffect(() => {
+    if (!focused) setText(String(value))
+  }, [value, focused])
+
+  function commit(raw: string) {
+    const parsed = Math.round(Number(raw))
+    const clamped = Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : value
+    setText(String(clamped))
+    if (clamped !== value) onChange(clamped)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      // Step immediately on each press (not on blur) -- each arrow press is
+      // a complete, atomic change, unlike free typing which should only
+      // commit once the user is done.
+      e.preventDefault()
+      const current = Math.round(Number(text))
+      const base = Number.isFinite(current) ? current : value
+      const next = Math.max(min, Math.min(max, base + (e.key === 'ArrowUp' ? 1 : -1)))
+      setText(String(next))
+      if (next !== base) onChange(next)
+    } else if (e.key === 'Enter') {
+      commit(text)
+      e.currentTarget.blur()
+    }
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={text}
+      disabled={disabled}
+      onFocus={() => setFocused(true)}
+      onChange={e => setText(e.target.value.replace(/[^0-9-]/g, ''))}
+      onKeyDown={handleKeyDown}
+      onBlur={() => { setFocused(false); commit(text) }}
+      className="w-12 text-xs font-mono text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-right focus:outline-none focus:border-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
+    />
+  )
+}
+
+function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge, disabled, numberInput }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
   // Displayed after the value (e.g. "px" for a real pixel size, "%" for a
   // percentage-based control like single-image mode's size) — defaults to
@@ -76,6 +132,12 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
   // Greys out the slider when its value is being driven by something else
   // (e.g. linked to Title's size) rather than adjustable directly here.
   disabled?: boolean
+  // Swaps the plain "value + unit" readout for an editable numeric input
+  // (type-to-set, Up/Down arrow keys to step by 1, clamped to min/max) --
+  // opt-in per caller rather than on by default, since it's currently only
+  // requested for image-related controls (size/position/z-index/overlap),
+  // not every slider in the panel.
+  numberInput?: boolean
 }) {
   return (
     <div className="mt-1.5">
@@ -93,7 +155,14 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
             </span>
           )}
         </span>
-        <span className="text-xs font-mono text-zinc-400">{value}{unit}</span>
+        {numberInput ? (
+          <span className="flex items-center gap-1">
+            <SliderNumberInput value={value} onChange={onChange} min={min} max={max} disabled={disabled} />
+            {unit && <span className="text-xs text-zinc-500">{unit}</span>}
+          </span>
+        ) : (
+          <span className="text-xs font-mono text-zinc-400">{value}{unit}</span>
+        )}
       </div>
       <input type="range" min={min} max={max} step={1} value={value}
         disabled={disabled}
@@ -207,7 +276,7 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 }
 
 export default function EditorPanel({
-  data, onChange, screenType, slideRevision,
+  data, onChange, screenType, slideRevision, orientation,
 }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
@@ -584,7 +653,7 @@ export default function EditorPanel({
                 <div className="mt-2">
                   <FontSizeSlider label="Image size" value={data.imageSize ?? 100}
                     onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [-1]: true })); set('imageSize', v) }}
-                    min={20} max={200} unit="%" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} />
+                    min={20} max={200} unit="%" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
                 </div>
               )}
             </>
@@ -648,7 +717,8 @@ export default function EditorPanel({
                         onChange={v => updateStaggerScale(i, v)}
                         min={80} max={800}
                         disabled={data.imagesLinkedSize && i === 1}
-                        badge={data.imagesLinkedSize && (i === 0 || i === 1) ? 'linked' : undefined} />
+                        badge={data.imagesLinkedSize && (i === 0 || i === 1) ? 'linked' : undefined}
+                        numberInput />
                     </div>
                     {i === 1 && (
                       <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
@@ -677,24 +747,24 @@ export default function EditorPanel({
                       </label>
                     )}
                     <div className="mt-2">
-                      <FontSizeSlider label={`Image ${i + 1} X`} value={img?.x ?? 0} onChange={v => updateStaggerImage(i, { x: v })} min={-600} max={600} />
+                      <FontSizeSlider label={`Image ${i + 1} X`} value={img?.x ?? 0} onChange={v => updateStaggerImage(i, { x: v })} min={-600} max={600} numberInput />
                     </div>
                     <div className="mt-2">
-                      <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} />
+                      <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} numberInput />
                     </div>
                     <div className="mt-2">
                       <FontSizeSlider label={`Image ${i + 1} layer`} value={img?.zIndex ?? (i + 1)}
                         onChange={v => updateStaggerImage(i, { zIndex: v })}
-                        min={1} max={10} unit="" />
+                        min={1} max={10} unit="" numberInput />
                     </div>
                   </div>
                 )
               })}
               <div className="mt-4">
-                <FontSizeSlider label="Image width" value={data.staggerSize ?? 250} onChange={v => set('staggerSize', v)} min={80} max={800} />
+                <FontSizeSlider label="Image width" value={data.staggerSize ?? 250} onChange={v => set('staggerSize', v)} min={80} max={800} numberInput />
               </div>
               <div className="mt-2">
-                <FontSizeSlider label="Overlap" value={data.imageOverlap ?? 30} onChange={v => set('imageOverlap', v)} min={0} max={60} />
+                <FontSizeSlider label="Overlap" value={data.imageOverlap ?? 30} onChange={v => set('imageOverlap', v)} min={0} max={60} numberInput />
               </div>
             </>
           )}
@@ -705,13 +775,17 @@ export default function EditorPanel({
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Layout</p>
 
           <div className="mb-4">
-            <label className={labelCls}>Image side</label>
+            <label className={labelCls}>{orientation === 'portrait' ? 'Image position' : 'Image side'}</label>
             <button
               onClick={() => set('imageSide', data.imageSide === 'right' ? 'left' : 'right')}
               className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
-              title="Swap which side the image sits on vs. the text"
+              title={orientation === 'portrait'
+                ? 'Swap whether the image sits on top of or below the text'
+                : 'Swap which side the image sits on vs. the text'}
             >
-              <span>⇄</span> Flip ({data.imageSide === 'right' ? 'image right' : 'image left'})
+              <span>⇄</span> {orientation === 'portrait'
+                ? `Flip (image ${data.imageSide === 'right' ? 'bottom' : 'top'})`
+                : `Flip (image ${data.imageSide === 'right' ? 'right' : 'left'})`}
             </button>
           </div>
 

@@ -163,6 +163,39 @@ describe('SlideCanvas', () => {
     expect(zIndexes).toEqual(['9', '1', '5'])
   })
 
+  it('flips portrait mode vertically (image/text order), not horizontally', () => {
+    const base = { imageMode: 'single' as const, imageUrl: 'data:image/png;base64,AAA', imageAlt: 'photo' }
+    const { container: notFlipped } = render(<SlideCanvas data={withData({ ...base, imageSide: 'left' })} orientation="portrait" />)
+    const imgNotFlipped = notFlipped.querySelector('img[alt="photo"]')!
+    const textNotFlipped = screen.getByText(DEFAULT_SLIDE_DATA.title)
+    // Not flipped: image renders before the text block in DOM order, which
+    // is what puts it on top in this portrait layout's column flow.
+    expect(!!(imgNotFlipped.compareDocumentPosition(textNotFlipped) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+
+    const { container: flipped } = render(<SlideCanvas data={withData({ ...base, imageSide: 'right' })} orientation="portrait" />)
+    const imgFlipped = flipped.querySelector('img[alt="photo"]')!
+    const textFlipped = screen.getAllByText(DEFAULT_SLIDE_DATA.title)[1]
+    // Flipped: the text block now renders before the image -- portrait's
+    // outer container is flexDirection: column, so swapping DOM order here
+    // swaps top/bottom placement, not left/right.
+    expect(!!(textFlipped.compareDocumentPosition(imgFlipped) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
+  it('keeps the Label above the image in portrait mode when flipped', () => {
+    const data = withData({
+      imageSide: 'right',
+      label: 'THE LABEL TEXT',
+      imageMode: 'single',
+      imageUrl: 'data:image/png;base64,AAA',
+      imageAlt: 'photo',
+    })
+    const { container } = render(<SlideCanvas data={data} orientation="portrait" />)
+    const label = screen.getByText('THE LABEL TEXT')
+    const img = container.querySelector('img[alt="photo"]')!
+    // Label must never end up below or beside the image once flipped.
+    expect(!!(label.compareDocumentPosition(img) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
+  })
+
   it.each(ORIENTATIONS)('wraps long unbroken text instead of overflowing in %s mode', (orientation) => {
     const data = withData({ title: 'A'.repeat(200) })
     render(<SlideCanvas data={data} orientation={orientation} />)
