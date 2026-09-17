@@ -277,4 +277,41 @@ describe('SlideCanvas', () => {
     const root = screen.getByText(DEFAULT_SLIDE_DATA.title).closest('#slide-canvas') as HTMLElement
     expect(root).toHaveStyle({ textAlign: 'center', justifyContent: 'center' })
   })
+
+  it.each(ORIENTATIONS)('renders each field in its own per-field color (defaults) in %s mode', (orientation) => {
+    render(<SlideCanvas data={DEFAULT_SLIDE_DATA} orientation={orientation} />)
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.label)).toHaveStyle({ color: DEFAULT_SLIDE_DATA.labelColor })
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.title)).toHaveStyle({ color: DEFAULT_SLIDE_DATA.accentColor })
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.subtitle)).toHaveStyle({ color: DEFAULT_SLIDE_DATA.subtitleColor })
+    expect(screen.getByText(/Vinson Cunningham/)).toHaveStyle({ color: DEFAULT_SLIDE_DATA.presentersColor })
+  })
+
+  it.each(ORIENTATIONS)('falls back a legacy slide (no per-field colors) to its old single textColor in %s mode', (orientation) => {
+    // Simulates a slide saved before per-field colors existed: only
+    // textColor is present, every per-field *Color key is genuinely absent
+    // (not just falsy) -- matches how a pre-migration JSONB blob deserializes.
+    const legacy = { ...DEFAULT_SLIDE_DATA, textColor: '#ff00ff' } as typeof DEFAULT_SLIDE_DATA
+    delete (legacy as any).labelColor
+    delete (legacy as any).subtitleColor
+    delete (legacy as any).subtitle2Color
+    delete (legacy as any).presentersColor
+    delete (legacy as any).programTitleColor
+    render(<SlideCanvas data={legacy} orientation={orientation} />)
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.label)).toHaveStyle({ color: '#ff00ff' })
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.subtitle)).toHaveStyle({ color: '#ff00ff' })
+    expect(screen.getByText(/Vinson Cunningham/)).toHaveStyle({ color: '#ff00ff' })
+    // Title is unaffected by this migration path -- it already had its own
+    // dedicated, always-present accentColor field before per-field colors
+    // existed, so a "legacy" slide's title color is just whatever
+    // accentColor already was, not something that needs a fallback chain.
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.title)).toHaveStyle({ color: DEFAULT_SLIDE_DATA.accentColor })
+  })
+
+  it.each(ORIENTATIONS)('an explicit per-field color overrides the legacy textColor fallback in %s mode', (orientation) => {
+    const data = withData({ presentersColor: '#00ff00', textColor: '#ff00ff' })
+    render(<SlideCanvas data={data} orientation={orientation} />)
+    expect(screen.getByText(/Vinson Cunningham/)).toHaveStyle({ color: '#00ff00' })
+    // A sibling field with no override of its own still falls back correctly.
+    expect(screen.getByText(DEFAULT_SLIDE_DATA.subtitle)).toHaveStyle({ color: DEFAULT_SLIDE_DATA.subtitleColor })
+  })
 })

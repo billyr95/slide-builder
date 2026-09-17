@@ -65,6 +65,7 @@ export interface SlideData {
   // Content
   label: string
   labelWeight: TheinhardtWeight
+  labelColor?: string
   title: string
   titleFont: TitleFont
   titleItalic: boolean
@@ -73,14 +74,17 @@ export interface SlideData {
   subtitleWeight: TheinhardtWeight
   subtitleSize: number
   subtitleInline: boolean
+  subtitleColor?: string
   subtitle2: string
   subtitle2Weight: TheinhardtWeight
   subtitle2Size: number
+  subtitle2Color?: string
   presenters: string
   presentersFont: PresentersFont
   presentersItalic: boolean
   presentersWeight: TheinhardtWeight
   presentersSize: number
+  presentersColor?: string
   // When true, presentersSize is kept equal to titleSize instead of being
   // independently adjustable -- toggled from a checkbox near Title.
   presentersMatchTitleSize: boolean
@@ -92,10 +96,18 @@ export interface SlideData {
   programTitleWeight: TheinhardtWeight
   programTitleItalic: boolean
   programTitleSize: number
+  programTitleColor?: string
   programTitleMatchTitleSize: boolean
 
   // Style
   backgroundColor: string
+  // Legacy single "all text" color -- superseded by the per-field *Color
+  // properties above/below (each falls back to this when unset, e.g. for a
+  // slide saved before those fields existed), kept on the type for that
+  // migration path rather than actively driving rendering anywhere now.
+  // Title's own color remains accentColor, unchanged (it already predates
+  // and serves the same "this field's own color" role the new per-field
+  // colors add everywhere else, so it isn't duplicated as a titleColor).
   textColor: string
   accentColor: string
   // Slide-level layout decisions, worth their own training signal --
@@ -134,6 +146,8 @@ export interface SlideData {
   // Footer
   showSeriesName: boolean
   seriesName: string
+  seriesNameColor?: string
   showListeningCredit: boolean
   listeningCredit: string
+  listeningCreditColor?: string
 }

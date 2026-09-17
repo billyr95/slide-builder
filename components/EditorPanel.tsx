@@ -1,6 +1,6 @@
 'use client'
 
-import { SlideData, TheinhardtWeight, LogoItem, StaggerImage, ImageMode, Orientation, FaceCropBox, staggerCount } from '@/lib/types'
+import { SlideData, TheinhardtWeight, PresentersFont, LogoItem, StaggerImage, ImageMode, Orientation, FaceCropBox, staggerCount } from '@/lib/types'
 import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
@@ -42,7 +42,10 @@ const inputCls = `w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2
 const labelCls = `block text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider`
 const sectionCls = `border-b border-zinc-800 pb-5 mb-5`
 
-function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: (w: TheinhardtWeight) => void }) {
+// 92NY Text has no separate weight variants (unlike Theinhardt) -- disabled
+// rather than hidden so the control's presence (and its stored value) stays
+// consistent regardless of which font is picked.
+function WeightPicker({ value, onChange, disabled }: { value: TheinhardtWeight; onChange: (w: TheinhardtWeight) => void; disabled?: boolean }) {
   const weights: { value: TheinhardtWeight; label: string; fw: number }[] = [
     { value: 'regular', label: 'Regular', fw: 400 },
     { value: 'bold', label: 'Bold', fw: 700 },
@@ -53,8 +56,9 @@ function WeightPicker({ value, onChange }: { value: TheinhardtWeight; onChange: 
       {weights.map(w => (
         <button
           key={w.value}
+          disabled={disabled}
           onClick={() => onChange(w.value)}
-          className={`flex-1 py-1.5 px-2 rounded-md text-xs border transition-colors ${
+          className={`flex-1 py-1.5 px-2 rounded-md text-xs border transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
             value === w.value ? 'bg-white text-black border-white' : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
           }`}
           style={{ fontFamily: "'Theinhardt', sans-serif", fontWeight: w.fw }}
@@ -315,6 +319,22 @@ export default function EditorPanel({
     if (data.programTitleMatchTitleSize) patch.programTitleSize = newTitleSize
   }
 
+  // 92NY Text has no Bold/Heavy variant, so switching a field to it resets a
+  // non-Regular weight rather than leaving a now-invalid value stored. Both
+  // fields land in one onChange call for the same stale-closure reason as
+  // applyTitleSize above.
+  function setPresentersFont(font: PresentersFont) {
+    const patch: Partial<SlideData> = { presentersFont: font }
+    if (font === '92NY Text' && data.presentersWeight !== 'regular') patch.presentersWeight = 'regular'
+    onChange({ ...data, ...patch })
+  }
+
+  function setProgramTitleFont(font: PresentersFont) {
+    const patch: Partial<SlideData> = { programTitleFont: font }
+    if (font === '92NY Text' && data.programTitleWeight !== 'regular') patch.programTitleWeight = 'regular'
+    onChange({ ...data, ...patch })
+  }
+
   function handleTitleChange(value: string) {
     const patch: Partial<SlideData> = { title: value }
     if (!titleSizeOverridden) {
@@ -528,6 +548,14 @@ export default function EditorPanel({
 
       <div className="flex flex-col gap-0 text-white">
 
+        {/* Background */}
+        <div className={sectionCls}>
+          <div className="flex items-center gap-2">
+            <label className={labelCls + ' mb-0'}>Background</label>
+            <ColorPalette value={data.backgroundColor} onChange={v => set('backgroundColor', v)} />
+          </div>
+        </div>
+
         {/* Content */}
         <div className={sectionCls}>
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Content</p>
@@ -536,6 +564,10 @@ export default function EditorPanel({
             <label className={labelCls}>Label (e.g. TONIGHT)</label>
             <input className={inputCls} value={data.label} onChange={e => set('label', e.target.value)} placeholder="TONIGHT" />
             <div className="mt-1.5"><WeightPicker value={data.labelWeight} onChange={v => set('labelWeight', v)} /></div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.labelColor ?? data.textColor} onChange={v => set('labelColor', v)} />
+            </div>
           </div>
 
           <div className="mb-3">
@@ -557,6 +589,10 @@ export default function EditorPanel({
             <div className="mt-1.5 flex items-center gap-2">
               <input type="checkbox" id="titleItalic" checked={data.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
               <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.accentColor} onChange={v => set('accentColor', v)} />
             </div>
             <FontSizeSlider label="Font size" value={data.titleSize}
               onChange={v => {
@@ -594,6 +630,10 @@ export default function EditorPanel({
             <label className={labelCls}>Subtitle</label>
             <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
             <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.subtitleColor ?? data.textColor} onChange={v => set('subtitleColor', v)} />
+            </div>
             <div className="mt-2 flex items-center gap-2">
               <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
               <label htmlFor="subtitleInline" className="text-sm text-zinc-300">
@@ -609,6 +649,10 @@ export default function EditorPanel({
             <label className={labelCls}>Subtitle 2</label>
             <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
             <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
+            </div>
             <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
           </div>
 
@@ -619,7 +663,7 @@ export default function EditorPanel({
             <div className="mt-1.5 flex gap-1.5">
               {(['Theinhardt', '92NY Text'] as const).map(font => (
                 <button key={font}
-                  onClick={() => set('presentersFont', font)}
+                  onClick={() => setPresentersFont(font)}
                   className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
                     (data.presentersFont ?? 'Theinhardt') === font
                       ? 'bg-white text-black border-white font-medium'
@@ -633,7 +677,14 @@ export default function EditorPanel({
               <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
               <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
-            <div className="mt-1.5"><WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)} /></div>
+            <div className="mt-1.5">
+              <WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)}
+                disabled={(data.presentersFont ?? 'Theinhardt') === '92NY Text'} />
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.presentersColor ?? data.textColor} onChange={v => set('presentersColor', v)} />
+            </div>
             <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
               onChange={v => set('presentersSize', v)} min={24} max={250}
               disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
@@ -645,7 +696,7 @@ export default function EditorPanel({
             <div className="mt-1.5 flex gap-1.5">
               {(['Theinhardt', '92NY Text'] as const).map(font => (
                 <button key={font}
-                  onClick={() => set('programTitleFont', font)}
+                  onClick={() => setProgramTitleFont(font)}
                   className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
                     (data.programTitleFont ?? 'Theinhardt') === font
                       ? 'bg-white text-black border-white font-medium'
@@ -659,7 +710,14 @@ export default function EditorPanel({
               <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
               <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
-            <div className="mt-1.5"><WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)} /></div>
+            <div className="mt-1.5">
+              <WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)}
+                disabled={(data.programTitleFont ?? 'Theinhardt') === '92NY Text'} />
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.programTitleColor ?? data.textColor} onChange={v => set('programTitleColor', v)} />
+            </div>
             <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
               onChange={v => set('programTitleSize', v)} min={24} max={250}
               disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
@@ -890,26 +948,6 @@ export default function EditorPanel({
           </div>
         </div>
 
-        {/* Style */}
-        <div className={sectionCls}>
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Style</p>
-          <div className="flex flex-col gap-4">
-            {([
-              ['backgroundColor', 'Background'],
-              ['textColor', 'Text'],
-              ['accentColor', 'Accent (title)'],
-            ] as [keyof SlideData, string][]).map(([key, label]) => (
-              <div key={key}>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-3 h-3 rounded-sm flex-shrink-0 border border-zinc-600" style={{ backgroundColor: data[key] as string }} />
-                  <label className={labelCls + ' mb-0'}>{label}</label>
-                </div>
-                <ColorPalette value={data[key] as string} onChange={v => set(key, v)} />
-              </div>
-            ))}
-          </div>
-        </div>
-
         {/* Logos */}
         <div className={sectionCls}>
           <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Logo Bar</p>
@@ -928,9 +966,15 @@ export default function EditorPanel({
               <label htmlFor="showSeriesName" className="text-sm text-zinc-300 font-medium">Series name</label>
             </div>
             {data.showSeriesName && (
-              <input className={inputCls} value={data.seriesName}
-                onChange={e => set('seriesName', e.target.value)}
-                placeholder="RECANATI-KAPLAN TALKS" />
+              <>
+                <input className={inputCls} value={data.seriesName}
+                  onChange={e => set('seriesName', e.target.value)}
+                  placeholder="RECANATI-KAPLAN TALKS" />
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
+                </div>
+              </>
             )}
           </div>
 
@@ -941,10 +985,16 @@ export default function EditorPanel({
               <label htmlFor="showListeningCredit" className="text-sm text-zinc-300 font-medium">Listening credit</label>
             </div>
             {data.showListeningCredit && (
-              <textarea className={inputCls + ' resize-none'} rows={4}
-                value={data.listeningCredit}
-                onChange={e => set('listeningCredit', e.target.value)}
-                placeholder="Assistive listening devices..." />
+              <>
+                <textarea className={inputCls + ' resize-none'} rows={4}
+                  value={data.listeningCredit}
+                  onChange={e => set('listeningCredit', e.target.value)}
+                  placeholder="Assistive listening devices..." />
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
+                </div>
+              </>
             )}
           </div>
         </div>

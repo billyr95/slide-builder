@@ -76,19 +76,27 @@ const ASPECT_OPTIONS = [
   { label: '3:4',    value: 3 / 4 },
 ]
 
+const DEFAULT_ASPECT_LABEL = '3:4'
+const DEFAULT_ASPECT = 3 / 4
+
 export default function CropModal({ imageSrc, onComplete, onCancel }: CropModalProps) {
   const imgRef = useRef<HTMLImageElement>(null)
   const [crop, setCrop] = useState<Crop>()
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>()
-  const [activeLabel, setActiveLabel] = useState('Free')
-  const [aspect, setAspect] = useState<number | undefined>(undefined)
+  const [activeLabel, setActiveLabel] = useState(DEFAULT_ASPECT_LABEL)
+  const [aspect, setAspect] = useState<number | undefined>(DEFAULT_ASPECT)
   const [nativeAspect, setNativeAspect] = useState<number | undefined>(undefined)
 
   function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
     const { naturalWidth, naturalHeight, width, height } = e.currentTarget
     setNativeAspect(naturalWidth / naturalHeight)
-    // Start with a free centered crop at 80%
-    setCrop(centerCrop({ unit: '%', width: 80, height: 80 }, width, height))
+    // Starting selection matches the default aspect above (3:4) rather than
+    // a free crop -- this is just the initial state; the user can still pick
+    // any other ratio (or Free) from the row below afterward.
+    setCrop(centerCrop(
+      makeAspectCrop({ unit: '%', width: 80 }, DEFAULT_ASPECT, width, height),
+      width, height,
+    ))
   }
 
   function selectAspect(label: string) {

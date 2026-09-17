@@ -62,7 +62,24 @@ export interface TrainEntry {
   listeningCredit: string  // '' = unused; not restricted to a screen type
 
   backgroundColor: string  // '' = unset, let the model estimate
-  textColor: string        // '' = unset, let the model estimate
+  // Legacy single "all text" color -- superseded by the per-field colors
+  // below for 'live' entries (always populated there, via the same
+  // fallback-to-textColor chain SlideCanvas.tsx renders with, so it's never
+  // missing); kept as '' = unset/let-the-model-estimate for 'upload'
+  // entries, which have no per-field equivalent.
+  textColor: string
+  // Populated only for source: 'live' entries -- ground truth for each
+  // field's own color, replacing the single textColor line in the batch
+  // prompt (see trainExport.ts's buildConfirmPrompt) since these are always
+  // exact and never missing for a 'live' entry.
+  labelColor?: string
+  titleColor?: string  // SlideData.accentColor -- title's own dedicated color field, not a new concept
+  subtitleColor?: string
+  subtitle2Color?: string
+  presentersColor?: string
+  programTitleColor?: string
+  seriesNameColor?: string
+  listeningCreditColor?: string
 
   images: TrainImage[]
   // How many images actually appeared on the original slide, as stated by

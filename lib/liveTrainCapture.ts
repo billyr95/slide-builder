@@ -170,6 +170,19 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
 
     backgroundColor: data.backgroundColor,
     textColor: data.textColor,
+    // Per-field colors, always populated for 'live' entries via the same
+    // fallback-to-textColor chain SlideCanvas.tsx renders with (so these are
+    // never missing even for a slide saved before per-field colors
+    // existed). titleColor is accentColor -- title's own pre-existing
+    // dedicated color field, not a new concept.
+    labelColor: data.labelColor ?? data.textColor,
+    titleColor: data.accentColor,
+    subtitleColor: data.subtitleColor ?? data.textColor,
+    subtitle2Color: data.subtitle2Color ?? data.textColor,
+    presentersColor: data.presentersColor ?? data.textColor,
+    programTitleColor: data.programTitleColor ?? data.textColor,
+    seriesNameColor: data.seriesNameColor ?? data.textColor,
+    listeningCreditColor: data.listeningCreditColor ?? data.textColor,
 
     // Structural count of placed images, independent of whether any of
     // them individually failed to compress above (images.length can be
@@ -194,7 +207,6 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     faceCropWasOverridden: image1FaceCrop.wasOverridden,
 
     liveStyle: {
-      accentColor: data.accentColor,
       labelWeight: data.labelWeight,
 
       subtitleInline: data.subtitleInline,

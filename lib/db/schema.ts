@@ -78,7 +78,18 @@ export const trainingEntries = pgTable('training_entries', {
   seriesName: text('series_name').notNull().default(''),
   listeningCredit: text('listening_credit').notNull().default(''),
   backgroundColor: text('background_color').notNull().default(''),
+  // Legacy single "all text" color -- superseded by the per-field columns
+  // below for 'live' entries (always populated there). See TrainEntry's own
+  // comment.
   textColor: text('text_color').notNull().default(''),
+  labelColor: text('label_color'),
+  titleColor: text('title_color'),
+  subtitleColor: text('subtitle_color'),
+  subtitle2Color: text('subtitle2_color'),
+  presentersColor: text('presenters_color'),
+  programTitleColor: text('program_title_color'),
+  seriesNameColor: text('series_name_color'),
+  listeningCreditColor: text('listening_credit_color'),
 
   imageCount: integer('image_count').notNull().default(0),
   image1Type: text('image_1_type'),

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import { PALETTE } from '@/lib/palette'
 
 interface ColorPaletteProps {
@@ -11,42 +12,80 @@ interface ColorPaletteProps {
   clearable?: boolean
 }
 
+// A closed swatch button that opens a small grid of plain color swatches on
+// click -- no names/labels anywhere, even on hover; picking one selects it
+// and closes the dropdown immediately.
 export default function ColorPalette({ value, onChange, clearable }: ColorPaletteProps) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [open])
+
+  function select(hex: string) {
+    onChange(hex)
+    setOpen(false)
+  }
+
   return (
-    <div className="flex flex-wrap gap-1.5 mt-1">
-      {clearable && (
-        <button title="Auto — model estimates" onClick={() => onChange('')} className="relative group" style={{ width: 28, height: 28 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 6,
-            border: !value ? '2px solid white' : '2px dashed #666',
-            outline: !value ? '2px solid #666' : 'none',
-            boxSizing: 'border-box',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#888', fontSize: 13,
-          }}>
-            ?
-          </div>
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 bg-zinc-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-zinc-700">
-            Auto (estimate)
-          </div>
-        </button>
+    <div className="relative inline-block" ref={rootRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-label="Choose color"
+        className="rounded-md border-2 box-border flex items-center justify-center transition-colors"
+        style={{
+          width: 28, height: 28,
+          backgroundColor: value || 'transparent',
+          borderColor: open ? '#ffffff' : '#444',
+          borderStyle: value ? 'solid' : 'dashed',
+        }}
+      >
+        {!value && <span className="text-zinc-500 text-xs">?</span>}
+      </button>
+
+      {open && (
+        <div
+          className="absolute z-20 mt-1.5 p-2 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl grid grid-cols-5 gap-1.5"
+          style={{ width: 176 }}
+        >
+          {clearable && (
+            <button
+              type="button"
+              onClick={() => select('')}
+              aria-label="Auto"
+              className="rounded flex items-center justify-center box-border"
+              style={{
+                width: 28, height: 28,
+                border: !value ? '2px solid white' : '2px dashed #666',
+                color: '#888', fontSize: 12,
+              }}
+            >
+              ?
+            </button>
+          )}
+          {PALETTE.map(({ hex }) => (
+            <button
+              key={hex}
+              type="button"
+              onClick={() => select(hex)}
+              aria-label={hex}
+              className="rounded box-border"
+              style={{
+                width: 28, height: 28,
+                backgroundColor: hex,
+                border: value.toLowerCase() === hex.toLowerCase() ? '2px solid white' : '1px solid #444',
+              }}
+            />
+          ))}
+        </div>
       )}
-      {PALETTE.map(({ hex, name }) => {
-        const isSelected = value.toLowerCase() === hex.toLowerCase()
-        return (
-          <button key={hex} title={name} onClick={() => onChange(hex)} className="relative group" style={{ width: 28, height: 28 }}>
-            <div style={{
-              width: 28, height: 28, backgroundColor: hex, borderRadius: 6,
-              border: isSelected ? '2px solid white' : '2px solid transparent',
-              outline: isSelected ? '2px solid #666' : '1px solid #444',
-              boxSizing: 'border-box',
-            }} />
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 bg-zinc-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10 border border-zinc-700">
-              {name}
-            </div>
-          </button>
-        )
-      })}
     </div>
   )
 }

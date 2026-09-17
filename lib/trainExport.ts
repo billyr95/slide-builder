@@ -165,7 +165,19 @@ function buildEstimatePrompt(entry: TrainEntry): string {
 function buildConfirmPrompt(entry: TrainEntry): string {
   const known = commonKnownLines(entry)
   known.push(`Background color: ${entry.backgroundColor}`)
-  known.push(`Text color: ${entry.textColor}`)
+  // Per-field colors replace the single "Text color" line -- always exact
+  // and never missing for a 'live' entry (see liveTrainCapture.ts's own
+  // fallback-to-textColor chain), unlike 'upload' entries, which have no
+  // per-field equivalent and still just report the one Text color line via
+  // commonKnownLines/buildEstimatePrompt.
+  known.push(`Label color: ${entry.labelColor}`)
+  known.push(`Title color: ${entry.titleColor}`)
+  if (entry.subtitle) known.push(`Subtitle color: ${entry.subtitleColor}`)
+  if (entry.subtitle2) known.push(`Subtitle 2 color: ${entry.subtitle2Color}`)
+  if (entry.presenters) known.push(`Presenters color: ${entry.presentersColor}`)
+  if (entry.programTitle) known.push(`Program title color: ${entry.programTitleColor}`)
+  if (entry.seriesName) known.push(`Series name color: ${entry.seriesNameColor}`)
+  if (entry.listeningCredit) known.push(`Listening credit color: ${entry.listeningCreditColor}`)
   // Layout-level ground truth that only 'live' entries have (the editor is
   // the only place these are ever actually set) -- 'upload' entries get the
   // model's own visual estimate of these instead (see buildEstimatePrompt's

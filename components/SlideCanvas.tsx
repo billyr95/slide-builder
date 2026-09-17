@@ -82,13 +82,13 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           wordBreak: 'break-word' as const,
         }
 
-    function bodyStyle(weight: TheinhardtWeight, sizePx: number) {
+    function bodyStyle(weight: TheinhardtWeight, sizePx: number, color: string) {
       const trackingEm = Math.max(-0.05, -20 / (sizePx * (1 / scale)))
       return {
         fontFamily: THEINHARDT,
         fontWeight: theinhardtWeight(weight),
         letterSpacing: `${trackingEm}em`,
-        color: data.textColor,
+        color,
         overflowWrap: 'break-word' as const,
         wordBreak: 'break-word' as const,
       }
@@ -96,7 +96,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
     // Shared by presenters and programTitle -- both are "body text that can
     // switch to 92NY Text" fields with their own independent font/weight/italic.
-    function fontSwitchableStyle(font: 'Theinhardt' | '92NY Text', italic: boolean, weight: TheinhardtWeight, sizePx: number) {
+    function fontSwitchableStyle(font: 'Theinhardt' | '92NY Text', italic: boolean, weight: TheinhardtWeight, sizePx: number, color: string) {
       const fontStyle = italic ? 'italic' : 'normal'
       if (font === '92NY Text') {
         return {
@@ -106,20 +106,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           fontKerning: 'normal' as const,
           fontFeatureSettings: '"kern" 1, "liga" 1',
           letterSpacing: '0',
-          color: data.textColor,
+          color,
           overflowWrap: 'break-word' as const,
           wordBreak: 'break-word' as const,
         }
       }
-      return { ...bodyStyle(weight, sizePx), fontStyle }
+      return { ...bodyStyle(weight, sizePx, color), fontStyle }
     }
 
     function presentersStyle(weight: TheinhardtWeight, sizePx: number) {
-      return fontSwitchableStyle(data.presentersFont ?? 'Theinhardt', data.presentersItalic, weight, sizePx)
+      return fontSwitchableStyle(data.presentersFont ?? 'Theinhardt', data.presentersItalic, weight, sizePx, data.presentersColor ?? data.textColor)
     }
 
     function programTitleStyle(weight: TheinhardtWeight, sizePx: number) {
-      return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx)
+      return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx, data.programTitleColor ?? data.textColor)
     }
 
     // 92NY Text renders tighter (0.88) than Theinhardt's body line-height
@@ -239,7 +239,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             maxWidth: maxTextW * scale,
           }}>
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
                 {data.label}
               </div>
             )}
@@ -249,13 +249,13 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize), ...titleGapAdjust('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...titleGapAdjust('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size), ...titleGapAdjust('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...titleGapAdjust('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
@@ -267,7 +267,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                       const lines = data.presenters.split('\n')
                       return (
                         <>
-                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
+                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75, data.subtitleColor ?? data.textColor) }}>
                             {data.subtitle}{' '}
                           </span>
                           <span>{lines[0]}</span>
@@ -316,7 +316,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   lineHeight: 1,
                   fontFamily: THEINHARDT,
                   fontWeight: theinhardtWeight('heavy'),
-                  color: data.textColor,
+                  color: data.seriesNameColor ?? data.textColor,
                   letterSpacing: '0.05em',
                   textTransform: 'uppercase',
                 }}>
@@ -329,7 +329,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   lineHeight: 1.4,
                   fontFamily: THEINHARDT,
                   fontWeight: 400,
-                  color: data.textColor,
+                  color: data.listeningCreditColor ?? data.textColor,
                   opacity: 0.65,
                 }}>
                   {data.listeningCredit}
@@ -442,7 +442,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           }}>
 
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
                 {data.label}
               </div>
             )}
@@ -452,13 +452,13 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize), ...titleGapAdjust('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...titleGapAdjust('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size), ...titleGapAdjust('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...titleGapAdjust('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
@@ -470,7 +470,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                       const lines = data.presenters.split('\n')
                       return (
                         <>
-                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
+                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75, data.subtitleColor ?? data.textColor) }}>
                             {data.subtitle}{' '}
                           </span>
                           <span>{lines[0]}</span>
@@ -516,7 +516,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                     lineHeight: 1,
                     fontFamily: THEINHARDT,
                     fontWeight: theinhardtWeight('heavy'),
-                    color: data.textColor,
+                    color: data.seriesNameColor ?? data.textColor,
                     letterSpacing: '0.05em',
                     textTransform: 'uppercase',
                   }}>
@@ -529,7 +529,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                     lineHeight: 1.4,
                     fontFamily: THEINHARDT,
                     fontWeight: 400,
-                    color: data.textColor,
+                    color: data.listeningCreditColor ?? data.textColor,
                     opacity: 0.65,
                   }}>
                     {data.listeningCredit}
@@ -604,7 +604,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
         textAlign,
       }}>
-        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
           {data.label}
         </div>
       </div>
@@ -620,7 +620,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         textAlign,
       }}>
         {!imageOnRight && data.label && (
-          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize) }}>
+          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
             {data.label}
           </div>
         )}
@@ -630,13 +630,13 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         </div>
 
         {data.subtitle && !data.subtitleInline && (
-          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize), ...titleGapAdjust('subtitle') }}>
+          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...titleGapAdjust('subtitle') }}>
             {data.subtitle}
           </div>
         )}
 
         {data.subtitle2 && (
-          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size), ...titleGapAdjust('subtitle2') }}>
+          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...titleGapAdjust('subtitle2') }}>
             {data.subtitle2}
           </div>
         )}
@@ -648,7 +648,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   const lines = data.presenters.split('\n')
                   return (
                     <>
-                      <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75) }}>
+                      <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75, data.subtitleColor ?? data.textColor) }}>
                         {data.subtitle}{' '}
                       </span>
                       <span>{lines[0]}</span>
@@ -724,7 +724,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 lineHeight: 1,
                 fontFamily: THEINHARDT,
                 fontWeight: theinhardtWeight('heavy'),
-                color: data.textColor,
+                color: data.seriesNameColor ?? data.textColor,
                 letterSpacing: '0.05em',
                 textTransform: 'uppercase',
               }}>
@@ -737,7 +737,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 lineHeight: 1.4,
                 fontFamily: THEINHARDT,
                 fontWeight: 400,
-                color: data.textColor,
+                color: data.listeningCreditColor ?? data.textColor,
                 opacity: 0.65,
               }}>
                 {data.listeningCredit}
