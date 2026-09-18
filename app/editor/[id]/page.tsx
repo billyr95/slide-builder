@@ -313,32 +313,32 @@ export default function EditorPage() {
             onClick={undo}
             disabled={!canUndo}
             title="Undo (Cmd+Z)"
-            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="h-8 px-2 flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
-            ↶
+            <span>↶</span> Undo
           </button>
           <button
             onClick={redo}
             disabled={!canRedo}
             title="Redo (Cmd+Shift+Z)"
-            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="h-8 px-2 flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
-            ↷
+            <span>↷</span> Redo
           </button>
           <button
             onClick={() => setShowNewFlow(true)}
             title="New slide"
-            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+            className="h-8 px-2 flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
           >
-            +
+            <span>+</span> New
           </button>
           <button
             onClick={() => saveNow(true)}
             disabled={status === 'saving'}
             title={saveStatusText || 'Save'}
-            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="h-8 px-2 flex items-center gap-1.5 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            ⤓
+            <span>⤓</span> Save
           </button>
 
           {/* Training-data logging -- lives right next to Export since
@@ -408,22 +408,6 @@ export default function EditorPage() {
 
       <div className="flex flex-1 min-h-0">
 
-        {/* Left: icon rail -- picks which editor tab shows on the right. */}
-        <nav className="w-14 flex-shrink-0 border-r border-zinc-800 bg-zinc-950 flex flex-col items-center gap-1 py-4 overflow-y-auto custom-scrollbar">
-          {SECTION_ORDER.map(id => (
-            <button
-              key={id}
-              onClick={() => setActiveSection(id)}
-              title={SECTION_META[id].title}
-              className={`w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-colors ${
-                activeSection === id ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
-              }`}
-            >
-              {SECTION_META[id].glyph}
-            </button>
-          ))}
-        </nav>
-
         {/* Center: Preview */}
         <main className="flex-1 flex flex-col items-center justify-center bg-zinc-900 overflow-auto custom-scrollbar p-8 gap-6">
 
@@ -461,6 +445,23 @@ export default function EditorPage() {
             {orientation === 'landscape' ? '1920 × 1080 px' : '1080 × 1920 px'} — PNG export at full resolution
           </p>
         </main>
+
+        {/* Icon rail -- picks which editor tab shows in the panel right
+            next to it, rather than sitting at the far edge of the app. */}
+        <nav className="w-14 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 flex flex-col items-center gap-1 py-4 overflow-y-auto custom-scrollbar">
+          {SECTION_ORDER.map(id => (
+            <button
+              key={id}
+              onClick={() => setActiveSection(id)}
+              title={SECTION_META[id].title}
+              className={`w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-colors ${
+                activeSection === id ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              {SECTION_META[id].glyph}
+            </button>
+          ))}
+        </nav>
 
         {/* Right: Editor */}
         <aside className="w-96 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 p-3 overflow-hidden flex flex-col">
