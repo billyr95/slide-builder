@@ -12,11 +12,11 @@ import { SlideData } from '@/lib/types'
 function renderPanel(overrides: Partial<SlideData> = {}) {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, imageMode: 'two-stagger', ...overrides }
   const onChange = vi.fn()
-  render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} />)
-  // The panel shows exactly one section at a time (tabs, not an accordion)
-  // -- Background is the initial tab, so switch to Image before these tests
-  // touch the stagger-image size/overlap controls.
-  fireEvent.click(screen.getByTitle('Image'))
+  // Which tab shows is a controlled prop now (the icon rail that sets it
+  // lives in page.tsx, outside this component) -- render straight onto the
+  // Image tab rather than clicking a rail button that isn't part of this
+  // component anymore.
+  render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} activeSection="image" onActiveSectionChange={vi.fn()} />)
   return { onChange }
 }
 

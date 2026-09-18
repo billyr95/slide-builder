@@ -38,11 +38,11 @@ import { detectFaceCropBox } from '@/lib/faceDetect'
 function renderPanel(overrides: Partial<SlideData> = {}) {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, imageMode: 'single', ...overrides }
   const onChange = vi.fn()
-  const utils = render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} />)
-  // The panel now shows exactly one section at a time (tabs, not an
-  // accordion) -- Background is the initial tab, so switch to Image before
-  // any of these tests touch the upload/crop controls.
-  fireEvent.click(utils.getByTitle('Image'))
+  // Which tab shows is a controlled prop now (the icon rail that sets it
+  // lives in page.tsx, outside this component) -- render straight onto the
+  // Image tab rather than clicking a rail button that isn't part of this
+  // component anymore.
+  const utils = render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} activeSection="image" onActiveSectionChange={vi.fn()} />)
   return { onChange, ...utils }
 }
 
