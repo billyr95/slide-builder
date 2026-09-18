@@ -50,6 +50,35 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const BLOCK_GAP = 16
     const TITLE_BLOCK_GAP = 8
 
+    // Root cause of the Title->Presenters / Presenters->ProgramTitle gaps
+    // reading as inconsistent even with the fixed marginBottom above: a
+    // CSS line-height box includes "half-leading" baked in above the first
+    // line's ascender and below the last line's baseline, and that leading
+    // amount depends on the font's own metrics (which differ between
+    // Theinhardt/92NY Text, regular/italic, and even by size) -- so two
+    // blocks with the *same* marginBottom can still end up with visibly
+    // different ink-to-ink gaps, because each one's own invisible leading
+    // padding is a different size. Measured empirically (real Chromium
+    // render + pixel scan): a 189px title's own trailing leading was ~18px,
+    // while an adjacent presenters block's leading was ~25px on each side --
+    // more than the 8-16px gap itself, and different per block, which is
+    // exactly the inconsistency reported.
+    // `text-box-trim` + `text-box-edge` (Baseline-supported in current
+    // Chromium/Safari; unsupported browsers just ignore these two
+    // properties and silently fall back to today's behavior, since unknown
+    // CSS properties on an inline style are no-ops, not errors) trims a
+    // text box's own top edge to its font's cap-height and its bottom edge
+    // to its alphabetic baseline -- removing that invisible leading
+    // entirely, deterministically, per font, regardless of line count or
+    // which specific letters (with/without ascenders or descenders) appear.
+    // That makes `marginAfter`'s fixed pixel value the ENTIRE visible gap,
+    // for every block pair, not "fixed margin plus however much leading
+    // this particular font/size happens to add on each side." Verified:
+    // between-line spacing within a multi-line block (governed by each
+    // block's own `lineHeight` below) is untouched by this -- only the
+    // outer top/bottom edges of the whole block are trimmed.
+    const trimEdges = { textBoxTrim: 'trim-both', textBoxEdge: 'cap alphabetic' } as React.CSSProperties
+
     // Exactly one of these renders directly after Title for any given slide
     // (in render order) -- precomputed once so marginAfter below only ever
     // adds a margin when something real actually follows a block, instead
@@ -251,29 +280,29 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             maxWidth: maxTextW * scale,
           }}>
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...marginAfter('label') }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
                 {data.label}
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...marginAfter('title') }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
               {data.title}
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...marginAfter('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...marginAfter('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...marginAfter('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -293,7 +322,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...marginAfter('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -453,29 +482,29 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           }}>
 
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...marginAfter('label') }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
                 {data.label}
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...marginAfter('title') }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
               {data.title}
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...marginAfter('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...marginAfter('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...marginAfter('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -495,7 +524,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...marginAfter('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -615,7 +644,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
         textAlign,
       }}>
-        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
+        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
           {data.label}
         </div>
       </div>
@@ -630,29 +659,29 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         textAlign,
       }}>
         {!imageOnRight && data.label && (
-          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...marginAfter('label') }}>
+          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
             {data.label}
           </div>
         )}
 
-        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...marginAfter('title') }}>
+        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
           {data.title}
         </div>
 
         {data.subtitle && !data.subtitleInline && (
-          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...marginAfter('subtitle') }}>
+          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
             {data.subtitle}
           </div>
         )}
 
         {data.subtitle2 && (
-          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...marginAfter('subtitle2') }}>
+          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
             {data.subtitle2}
           </div>
         )}
 
         {data.presenters && (
-          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...marginAfter('presenters') }}>
+          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
             {data.subtitleInline && data.subtitle
               ? (() => {
                   const lines = data.presenters.split('\n')
@@ -672,7 +701,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         )}
 
         {data.programTitle && (
-          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...marginAfter('programTitle') }}>
+          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
             {data.programTitle}
           </div>
         )}
