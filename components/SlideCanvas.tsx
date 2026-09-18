@@ -38,46 +38,61 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const textAlignItems = textAlign === 'center' ? 'center' : 'flex-start'
     const imageOnRight = data.imageSide === 'right'
 
-    // Spacing between adjacent text blocks (label/title/subtitle/subtitle2/
-    // presenters/programTitle) is a real, explicit marginBottom on each
-    // block -- not a shared flex `gap`, and not something that falls out of
-    // any block's own line-height. A margin is measured from the box's own
-    // edge regardless of how many lines that box wraps to, so this is exact
-    // by construction: Title always gets the same fixed gap before whatever
-    // follows it, whether Title is 1 line or 3. Title's own value
-    // (TITLE_BLOCK_GAP) is deliberately tighter than the default spacing
-    // between every other pair (BLOCK_GAP), per spec.
-    const BLOCK_GAP = 16
-    const TITLE_BLOCK_GAP = 8
+    // Every gap in this text stack -- both BETWEEN wrapped lines inside one
+    // block (Title's own "BEN" -> "MACINTYRE") and BETWEEN separate blocks
+    // (Label->Title, Title->Presenters, Presenters->Program Title, etc.) --
+    // is driven by this ONE constant, so there's no way for them to drift
+    // apart the way separate per-boundary values (previously
+    // BLOCK_GAP/TITLE_BLOCK_GAP, tuned independently of each block's own
+    // `lineHeight`) already proved they could.
+    //  1. It's used directly as the `lineHeight` on every block (governs
+    //     the gap between a block's own wrapped lines -- unaffected by
+    //     trimEdges below, which only trims the outer top/bottom of the
+    //     whole block).
+    //  2. Title is this stack's visual anchor (always present, generally
+    //     the largest text), so ONE reference gap is computed from Title's
+    //     own size/font using the exact same math that governs its own
+    //     internal line gap -- `STACK_LINE_HEIGHT * fontSize -
+    //     capHeight(font)` (the next line's box, once trimmed, starts at
+    //     its cap-height; `text-box-trim` below makes that a physical
+    //     certainty, not an approximation -- verified with a real Chromium
+    //     render) -- and that SAME reference value is then used as the
+    //     marginBottom before every other block, regardless of that
+    //     block's own size/font. That's what makes "the gap after
+    //     Presenters" pixel-identical to "the gap after Title" even though
+    //     Presenters and Program Title can be completely different sizes:
+    //     every inter-block gap point at the one Title-derived number, not
+    //     at a formula re-evaluated per pair.
+    const STACK_LINE_HEIGHT = 0.88
 
-    // Root cause of the Title->Presenters / Presenters->ProgramTitle gaps
-    // reading as inconsistent even with the fixed marginBottom above: a
-    // CSS line-height box includes "half-leading" baked in above the first
-    // line's ascender and below the last line's baseline, and that leading
-    // amount depends on the font's own metrics (which differ between
-    // Theinhardt/92NY Text, regular/italic, and even by size) -- so two
-    // blocks with the *same* marginBottom can still end up with visibly
-    // different ink-to-ink gaps, because each one's own invisible leading
-    // padding is a different size. Measured empirically (real Chromium
-    // render + pixel scan): a 189px title's own trailing leading was ~18px,
-    // while an adjacent presenters block's leading was ~25px on each side --
-    // more than the 8-16px gap itself, and different per block, which is
-    // exactly the inconsistency reported.
+    // Empirically measured (real Chromium render, text-box-trim'd
+    // single-line all-caps sample, box height / font-size): cap-height as a
+    // fraction of em. Identical across Theinhardt's weights and italic --
+    // only 92NY Text differs.
+    function capHeightRatio(font: string): number {
+      return font === '92NY Text' ? 0.70 : 0.68
+    }
+
     // `text-box-trim` + `text-box-edge` (Baseline-supported in current
     // Chromium/Safari; unsupported browsers just ignore these two
-    // properties and silently fall back to today's behavior, since unknown
-    // CSS properties on an inline style are no-ops, not errors) trims a
-    // text box's own top edge to its font's cap-height and its bottom edge
-    // to its alphabetic baseline -- removing that invisible leading
-    // entirely, deterministically, per font, regardless of line count or
-    // which specific letters (with/without ascenders or descenders) appear.
-    // That makes `marginAfter`'s fixed pixel value the ENTIRE visible gap,
-    // for every block pair, not "fixed margin plus however much leading
-    // this particular font/size happens to add on each side." Verified:
-    // between-line spacing within a multi-line block (governed by each
-    // block's own `lineHeight` below) is untouched by this -- only the
-    // outer top/bottom edges of the whole block are trimmed.
+    // properties and silently fall back to plain line-height spacing, since
+    // unknown CSS properties on an inline style are no-ops, not errors)
+    // trims a text box's own top edge to its font's cap-height and its
+    // bottom edge to its alphabetic baseline. That's what makes the
+    // reference-gap formula below exact rather than approximate: it removes
+    // each block's own invisible leading padding entirely, so the box edge
+    // really is the cap-height/baseline the formula assumes it is.
     const trimEdges = { textBoxTrim: 'trim-both', textBoxEdge: 'cap alphabetic' } as React.CSSProperties
+
+    const labelSize = 48
+    const titleSize = data.titleSize
+    const presenterSize = data.presentersSize
+    const titleFont = data.titleFont ?? '92NY Text'
+
+    // The ONE gap value for every block-to-block transition in the stack --
+    // see STACK_LINE_HEIGHT's comment above for why it's derived from
+    // Title specifically.
+    const STACK_GAP = STACK_LINE_HEIGHT * titleSize - capHeightRatio(titleFont) * titleSize
 
     // Exactly one of these renders directly after Title for any given slide
     // (in render order) -- precomputed once so marginAfter below only ever
@@ -98,11 +113,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     function marginAfter(key: BlockKey) {
       const idx = visibleBlocks.indexOf(key)
       if (idx === -1 || idx === visibleBlocks.length - 1) return undefined
-      const gap = key === 'title' ? TITLE_BLOCK_GAP : BLOCK_GAP
-      return { marginBottom: `${gap * scale}px` }
+      return { marginBottom: `${STACK_GAP * scale}px` }
     }
-
-    const titleFont = data.titleFont ?? '92NY Text'
     const titleWeight = titleFont === 'Theinhardt Heavy' ? 900 : 700
     const titleStyle = titleFont === 'Theinhardt Heavy'
       ? {
@@ -163,14 +175,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     function programTitleStyle(weight: TheinhardtWeight, sizePx: number) {
       return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx, data.programTitleColor ?? data.textColor)
     }
-
-    // 92NY Text renders tighter (0.88) than Theinhardt's body line-height
-    // (0.95, used by label/subtitle/subtitle2, which have no font choice and
-    // are always Theinhardt) -- matches Title, which is always 0.88 since
-    // its own two font options (92NY Text / Theinhardt Heavy) both read
-    // better tight.
-    const presentersLineHeight = (data.presentersFont ?? 'Theinhardt') === '92NY Text' ? 0.88 : 0.95
-    const programTitleLineHeight = (data.programTitleFont ?? 'Theinhardt') === '92NY Text' ? 0.88 : 0.95
 
     const placeholderBox = (w: number, h: number) => (
       <div style={{
@@ -248,9 +252,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const footerH = hasFooter ? (data.showSeriesName && data.showListeningCredit ? 120 : 80) : 0
 
     if (data.imageMode === 'none') {
-      const labelSize = 48
-      const titleSize = data.titleSize
-      const presenterSize = data.presentersSize
       const maxTextW = dim.w * (orientation === 'landscape' ? 0.7 : 0.8)
 
       return (
@@ -280,29 +281,29 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             maxWidth: maxTextW * scale,
           }}>
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
                 {data.label}
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
               {data.title}
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -322,7 +323,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -383,9 +384,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     if (orientation === 'landscape') {
-      const labelSize = 48
-      const titleSize = data.titleSize
-      const presenterSize = data.presentersSize
       const bottomPad = hasFooter ? (footerH + 60) : 80
       // The text column's own padding and its footer's offsets are
       // deliberately asymmetric (a tight gap on the image-adjacent side, a
@@ -482,29 +480,29 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           }}>
 
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
                 {data.label}
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
               {data.title}
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -524,7 +522,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
@@ -583,10 +581,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     // Portrait
-    const labelSize = 48
-    const titleSize = data.titleSize
-    const presenterSize = data.presentersSize
-
     // Label needs to behave differently from the rest of the text block:
     // when not flipped it stays inline as the text section's first child
     // (unchanged from before), but when flipped it must lead the WHOLE
@@ -644,7 +638,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
         textAlign,
       }}>
-        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
+        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
           {data.label}
         </div>
       </div>
@@ -659,29 +653,29 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         textAlign,
       }}>
         {!imageOnRight && data.label && (
-          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
+          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
             {data.label}
           </div>
         )}
 
-        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
+        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
           {data.title}
         </div>
 
         {data.subtitle && !data.subtitleInline && (
-          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
+          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
             {data.subtitle}
           </div>
         )}
 
         {data.subtitle2 && (
-          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
+          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
             {data.subtitle2}
           </div>
         )}
 
         {data.presenters && (
-          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
+          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
             {data.subtitleInline && data.subtitle
               ? (() => {
                   const lines = data.presenters.split('\n')
@@ -701,7 +695,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         )}
 
         {data.programTitle && (
-          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
+          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
             {data.programTitle}
           </div>
         )}
