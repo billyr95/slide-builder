@@ -39,6 +39,10 @@ function renderPanel(overrides: Partial<SlideData> = {}) {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, imageMode: 'single', ...overrides }
   const onChange = vi.fn()
   const utils = render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} />)
+  // The panel now shows exactly one section at a time (tabs, not an
+  // accordion) -- Background is the initial tab, so switch to Image before
+  // any of these tests touch the upload/crop controls.
+  fireEvent.click(utils.getByTitle('Image'))
   return { onChange, ...utils }
 }
 

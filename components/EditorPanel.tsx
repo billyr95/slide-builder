@@ -51,15 +51,6 @@ type SectionId =
   | 'layout' | 'subtitle' | 'presenters' | 'programTitle'
   | 'logos' | 'footer' | 'accessibility'
 
-// Sections that start expanded mirror the reference screenshot (Background/
-// Content/Typography open by default); Image joins them since it's one of
-// the primary rail-linked destinations. Everything else starts collapsed.
-const DEFAULT_OPEN_SECTIONS: Record<SectionId, boolean> = {
-  background: true, content: true, typography: true, image: true,
-  layout: false, subtitle: false, presenters: false, programTitle: false,
-  logos: false, footer: false, accessibility: false,
-}
-
 function TextGlyph({ children, className }: { children: React.ReactNode; className?: string }) {
   return <span className={`font-semibold leading-none ${className ?? ''}`}>{children}</span>
 }
@@ -155,40 +146,43 @@ const SECTION_META: Record<SectionId, { title: string; glyph: React.ReactNode }>
   accessibility: { title: 'Accessibility', glyph: <AccessibilityGlyph /> },
 }
 
-// The rail only surfaces the sections the reference screenshot itself calls
-// out as jump targets (Background/Image/Text/Typography/List/Presenters) --
-// the remaining sections (Layout & Preview, Program Title, Logo Bar, Footer,
-// Accessibility) still exist below them, just reached by scrolling rather
-// than a dedicated rail icon.
-const RAIL_SECTIONS: SectionId[] = ['background', 'image', 'content', 'typography', 'subtitle', 'presenters']
+// Every section gets a rail icon now -- clicking one shows ONLY that
+// section (a tab, not an accordion item), so nothing is reachable by
+// scrolling past something else the way the old stacked-accordion layout
+// worked. Order here is both the rail's visual order and (for anyone
+// tabbing through) the only order these sections exist in anymore.
+const SECTION_ORDER: SectionId[] = [
+  'background', 'content', 'typography', 'image', 'layout',
+  'subtitle', 'presenters', 'programTitle', 'logos', 'footer', 'accessibility',
+]
 
-function CollapsibleSection({
-  id, open, onToggle, sectionRef, headerExtra, children,
-}: {
+function Section({ id, headerExtra, children }: {
   id: SectionId
-  open: boolean
-  onToggle: () => void
-  sectionRef: (el: HTMLDivElement | null) => void
-  // Rendered inline in the header row itself, before the chevron -- used by
-  // Background to keep its color swatch + orientation toggle reachable even
-  // while collapsed, matching the reference layout.
+  // Rendered inline in the section's own header row -- currently only
+  // Background uses this (its color swatch + orientation toggle).
   headerExtra?: React.ReactNode
   children: React.ReactNode
 }) {
   const { title, glyph } = SECTION_META[id]
   return (
-    <div ref={sectionRef} className="border-b border-zinc-800">
-      <button onClick={onToggle} className="w-full flex items-center gap-2.5 py-3.5 text-left hover:bg-zinc-900/40 transition-colors">
+    <div>
+      <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-zinc-800">
         <span className="w-5 h-5 flex items-center justify-center text-zinc-400 flex-shrink-0">{glyph}</span>
         <span className="text-xs font-semibold text-zinc-300 uppercase tracking-widest flex-1">{title}</span>
-        {headerExtra && (
-          <span onClick={e => e.stopPropagation()} className="flex items-center gap-2 flex-shrink-0">{headerExtra}</span>
-        )}
-        <span className={`text-zinc-600 text-[10px] transition-transform flex-shrink-0 ${open ? 'rotate-90' : ''}`}>▶</span>
-      </button>
-      {open && <div className="pb-5">{children}</div>}
+        {headerExtra && <span className="flex items-center gap-2 flex-shrink-0">{headerExtra}</span>}
+      </div>
+      <div className="flex flex-col gap-3">{children}</div>
     </div>
   )
+}
+
+// Wraps one editable field (or tightly-related cluster of controls for one
+// field, e.g. Title's text + its font/weight/color) in its own bordered
+// card with a background one shade lighter than the panel behind it --
+// gives each thing you're editing a visible boundary instead of everything
+// blurring into one continuous column.
+function FieldCard({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-3">{children}</div>
 }
 
 const inputCls = `w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 transition-colors placeholder-zinc-500`
@@ -439,22 +433,9 @@ export default function EditorPanel({
   // -1 = the single-image slot; >=0 = index into data.staggerImages
   const [cropTarget, setCropTarget] = useState<number>(-1)
 
-  const [openSections, setOpenSections] = useState<Record<SectionId, boolean>>(DEFAULT_OPEN_SECTIONS)
-  const sectionElsRef = useRef<Partial<Record<SectionId, HTMLDivElement | null>>>({})
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  function toggleSection(id: SectionId) {
-    setOpenSections(prev => ({ ...prev, [id]: !prev[id] }))
-  }
-
-  // Rail click: force the section open (if collapsed) and scroll it into
-  // view within the panel's own scroll container, not the whole page.
-  function jumpToSection(id: SectionId) {
-    setOpenSections(prev => ({ ...prev, [id]: true }))
-    requestAnimationFrame(() => {
-      sectionElsRef.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }
+  // The rail is a tab strip, not an accordion -- exactly one section is
+  // ever shown at a time, switched by clicking its rail icon.
+  const [activeSection, setActiveSection] = useState<SectionId>('background')
 
   // Once the user manually drags a slider (or manually adjusts an image),
   // stop auto-updating that field for the rest of the session on this
@@ -717,20 +698,38 @@ export default function EditorPanel({
 
       <div className="flex gap-0 text-white h-full min-h-0">
 
-        {/* Scrollable section stack */}
-        <div ref={panelRef} className="flex-1 min-w-0 overflow-y-auto pr-1">
+        {/* Left icon rail -- picks which single section is shown, like tabs. */}
+        <div className="flex-shrink-0 w-10 flex flex-col items-center gap-1 pr-2 mr-2 border-r border-zinc-800 overflow-y-auto">
+          {SECTION_ORDER.map(id => (
+            <button
+              key={id}
+              onClick={() => setActiveSection(id)}
+              title={SECTION_META[id].title}
+              className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg transition-colors ${
+                activeSection === id ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              {SECTION_META[id].glyph}
+            </button>
+          ))}
+        </div>
 
-          <CollapsibleSection id="background" open={openSections.background} onToggle={() => toggleSection('background')}
-            sectionRef={el => { sectionElsRef.current.background = el }}
-            headerExtra={
-              <>
+        {/* The one active section. */}
+        <div className="flex-1 min-w-0 overflow-y-auto pr-1">
+
+          {activeSection === 'background' && (
+            <Section id="background">
+              <FieldCard>
+                <p className="text-xs text-zinc-500 mb-2">Background color</p>
                 <ColorPalette value={data.backgroundColor} onChange={v => set('backgroundColor', v)} />
-                <div className="flex gap-0.5 bg-zinc-800 p-0.5 rounded-md">
+              </FieldCard>
+              <FieldCard>
+                <p className="text-xs text-zinc-500 mb-2">Orientation</p>
+                <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
                   {(['landscape', 'portrait'] as Orientation[]).map(o => (
                     <button key={o}
                       onClick={() => onOrientationChange(o)}
-                      title={o === 'landscape' ? '16:9' : '9:16'}
-                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${
+                      className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
                         orientation === o ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
                       }`}
                     >
@@ -738,475 +737,476 @@ export default function EditorPanel({
                     </button>
                   ))}
                 </div>
-              </>
-            }
-          >
-            <p className="text-xs text-zinc-500">Sets the slide's background color and its orientation.</p>
-          </CollapsibleSection>
-
-          <CollapsibleSection id="content" open={openSections.content} onToggle={() => toggleSection('content')}
-            sectionRef={el => { sectionElsRef.current.content = el }}>
-            <div className="mb-3">
-              <label className={labelCls}>Label (e.g. TONIGHT)</label>
-              <input className={inputCls} value={data.label} onChange={e => set('label', e.target.value)} placeholder="TONIGHT" />
-              <div className="mt-1.5"><WeightPicker value={data.labelWeight} onChange={v => set('labelWeight', v)} /></div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-xs text-zinc-500">Color</span>
-                <ColorPalette value={data.labelColor ?? data.textColor} onChange={v => set('labelColor', v)} />
-              </div>
-            </div>
-
-            <div className="mb-0">
-              <label className={labelCls}>Title</label>
-              <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
-              <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-xs text-zinc-500">Color</span>
-                <ColorPalette value={data.accentColor} onChange={v => set('accentColor', v)} />
-              </div>
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection id="typography" open={openSections.typography} onToggle={() => toggleSection('typography')}
-            sectionRef={el => { sectionElsRef.current.typography = el }}>
-            <p className="text-xs text-zinc-500 mb-2">Title</p>
-            <div className="mt-1.5 flex gap-1.5">
-              {(['92NY Text', 'Theinhardt Heavy'] as const).map(font => (
-                <button key={font}
-                  onClick={() => set('titleFont', font)}
-                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                    (data.titleFont ?? '92NY Text') === font
-                      ? 'bg-white text-black border-white font-medium'
-                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                  }`}>
-                  {font}
-                </button>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <input type="checkbox" id="titleItalic" checked={data.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
-              <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
-            </div>
-            <FontSizeSlider label="Font size" value={data.titleSize}
-              onChange={v => {
-                setTitleSizeOverridden(true)
-                const patch: Partial<SlideData> = {}
-                applyTitleSize(patch, v)
-                onChange({ ...data, ...patch })
-              }}
-              min={24} max={250} badge={titleSizeOverridden ? 'manual' : 'auto'} />
-            <div className="mt-1.5 flex flex-col gap-1">
-              <label className="flex items-center gap-2 text-xs text-zinc-400">
-                <input type="checkbox" checked={data.presentersMatchTitleSize} className="rounded"
-                  onChange={e => {
-                    const checked = e.target.checked
-                    const patch: Partial<SlideData> = { presentersMatchTitleSize: checked }
-                    if (checked) patch.presentersSize = data.titleSize
-                    onChange({ ...data, ...patch })
-                  }} />
-                Match Presenters font size to Title
-              </label>
-              <label className="flex items-center gap-2 text-xs text-zinc-400">
-                <input type="checkbox" checked={data.programTitleMatchTitleSize} className="rounded"
-                  onChange={e => {
-                    const checked = e.target.checked
-                    const patch: Partial<SlideData> = { programTitleMatchTitleSize: checked }
-                    if (checked) patch.programTitleSize = data.titleSize
-                    onChange({ ...data, ...patch })
-                  }} />
-                Match Program / Work Title font size to Title
-              </label>
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection id="image" open={openSections.image} onToggle={() => toggleSection('image')}
-            sectionRef={el => { sectionElsRef.current.image = el }}>
-          {/* Mode selector */}
-          <div className="grid grid-cols-3 gap-1.5 mb-4">
-            {([
-              'single', 'two-stagger',
-              'three-stagger', 'three-triangle',
-              'four-stagger', 'four-squared',
-              'none',
-            ] as ImageMode[]).map(mode => (
-              <button key={mode}
-                onClick={() => set('imageMode', mode)}
-                className={`text-xs py-1.5 rounded-md border transition-colors ${
-                  data.imageMode === mode
-                    ? 'bg-white text-black border-white font-medium'
-                    : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                }`}>
-                {mode === 'single' ? '1 image'
-                  : mode === 'two-stagger' ? '2 staggered'
-                  : mode === 'three-stagger' ? '3 staggered'
-                  : mode === 'three-triangle' ? '3 triangle'
-                  : mode === 'four-stagger' ? '4 staggered'
-                  : mode === 'four-squared' ? '4 squared'
-                  : 'No image'}
-              </button>
-            ))}
-          </div>
-
-          {data.imageMode === 'none' && (
-            <p className="text-xs text-zinc-500">No image — all text is centered on the slide.</p>
+              </FieldCard>
+            </Section>
           )}
 
-          {data.imageMode === 'single' && (
-            <>
-              <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, -1)} />
-              <p className="text-xs text-zinc-500 mb-1.5">Image</p>
-              <div className="flex gap-2">
-                <button onClick={() => imageInputRef.current?.click()}
-                  className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white text-sm py-2 px-3 rounded-lg transition-colors">
-                  {data.imageUrl ? 'Replace' : 'Upload'}
-                </button>
-                {data.imageUrl && (
-                  <button onClick={clearImage} className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
-                    Remove
-                  </button>
-                )}
-              </div>
-              {data.imageUrl && (
-                <div className="mt-2 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-900 group relative cursor-pointer"
-                  onClick={() => { setCropTarget(-1); setCropSrc(data.imageUrl) }}>
-                  <img src={data.imageUrl} alt="Preview" className="max-h-20 mx-auto object-contain p-2" />
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span className="text-white text-xs font-medium">Edit crop</span>
+          {activeSection === 'content' && (
+            <Section id="content">
+              <FieldCard>
+                <label className={labelCls}>Label (e.g. TONIGHT)</label>
+                <input className={inputCls} value={data.label} onChange={e => set('label', e.target.value)} placeholder="TONIGHT" />
+                <div className="mt-1.5"><WeightPicker value={data.labelWeight} onChange={v => set('labelWeight', v)} /></div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.labelColor ?? data.textColor} onChange={v => set('labelColor', v)} />
+                </div>
+              </FieldCard>
+
+              <FieldCard>
+                <label className={labelCls}>Title</label>
+                <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.accentColor} onChange={v => set('accentColor', v)} />
+                </div>
+              </FieldCard>
+            </Section>
+          )}
+
+          {activeSection === 'typography' && (
+            <Section id="typography">
+              <FieldCard>
+                <p className="text-xs text-zinc-500 mb-2">Title</p>
+                <div className="flex gap-1.5">
+                  {(['92NY Text', 'Theinhardt Heavy'] as const).map(font => (
+                    <button key={font}
+                      onClick={() => set('titleFont', font)}
+                      className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                        (data.titleFont ?? '92NY Text') === font
+                          ? 'bg-white text-black border-white font-medium'
+                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                      }`}>
+                      {font}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <input type="checkbox" id="titleItalic" checked={data.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
+                  <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
+                </div>
+                <FontSizeSlider label="Font size" value={data.titleSize}
+                  onChange={v => {
+                    setTitleSizeOverridden(true)
+                    const patch: Partial<SlideData> = {}
+                    applyTitleSize(patch, v)
+                    onChange({ ...data, ...patch })
+                  }}
+                  min={24} max={250} badge={titleSizeOverridden ? 'manual' : 'auto'} />
+                <div className="mt-1.5 flex flex-col gap-1">
+                  <label className="flex items-center gap-2 text-xs text-zinc-400">
+                    <input type="checkbox" checked={data.presentersMatchTitleSize} className="rounded"
+                      onChange={e => {
+                        const checked = e.target.checked
+                        const patch: Partial<SlideData> = { presentersMatchTitleSize: checked }
+                        if (checked) patch.presentersSize = data.titleSize
+                        onChange({ ...data, ...patch })
+                      }} />
+                    Match Presenters font size to Title
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-zinc-400">
+                    <input type="checkbox" checked={data.programTitleMatchTitleSize} className="rounded"
+                      onChange={e => {
+                        const checked = e.target.checked
+                        const patch: Partial<SlideData> = { programTitleMatchTitleSize: checked }
+                        if (checked) patch.programTitleSize = data.titleSize
+                        onChange({ ...data, ...patch })
+                      }} />
+                    Match Program / Work Title font size to Title
+                  </label>
+                </div>
+              </FieldCard>
+            </Section>
+          )}
+
+          {activeSection === 'image' && (
+            <Section id="image">
+              <FieldCard>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {([
+                    'single', 'two-stagger',
+                    'three-stagger', 'three-triangle',
+                    'four-stagger', 'four-squared',
+                    'none',
+                  ] as ImageMode[]).map(mode => (
+                    <button key={mode}
+                      onClick={() => set('imageMode', mode)}
+                      className={`text-xs py-1.5 rounded-md border transition-colors ${
+                        data.imageMode === mode
+                          ? 'bg-white text-black border-white font-medium'
+                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                      }`}>
+                      {mode === 'single' ? '1 image'
+                        : mode === 'two-stagger' ? '2 staggered'
+                        : mode === 'three-stagger' ? '3 staggered'
+                        : mode === 'three-triangle' ? '3 triangle'
+                        : mode === 'four-stagger' ? '4 staggered'
+                        : mode === 'four-squared' ? '4 squared'
+                        : 'No image'}
+                    </button>
+                  ))}
+                </div>
+              </FieldCard>
+
+              {data.imageMode === 'none' && (
+                <p className="text-xs text-zinc-500">No image — all text is centered on the slide.</p>
+              )}
+
+              {data.imageMode === 'single' && (
+                <FieldCard>
+                  <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, -1)} />
+                  <p className="text-xs text-zinc-500 mb-1.5">Image</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => imageInputRef.current?.click()}
+                      className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white text-sm py-2 px-3 rounded-lg transition-colors">
+                      {data.imageUrl ? 'Replace' : 'Upload'}
+                    </button>
+                    {data.imageUrl && (
+                      <button onClick={clearImage} className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
+                        Remove
+                      </button>
+                    )}
                   </div>
-                </div>
-              )}
-              {data.imageUrl && (
-                <div className="mt-2">
-                  <FontSizeSlider label="Image size" value={data.imageSize ?? 100}
-                    onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [-1]: true })); set('imageSize', v) }}
-                    min={20} max={200} unit="%" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
-                </div>
-              )}
-            </>
-          )}
-
-          {staggerCount(data.imageMode) > 0 && (
-            <>
-              {Array.from({ length: staggerCount(data.imageMode) }).map((_, i) => {
-                const img = data.staggerImages?.[i]
-                const position = staggerSlotLabel(data.imageMode, i)
-                const prevImg = data.staggerImages?.[i - 1]
-                const nextImg = data.staggerImages?.[i + 1]
-                return (
-                  <div key={i} className={i > 0 ? 'mt-4' : ''}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs text-zinc-500">Image {i + 1} {position}</p>
-                      {img?.url && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => moveStaggerImage(i, -1)}
-                            disabled={i === 0 || !prevImg?.url}
-                            title="Swap layout position with the previous slot"
-                            className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                          >
-                            ◀
-                          </button>
-                          <button
-                            onClick={() => moveStaggerImage(i, 1)}
-                            disabled={!nextImg?.url}
-                            title="Swap layout position with the next slot"
-                            className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
-                          >
-                            ▶
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <label className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white text-sm py-2 px-3 rounded-lg transition-colors text-center cursor-pointer">
-                        {img?.url ? 'Replace' : 'Upload'}
-                        <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
-                      </label>
-                      {img?.url && (
-                        <button onClick={() => updateStaggerImage(i, { url: '' })}
-                          className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                    {img?.url && (
-                      <div className="mt-2 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-900 group relative cursor-pointer"
-                        onClick={() => { setCropTarget(i); setCropSrc(img.url) }}>
-                        <img src={img.url} alt="Preview" className="max-h-20 mx-auto object-contain p-2" />
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <span className="text-white text-xs font-medium">Edit crop</span>
-                        </div>
+                  {data.imageUrl && (
+                    <div className="mt-2 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-950 group relative cursor-pointer"
+                      onClick={() => { setCropTarget(-1); setCropSrc(data.imageUrl) }}>
+                      <img src={data.imageUrl} alt="Preview" className="max-h-20 mx-auto object-contain p-2" />
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-white text-xs font-medium">Edit crop</span>
                       </div>
-                    )}
-                    <div className="mt-2">
-                      <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
-                        onChange={v => updateStaggerScale(i, v)}
-                        min={80} max={800}
-                        disabled={data.imagesLinkedSize && i === 1}
-                        badge={data.imagesLinkedSize && (i === 0 || i === 1) ? 'linked' : undefined}
-                        numberInput />
                     </div>
-                    {i === 1 && (
-                      <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
-                        <input type="checkbox" checked={data.imagesLinkedSize} className="rounded"
-                          onChange={e => {
-                            const checked = e.target.checked
-                            const patch: Partial<SlideData> = { imagesLinkedSize: checked }
-                            if (checked) {
-                              const img0Scale = data.staggerImages?.[0]?.scale || data.staggerSize || 250
-                              const images = [...(data.staggerImages || [])]
-                              const existing1 = images[1]
-                              images[1] = {
-                                id: existing1?.id ?? Math.random().toString(36).slice(2),
-                                url: existing1?.url ?? '',
-                                alt: existing1?.alt ?? 'Image 2',
-                                x: existing1?.x ?? 0,
-                                y: existing1?.y ?? 0,
-                                scale: img0Scale,
-                                zIndex: existing1?.zIndex ?? 2,
-                                faceCropSuggested: existing1?.faceCropSuggested,
-                                faceCropFinal: existing1?.faceCropFinal,
-                                faceCropWasOverridden: existing1?.faceCropWasOverridden,
-                              }
-                              patch.staggerImages = images
-                            }
-                            onChange({ ...data, ...patch })
-                          }} />
-                        Link size (Image 1 &amp; 2)
-                      </label>
-                    )}
+                  )}
+                  {data.imageUrl && (
                     <div className="mt-2">
-                      <FontSizeSlider label={`Image ${i + 1} X`} value={img?.x ?? 0} onChange={v => updateStaggerImage(i, { x: v })} min={-600} max={600} numberInput />
+                      <FontSizeSlider label="Image size" value={data.imageSize ?? 100}
+                        onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [-1]: true })); set('imageSize', v) }}
+                        min={20} max={200} unit="%" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
                     </div>
+                  )}
+                </FieldCard>
+              )}
+
+              {staggerCount(data.imageMode) > 0 && (
+                <>
+                  {Array.from({ length: staggerCount(data.imageMode) }).map((_, i) => {
+                    const img = data.staggerImages?.[i]
+                    const position = staggerSlotLabel(data.imageMode, i)
+                    const prevImg = data.staggerImages?.[i - 1]
+                    const nextImg = data.staggerImages?.[i + 1]
+                    return (
+                      <FieldCard key={i}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-xs text-zinc-500">Image {i + 1} {position}</p>
+                          {img?.url && (
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => moveStaggerImage(i, -1)}
+                                disabled={i === 0 || !prevImg?.url}
+                                title="Swap layout position with the previous slot"
+                                className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                              >
+                                ◀
+                              </button>
+                              <button
+                                onClick={() => moveStaggerImage(i, 1)}
+                                disabled={!nextImg?.url}
+                                title="Swap layout position with the next slot"
+                                className="text-xs px-1.5 py-0.5 rounded text-zinc-500 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                              >
+                                ▶
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <label className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white text-sm py-2 px-3 rounded-lg transition-colors text-center cursor-pointer">
+                            {img?.url ? 'Replace' : 'Upload'}
+                            <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, i)} />
+                          </label>
+                          {img?.url && (
+                            <button onClick={() => updateStaggerImage(i, { url: '' })}
+                              className="bg-zinc-800 hover:bg-red-900 text-zinc-400 hover:text-white text-sm py-2 px-3 rounded-lg transition-colors">
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        {img?.url && (
+                          <div className="mt-2 rounded-lg overflow-hidden border border-zinc-700 bg-zinc-950 group relative cursor-pointer"
+                            onClick={() => { setCropTarget(i); setCropSrc(img.url) }}>
+                            <img src={img.url} alt="Preview" className="max-h-20 mx-auto object-contain p-2" />
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="text-white text-xs font-medium">Edit crop</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-2">
+                          <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
+                            onChange={v => updateStaggerScale(i, v)}
+                            min={80} max={800}
+                            disabled={data.imagesLinkedSize && i === 1}
+                            badge={data.imagesLinkedSize && (i === 0 || i === 1) ? 'linked' : undefined}
+                            numberInput />
+                        </div>
+                        {i === 1 && (
+                          <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400">
+                            <input type="checkbox" checked={data.imagesLinkedSize} className="rounded"
+                              onChange={e => {
+                                const checked = e.target.checked
+                                const patch: Partial<SlideData> = { imagesLinkedSize: checked }
+                                if (checked) {
+                                  const img0Scale = data.staggerImages?.[0]?.scale || data.staggerSize || 250
+                                  const images = [...(data.staggerImages || [])]
+                                  const existing1 = images[1]
+                                  images[1] = {
+                                    id: existing1?.id ?? Math.random().toString(36).slice(2),
+                                    url: existing1?.url ?? '',
+                                    alt: existing1?.alt ?? 'Image 2',
+                                    x: existing1?.x ?? 0,
+                                    y: existing1?.y ?? 0,
+                                    scale: img0Scale,
+                                    zIndex: existing1?.zIndex ?? 2,
+                                    faceCropSuggested: existing1?.faceCropSuggested,
+                                    faceCropFinal: existing1?.faceCropFinal,
+                                    faceCropWasOverridden: existing1?.faceCropWasOverridden,
+                                  }
+                                  patch.staggerImages = images
+                                }
+                                onChange({ ...data, ...patch })
+                              }} />
+                            Link size (Image 1 &amp; 2)
+                          </label>
+                        )}
+                        <div className="mt-2">
+                          <FontSizeSlider label={`Image ${i + 1} X`} value={img?.x ?? 0} onChange={v => updateStaggerImage(i, { x: v })} min={-600} max={600} numberInput />
+                        </div>
+                        <div className="mt-2">
+                          <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} numberInput />
+                        </div>
+                        <div className="mt-2">
+                          <FontSizeSlider label={`Image ${i + 1} layer`} value={img?.zIndex ?? (i + 1)}
+                            onChange={v => updateStaggerImage(i, { zIndex: v })}
+                            min={1} max={10} unit="" numberInput />
+                        </div>
+                      </FieldCard>
+                    )
+                  })}
+                  <FieldCard>
+                    <FontSizeSlider label="Image width" value={data.staggerSize ?? 250} onChange={v => set('staggerSize', v)} min={80} max={800} numberInput />
                     <div className="mt-2">
-                      <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} numberInput />
+                      <FontSizeSlider label="Overlap" value={data.imageOverlap ?? 30} onChange={v => set('imageOverlap', v)} min={0} max={60} numberInput />
                     </div>
-                    <div className="mt-2">
-                      <FontSizeSlider label={`Image ${i + 1} layer`} value={img?.zIndex ?? (i + 1)}
-                        onChange={v => updateStaggerImage(i, { zIndex: v })}
-                        min={1} max={10} unit="" numberInput />
-                    </div>
-                  </div>
-                )
-              })}
-              <div className="mt-4">
-                <FontSizeSlider label="Image width" value={data.staggerSize ?? 250} onChange={v => set('staggerSize', v)} min={80} max={800} numberInput />
-              </div>
-              <div className="mt-2">
-                <FontSizeSlider label="Overlap" value={data.imageOverlap ?? 30} onChange={v => set('imageOverlap', v)} min={0} max={60} numberInput />
-              </div>
-            </>
+                  </FieldCard>
+                </>
+              )}
+            </Section>
           )}
-          </CollapsibleSection>
 
-          <CollapsibleSection id="layout" open={openSections.layout} onToggle={() => toggleSection('layout')}
-            sectionRef={el => { sectionElsRef.current.layout = el }}>
-            <div className="mb-4">
-              <label className={labelCls}>{orientation === 'portrait' ? 'Image position' : 'Image side'}</label>
-              <button
-                onClick={() => set('imageSide', data.imageSide === 'right' ? 'left' : 'right')}
-                className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
-                title={orientation === 'portrait'
-                  ? 'Swap whether the image sits on top of or below the text'
-                  : 'Swap which side the image sits on vs. the text'}
-              >
-                <span>⇄</span> {orientation === 'portrait'
-                  ? `Flip (image ${data.imageSide === 'right' ? 'bottom' : 'top'})`
-                  : `Flip (image ${data.imageSide === 'right' ? 'right' : 'left'})`}
-              </button>
-            </div>
-
-            <div>
-              <label className={labelCls}>Text alignment</label>
-              {/* Highlights against a plain 'left' fallback rather than the
-                  canvas's actual mode-dependent historical default (which
-                  needs orientation, not passed to this panel) -- purely
-                  cosmetic until the user picks one explicitly, which this
-                  button does immediately regardless. */}
-              <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
-                {(['left', 'center'] as const).map(align => (
-                  <button
-                    key={align}
-                    onClick={() => set('textAlign', align)}
-                    className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
-                      (data.textAlign ?? 'left') === align ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    {align === 'left' ? 'Left' : 'Center'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection id="subtitle" open={openSections.subtitle} onToggle={() => toggleSection('subtitle')}
-            sectionRef={el => { sectionElsRef.current.subtitle = el }}>
-            <div className="mb-3">
-              <label className={labelCls}>Subtitle</label>
-              <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
-              <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-xs text-zinc-500">Color</span>
-                <ColorPalette value={data.subtitleColor ?? data.textColor} onChange={v => set('subtitleColor', v)} />
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
-                <label htmlFor="subtitleInline" className="text-sm text-zinc-300">
-                  Inline before first presenter <span className="text-zinc-500">(75% size)</span>
-                </label>
-              </div>
-              <FontSizeSlider label="Font size" value={data.subtitleSize}
-                onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
-                min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
-            </div>
-
-            <div className="mb-0">
-              <label className={labelCls}>Subtitle 2</label>
-              <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
-              <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <span className="text-xs text-zinc-500">Color</span>
-                <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
-              </div>
-              <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
-            </div>
-          </CollapsibleSection>
-
-          <CollapsibleSection id="presenters" open={openSections.presenters} onToggle={() => toggleSection('presenters')}
-            sectionRef={el => { sectionElsRef.current.presenters = el }}>
-            <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
-              onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
-            <div className="mt-1.5 flex gap-1.5">
-              {(['Theinhardt', '92NY Text'] as const).map(font => (
-                <button key={font}
-                  onClick={() => setPresentersFont(font)}
-                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                    (data.presentersFont ?? 'Theinhardt') === font
-                      ? 'bg-white text-black border-white font-medium'
-                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                  }`}>
-                  {font}
+          {activeSection === 'layout' && (
+            <Section id="layout">
+              <FieldCard>
+                <label className={labelCls}>{orientation === 'portrait' ? 'Image position' : 'Image side'}</label>
+                <button
+                  onClick={() => set('imageSide', data.imageSide === 'right' ? 'left' : 'right')}
+                  className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
+                  title={orientation === 'portrait'
+                    ? 'Swap whether the image sits on top of or below the text'
+                    : 'Swap which side the image sits on vs. the text'}
+                >
+                  <span>⇄</span> {orientation === 'portrait'
+                    ? `Flip (image ${data.imageSide === 'right' ? 'bottom' : 'top'})`
+                    : `Flip (image ${data.imageSide === 'right' ? 'right' : 'left'})`}
                 </button>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
-              <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
-            </div>
-            <div className="mt-1.5">
-              <WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)}
-                disabled={(data.presentersFont ?? 'Theinhardt') === '92NY Text'} />
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.presentersColor ?? data.textColor} onChange={v => set('presentersColor', v)} />
-            </div>
-            <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
-              onChange={v => set('presentersSize', v)} min={24} max={250}
-              disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
-          </CollapsibleSection>
+              </FieldCard>
 
-          <CollapsibleSection id="programTitle" open={openSections.programTitle} onToggle={() => toggleSection('programTitle')}
-            sectionRef={el => { sectionElsRef.current.programTitle = el }}>
-            <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
-            <div className="mt-1.5 flex gap-1.5">
-              {(['Theinhardt', '92NY Text'] as const).map(font => (
-                <button key={font}
-                  onClick={() => setProgramTitleFont(font)}
-                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                    (data.programTitleFont ?? 'Theinhardt') === font
-                      ? 'bg-white text-black border-white font-medium'
-                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                  }`}>
-                  {font}
-                </button>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
-              <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
-            </div>
-            <div className="mt-1.5">
-              <WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)}
-                disabled={(data.programTitleFont ?? 'Theinhardt') === '92NY Text'} />
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.programTitleColor ?? data.textColor} onChange={v => set('programTitleColor', v)} />
-            </div>
-            <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
-              onChange={v => set('programTitleSize', v)} min={24} max={250}
-              disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
-          </CollapsibleSection>
+              <FieldCard>
+                <label className={labelCls}>Text alignment</label>
+                {/* Highlights against a plain 'left' fallback rather than the
+                    canvas's actual mode-dependent historical default (which
+                    needs orientation, not passed to this panel) -- purely
+                    cosmetic until the user picks one explicitly, which this
+                    button does immediately regardless. */}
+                <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+                  {(['left', 'center'] as const).map(align => (
+                    <button
+                      key={align}
+                      onClick={() => set('textAlign', align)}
+                      className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
+                        (data.textAlign ?? 'left') === align ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {align === 'left' ? 'Left' : 'Center'}
+                    </button>
+                  ))}
+                </div>
+              </FieldCard>
+            </Section>
+          )}
 
-          <CollapsibleSection id="logos" open={openSections.logos} onToggle={() => toggleSection('logos')}
-            sectionRef={el => { sectionElsRef.current.logos = el }}>
-            <LogoUploader logos={data.logos || []} onChange={logos => set('logos', logos)} />
-            <FontSizeSlider label="Logo height" value={data.logoSize || 60} onChange={v => set('logoSize', v)} min={30} max={200} />
-          </CollapsibleSection>
+          {activeSection === 'subtitle' && (
+            <Section id="subtitle">
+              <FieldCard>
+                <label className={labelCls}>Subtitle</label>
+                <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
+                <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.subtitleColor ?? data.textColor} onChange={v => set('subtitleColor', v)} />
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
+                  <label htmlFor="subtitleInline" className="text-sm text-zinc-300">
+                    Inline before first presenter <span className="text-zinc-500">(75% size)</span>
+                  </label>
+                </div>
+                <FontSizeSlider label="Font size" value={data.subtitleSize}
+                  onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
+                  min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
+              </FieldCard>
 
-          <CollapsibleSection id="footer" open={openSections.footer} onToggle={() => toggleSection('footer')}
-            sectionRef={el => { sectionElsRef.current.footer = el }}>
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-2">
-                <input type="checkbox" id="showSeriesName" checked={data.showSeriesName}
-                  onChange={e => set('showSeriesName', e.target.checked)} className="rounded" />
-                <label htmlFor="showSeriesName" className="text-sm text-zinc-300 font-medium">Series name</label>
-              </div>
-              {data.showSeriesName && (
-                <>
-                  <input className={inputCls} value={data.seriesName}
-                    onChange={e => set('seriesName', e.target.value)}
-                    placeholder="RECANATI-KAPLAN TALKS" />
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span className="text-xs text-zinc-500">Color</span>
-                    <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
-                  </div>
-                </>
-              )}
-            </div>
+              <FieldCard>
+                <label className={labelCls}>Subtitle 2</label>
+                <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
+                <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
+                </div>
+                <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
+              </FieldCard>
+            </Section>
+          )}
 
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <input type="checkbox" id="showListeningCredit" checked={data.showListeningCredit}
-                  onChange={e => set('showListeningCredit', e.target.checked)} className="rounded" />
-                <label htmlFor="showListeningCredit" className="text-sm text-zinc-300 font-medium">Listening credit</label>
-              </div>
-              {data.showListeningCredit && (
-                <>
-                  <textarea className={inputCls + ' resize-none'} rows={4}
-                    value={data.listeningCredit}
-                    onChange={e => set('listeningCredit', e.target.value)}
-                    placeholder="Assistive listening devices..." />
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span className="text-xs text-zinc-500">Color</span>
-                    <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
-                  </div>
-                </>
-              )}
-            </div>
-          </CollapsibleSection>
+          {activeSection === 'presenters' && (
+            <Section id="presenters">
+              <FieldCard>
+                <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
+                  onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+                <div className="mt-1.5 flex gap-1.5">
+                  {(['Theinhardt', '92NY Text'] as const).map(font => (
+                    <button key={font}
+                      onClick={() => setPresentersFont(font)}
+                      className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                        (data.presentersFont ?? 'Theinhardt') === font
+                          ? 'bg-white text-black border-white font-medium'
+                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                      }`}>
+                      {font}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
+                  <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
+                </div>
+                <div className="mt-1.5">
+                  <WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)}
+                    disabled={(data.presentersFont ?? 'Theinhardt') === '92NY Text'} />
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.presentersColor ?? data.textColor} onChange={v => set('presentersColor', v)} />
+                </div>
+                <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
+                  onChange={v => set('presentersSize', v)} min={24} max={250}
+                  disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
+              </FieldCard>
+            </Section>
+          )}
 
-          <CollapsibleSection id="accessibility" open={openSections.accessibility} onToggle={() => toggleSection('accessibility')}
-            sectionRef={el => { sectionElsRef.current.accessibility = el }}>
-            <WcagChecker bg={data.backgroundColor} text={data.textColor} accent={data.accentColor} />
-          </CollapsibleSection>
+          {activeSection === 'programTitle' && (
+            <Section id="programTitle">
+              <FieldCard>
+                <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
+                <div className="mt-1.5 flex gap-1.5">
+                  {(['Theinhardt', '92NY Text'] as const).map(font => (
+                    <button key={font}
+                      onClick={() => setProgramTitleFont(font)}
+                      className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                        (data.programTitleFont ?? 'Theinhardt') === font
+                          ? 'bg-white text-black border-white font-medium'
+                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                      }`}>
+                      {font}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
+                  <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
+                </div>
+                <div className="mt-1.5">
+                  <WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)}
+                    disabled={(data.programTitleFont ?? 'Theinhardt') === '92NY Text'} />
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.programTitleColor ?? data.textColor} onChange={v => set('programTitleColor', v)} />
+                </div>
+                <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
+                  onChange={v => set('programTitleSize', v)} min={24} max={250}
+                  disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
+              </FieldCard>
+            </Section>
+          )}
 
-        </div>
+          {activeSection === 'logos' && (
+            <Section id="logos">
+              <FieldCard>
+                <LogoUploader logos={data.logos || []} onChange={logos => set('logos', logos)} />
+                <FontSizeSlider label="Logo height" value={data.logoSize || 60} onChange={v => set('logoSize', v)} min={30} max={200} />
+              </FieldCard>
+            </Section>
+          )}
 
-        {/* Left icon rail -- jumps to (and expands) the section it names. */}
-        <div className="flex-shrink-0 w-10 flex flex-col items-center gap-1 pl-2 ml-1 border-l border-zinc-800">
-          {RAIL_SECTIONS.map(id => (
-            <button
-              key={id}
-              onClick={() => jumpToSection(id)}
-              title={SECTION_META[id].title}
-              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
-                openSections[id] ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
-              }`}
-            >
-              {SECTION_META[id].glyph}
-            </button>
-          ))}
+          {activeSection === 'footer' && (
+            <Section id="footer">
+              <FieldCard>
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" id="showSeriesName" checked={data.showSeriesName}
+                    onChange={e => set('showSeriesName', e.target.checked)} className="rounded" />
+                  <label htmlFor="showSeriesName" className="text-sm text-zinc-300 font-medium">Series name</label>
+                </div>
+                {data.showSeriesName && (
+                  <>
+                    <input className={inputCls} value={data.seriesName}
+                      onChange={e => set('seriesName', e.target.value)}
+                      placeholder="RECANATI-KAPLAN TALKS" />
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">Color</span>
+                      <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
+                    </div>
+                  </>
+                )}
+              </FieldCard>
+
+              <FieldCard>
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" id="showListeningCredit" checked={data.showListeningCredit}
+                    onChange={e => set('showListeningCredit', e.target.checked)} className="rounded" />
+                  <label htmlFor="showListeningCredit" className="text-sm text-zinc-300 font-medium">Listening credit</label>
+                </div>
+                {data.showListeningCredit && (
+                  <>
+                    <textarea className={inputCls + ' resize-none'} rows={4}
+                      value={data.listeningCredit}
+                      onChange={e => set('listeningCredit', e.target.value)}
+                      placeholder="Assistive listening devices..." />
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">Color</span>
+                      <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
+                    </div>
+                  </>
+                )}
+              </FieldCard>
+            </Section>
+          )}
+
+          {activeSection === 'accessibility' && (
+            <Section id="accessibility">
+              <WcagChecker bg={data.backgroundColor} text={data.textColor} accent={data.accentColor} />
+            </Section>
+          )}
+
         </div>
 
       </div>

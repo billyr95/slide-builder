@@ -4,11 +4,12 @@ import EditorPanel from '@/components/EditorPanel'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import { SlideData } from '@/lib/types'
 
-// Covers the collapsible right-panel sections + left icon rail added in the
-// editor UI redesign -- specifically the parts a type check alone wouldn't
-// catch: which sections start open vs. collapsed, that a section's fields
-// are genuinely hidden (not just visually) while collapsed, and that
-// clicking a rail icon both expands and reveals its section's content.
+// Covers the tabbed right-panel sections + icon rail added in the editor UI
+// redesign -- specifically the parts a type check alone wouldn't catch:
+// that exactly one section is ever in the DOM at a time (not an accordion
+// where several can be open together), that clicking a rail icon swaps
+// which one is shown, and that each field renders inside its own bordered
+// card.
 
 function renderPanel(overrides: Partial<SlideData> = {}) {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, ...overrides }
@@ -17,49 +18,65 @@ function renderPanel(overrides: Partial<SlideData> = {}) {
   return { onChange }
 }
 
-describe('EditorPanel collapsible sections', () => {
-  it('starts with Background/Content/Typography/Image open and the rest (Layout, Subtitle, Presenters, Program Title, Logo Bar, Footer, Accessibility) collapsed', () => {
+describe('EditorPanel tabbed sections', () => {
+  it('starts on the Background tab, with every other section entirely absent from the DOM', () => {
     renderPanel()
-    // Open-by-default: their fields are immediately in the DOM.
-    expect(screen.getByPlaceholderText('TONIGHT')).toBeInTheDocument() // Content -> Label
-    expect(screen.getByPlaceholderText('Event title')).toBeInTheDocument() // Content -> Title
-    expect(screen.getByText('92NY Text')).toBeInTheDocument() // Typography -> Title font picker
+    expect(screen.getByText('Background color')).toBeInTheDocument()
 
-    // Collapsed-by-default: their fields must NOT be in the DOM at all.
-    expect(screen.queryByPlaceholderText('with')).not.toBeInTheDocument()
-    expect(screen.queryByPlaceholderText(/Name One/)).not.toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('American Caprices')).not.toBeInTheDocument()
-    expect(screen.queryByText('Series name')).not.toBeInTheDocument()
+    // Not just visually hidden -- genuinely not rendered.
+    expect(screen.queryByPlaceholderText('TONIGHT')).not.toBeInTheDocument() // Content
+    expect(screen.queryByText('92NY Text')).not.toBeInTheDocument() // Typography
+    expect(screen.queryByPlaceholderText(/Name One/)).not.toBeInTheDocument() // Presenters
+    expect(screen.queryByText('Series name')).not.toBeInTheDocument() // Footer
     expect(screen.queryByText('Text on Background')).not.toBeInTheDocument() // Accessibility
   })
 
-  it('clicking a section header toggles it open and closed', () => {
+  it('clicking a rail icon shows only that section, hiding whichever was showing before', () => {
     renderPanel()
-    // Both the section header and the rail icon share the accessible name
-    // "Presenters (One per line)" (header via its own text, rail via its
-    // `title`) -- the header is the one rendered first in the section stack.
-    const [presentersHeader] = screen.getAllByRole('button', { name: /Presenters \(One per line\)/i })
-    expect(screen.queryByPlaceholderText(/Name One/)).not.toBeInTheDocument()
-
-    fireEvent.click(presentersHeader)
-    expect(screen.getByPlaceholderText(/Name One/)).toBeInTheDocument()
-
-    fireEvent.click(presentersHeader)
-    expect(screen.queryByPlaceholderText(/Name One/)).not.toBeInTheDocument()
-  })
-
-  it('rail icon jumps to (and force-opens) its section even if collapsed', () => {
-    renderPanel()
-    expect(screen.queryByPlaceholderText(/Name One/)).not.toBeInTheDocument()
-
     fireEvent.click(screen.getByTitle('Presenters (One per line)'))
+
     expect(screen.getByPlaceholderText(/Name One/)).toBeInTheDocument()
+    // Background's own fields are gone now, not just Presenters added.
+    expect(screen.queryByText('Background color')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Content'))
+    expect(screen.getByPlaceholderText('TONIGHT')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText(/Name One/)).not.toBeInTheDocument()
   })
 
-  it('Background section exposes the color swatch and orientation toggle inline in its header', () => {
+  it('every section is reachable via its own rail icon, including ones with no dedicated rail slot in the reference (Layout, Program Title, Logo Bar, Footer, Accessibility)', () => {
+    renderPanel({ imageMode: 'none' })
+    fireEvent.click(screen.getByTitle('Layout & Preview'))
+    expect(screen.getByText('Text alignment')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Program / Work Title'))
+    expect(screen.getByPlaceholderText(/American Caprices/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Logo Bar'))
+    expect(screen.getByText('Upload logos')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Footer'))
+    expect(screen.getByText('Series name')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTitle('Accessibility'))
+    expect(screen.getByText('Text on Background')).toBeInTheDocument()
+  })
+
+  it('Background section exposes the color swatch and orientation toggle', () => {
     renderPanel()
-    expect(screen.getByTitle('16:9')).toBeInTheDocument()
-    expect(screen.getByTitle('9:16')).toBeInTheDocument()
+    expect(screen.getByText('Background color')).toBeInTheDocument()
+    expect(screen.getByText('16:9')).toBeInTheDocument()
+    expect(screen.getByText('9:16')).toBeInTheDocument()
+  })
+
+  it('wraps each field in its own bordered, lighter-shaded card', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTitle('Content'))
+    const labelInput = screen.getByPlaceholderText('TONIGHT')
+    const card = labelInput.closest('.bg-zinc-900')
+    expect(card).not.toBeNull()
+    expect(card?.className).toMatch(/border-zinc-800/)
+    expect(card?.className).toMatch(/bg-zinc-900/)
   })
 
   it('there is no "Apply Changes" button anywhere -- everything applies live', () => {

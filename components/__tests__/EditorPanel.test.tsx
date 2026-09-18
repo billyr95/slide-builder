@@ -13,6 +13,10 @@ function renderPanel(overrides: Partial<SlideData> = {}) {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, imageMode: 'two-stagger', ...overrides }
   const onChange = vi.fn()
   render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} />)
+  // The panel shows exactly one section at a time (tabs, not an accordion)
+  // -- Background is the initial tab, so switch to Image before these tests
+  // touch the stagger-image size/overlap controls.
+  fireEvent.click(screen.getByTitle('Image'))
   return { onChange }
 }
 
