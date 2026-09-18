@@ -38,7 +38,7 @@ import { detectFaceCropBox } from '@/lib/faceDetect'
 function renderPanel(overrides: Partial<SlideData> = {}) {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, imageMode: 'single', ...overrides }
   const onChange = vi.fn()
-  const utils = render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" />)
+  const utils = render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} />)
   return { onChange, ...utils }
 }
 

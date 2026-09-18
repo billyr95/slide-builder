@@ -36,11 +36,163 @@ interface EditorPanelProps {
   // Needed to word the Flip control correctly -- portrait's outer container
   // is a column flex, so imageSide there swaps top/bottom, not left/right.
   orientation: Orientation
+  // The Background section mirrors the top bar's 16:9/9:16 toggle inline
+  // (matching the reference layout, which shows it inside that section) --
+  // both control the same page-level state.
+  onOrientationChange: (o: Orientation) => void
+}
+
+// Section ids for the collapsible right-panel layout + the left icon rail
+// that jumps between them. Purely a navigation/visual grouping -- every
+// field and its onChange wiring below is unchanged from before this
+// reorganization, just relocated into one of these containers.
+type SectionId =
+  | 'background' | 'content' | 'typography' | 'image'
+  | 'layout' | 'subtitle' | 'presenters' | 'programTitle'
+  | 'logos' | 'footer' | 'accessibility'
+
+// Sections that start expanded mirror the reference screenshot (Background/
+// Content/Typography open by default); Image joins them since it's one of
+// the primary rail-linked destinations. Everything else starts collapsed.
+const DEFAULT_OPEN_SECTIONS: Record<SectionId, boolean> = {
+  background: true, content: true, typography: true, image: true,
+  layout: false, subtitle: false, presenters: false, programTitle: false,
+  logos: false, footer: false, accessibility: false,
+}
+
+function TextGlyph({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <span className={`font-semibold leading-none ${className ?? ''}`}>{children}</span>
+}
+
+function BackgroundGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M1.5 11L5 7.5l2.2 2.2L11 6l3.5 5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ImageGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="5.2" cy="6" r="1.1" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M2 12l3.5-3.5L8 11l2.5-2.5L14 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ListGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <circle cx="2.2" cy="4" r="0.9" fill="currentColor" />
+      <circle cx="2.2" cy="8" r="0.9" fill="currentColor" />
+      <circle cx="2.2" cy="12" r="0.9" fill="currentColor" />
+      <path d="M5.5 4h9M5.5 8h9M5.5 12h9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function PersonGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <circle cx="8" cy="5" r="2.4" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M2.5 14c0-3 2.5-4.8 5.5-4.8s5.5 1.8 5.5 4.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function GridGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  )
+}
+
+function LogoGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <rect x="1.5" y="5.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="9.5" y="5.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  )
+}
+
+function FooterGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M1.5 10.5h13" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  )
+}
+
+function AccessibilityGlyph() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 5.5v6M5.5 7h5M6 12l2-2 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+const SECTION_META: Record<SectionId, { title: string; glyph: React.ReactNode }> = {
+  background: { title: 'Background', glyph: <BackgroundGlyph /> },
+  content: { title: 'Content', glyph: <TextGlyph className="text-[13px]">T</TextGlyph> },
+  typography: { title: 'Typography', glyph: <TextGlyph className="text-[10px]">Aa</TextGlyph> },
+  image: { title: 'Image', glyph: <ImageGlyph /> },
+  layout: { title: 'Layout & Preview', glyph: <GridGlyph /> },
+  subtitle: { title: 'Subtitle (Optional)', glyph: <ListGlyph /> },
+  presenters: { title: 'Presenters (One per line)', glyph: <PersonGlyph /> },
+  programTitle: { title: 'Program / Work Title', glyph: <TextGlyph className="text-[13px]">T</TextGlyph> },
+  logos: { title: 'Logo Bar', glyph: <LogoGlyph /> },
+  footer: { title: 'Footer', glyph: <FooterGlyph /> },
+  accessibility: { title: 'Accessibility', glyph: <AccessibilityGlyph /> },
+}
+
+// The rail only surfaces the sections the reference screenshot itself calls
+// out as jump targets (Background/Image/Text/Typography/List/Presenters) --
+// the remaining sections (Layout & Preview, Program Title, Logo Bar, Footer,
+// Accessibility) still exist below them, just reached by scrolling rather
+// than a dedicated rail icon.
+const RAIL_SECTIONS: SectionId[] = ['background', 'image', 'content', 'typography', 'subtitle', 'presenters']
+
+function CollapsibleSection({
+  id, open, onToggle, sectionRef, headerExtra, children,
+}: {
+  id: SectionId
+  open: boolean
+  onToggle: () => void
+  sectionRef: (el: HTMLDivElement | null) => void
+  // Rendered inline in the header row itself, before the chevron -- used by
+  // Background to keep its color swatch + orientation toggle reachable even
+  // while collapsed, matching the reference layout.
+  headerExtra?: React.ReactNode
+  children: React.ReactNode
+}) {
+  const { title, glyph } = SECTION_META[id]
+  return (
+    <div ref={sectionRef} className="border-b border-zinc-800">
+      <button onClick={onToggle} className="w-full flex items-center gap-2.5 py-3.5 text-left hover:bg-zinc-900/40 transition-colors">
+        <span className="w-5 h-5 flex items-center justify-center text-zinc-400 flex-shrink-0">{glyph}</span>
+        <span className="text-xs font-semibold text-zinc-300 uppercase tracking-widest flex-1">{title}</span>
+        {headerExtra && (
+          <span onClick={e => e.stopPropagation()} className="flex items-center gap-2 flex-shrink-0">{headerExtra}</span>
+        )}
+        <span className={`text-zinc-600 text-[10px] transition-transform flex-shrink-0 ${open ? 'rotate-90' : ''}`}>▶</span>
+      </button>
+      {open && <div className="pb-5">{children}</div>}
+    </div>
+  )
 }
 
 const inputCls = `w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 transition-colors placeholder-zinc-500`
 const labelCls = `block text-xs font-medium text-zinc-400 mb-1 uppercase tracking-wider`
-const sectionCls = `border-b border-zinc-800 pb-5 mb-5`
 
 // 92NY Text has no separate weight variants (unlike Theinhardt) -- disabled
 // rather than hidden so the control's presence (and its stored value) stays
@@ -280,12 +432,29 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 }
 
 export default function EditorPanel({
-  data, onChange, screenType, slideRevision, orientation,
+  data, onChange, screenType, slideRevision, orientation, onOrientationChange,
 }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   // -1 = the single-image slot; >=0 = index into data.staggerImages
   const [cropTarget, setCropTarget] = useState<number>(-1)
+
+  const [openSections, setOpenSections] = useState<Record<SectionId, boolean>>(DEFAULT_OPEN_SECTIONS)
+  const sectionElsRef = useRef<Partial<Record<SectionId, HTMLDivElement | null>>>({})
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  function toggleSection(id: SectionId) {
+    setOpenSections(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  // Rail click: force the section open (if collapsed) and scroll it into
+  // view within the panel's own scroll container, not the whole page.
+  function jumpToSection(id: SectionId) {
+    setOpenSections(prev => ({ ...prev, [id]: true }))
+    requestAnimationFrame(() => {
+      sectionElsRef.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   // Once the user manually drags a slider (or manually adjusts an image),
   // stop auto-updating that field for the rest of the session on this
@@ -546,33 +715,60 @@ export default function EditorPanel({
         />
       )}
 
-      <div className="flex flex-col gap-0 text-white">
+      <div className="flex gap-0 text-white h-full min-h-0">
 
-        {/* Background */}
-        <div className={sectionCls}>
-          <div className="flex items-center gap-2">
-            <label className={labelCls + ' mb-0'}>Background</label>
-            <ColorPalette value={data.backgroundColor} onChange={v => set('backgroundColor', v)} />
-          </div>
-        </div>
+        {/* Scrollable section stack */}
+        <div ref={panelRef} className="flex-1 min-w-0 overflow-y-auto pr-1">
 
-        {/* Content */}
-        <div className={sectionCls}>
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Content</p>
+          <CollapsibleSection id="background" open={openSections.background} onToggle={() => toggleSection('background')}
+            sectionRef={el => { sectionElsRef.current.background = el }}
+            headerExtra={
+              <>
+                <ColorPalette value={data.backgroundColor} onChange={v => set('backgroundColor', v)} />
+                <div className="flex gap-0.5 bg-zinc-800 p-0.5 rounded-md">
+                  {(['landscape', 'portrait'] as Orientation[]).map(o => (
+                    <button key={o}
+                      onClick={() => onOrientationChange(o)}
+                      title={o === 'landscape' ? '16:9' : '9:16'}
+                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors font-medium ${
+                        orientation === o ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {o === 'landscape' ? '16:9' : '9:16'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            }
+          >
+            <p className="text-xs text-zinc-500">Sets the slide's background color and its orientation.</p>
+          </CollapsibleSection>
 
-          <div className="mb-3">
-            <label className={labelCls}>Label (e.g. TONIGHT)</label>
-            <input className={inputCls} value={data.label} onChange={e => set('label', e.target.value)} placeholder="TONIGHT" />
-            <div className="mt-1.5"><WeightPicker value={data.labelWeight} onChange={v => set('labelWeight', v)} /></div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.labelColor ?? data.textColor} onChange={v => set('labelColor', v)} />
+          <CollapsibleSection id="content" open={openSections.content} onToggle={() => toggleSection('content')}
+            sectionRef={el => { sectionElsRef.current.content = el }}>
+            <div className="mb-3">
+              <label className={labelCls}>Label (e.g. TONIGHT)</label>
+              <input className={inputCls} value={data.label} onChange={e => set('label', e.target.value)} placeholder="TONIGHT" />
+              <div className="mt-1.5"><WeightPicker value={data.labelWeight} onChange={v => set('labelWeight', v)} /></div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="text-xs text-zinc-500">Color</span>
+                <ColorPalette value={data.labelColor ?? data.textColor} onChange={v => set('labelColor', v)} />
+              </div>
             </div>
-          </div>
 
-          <div className="mb-3">
-            <label className={labelCls}>Title</label>
-            <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
+            <div className="mb-0">
+              <label className={labelCls}>Title</label>
+              <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="text-xs text-zinc-500">Color</span>
+                <ColorPalette value={data.accentColor} onChange={v => set('accentColor', v)} />
+              </div>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection id="typography" open={openSections.typography} onToggle={() => toggleSection('typography')}
+            sectionRef={el => { sectionElsRef.current.typography = el }}>
+            <p className="text-xs text-zinc-500 mb-2">Title</p>
             <div className="mt-1.5 flex gap-1.5">
               {(['92NY Text', 'Theinhardt Heavy'] as const).map(font => (
                 <button key={font}
@@ -589,10 +785,6 @@ export default function EditorPanel({
             <div className="mt-1.5 flex items-center gap-2">
               <input type="checkbox" id="titleItalic" checked={data.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
               <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.accentColor} onChange={v => set('accentColor', v)} />
             </div>
             <FontSizeSlider label="Font size" value={data.titleSize}
               onChange={v => {
@@ -624,110 +816,10 @@ export default function EditorPanel({
                 Match Program / Work Title font size to Title
               </label>
             </div>
-          </div>
+          </CollapsibleSection>
 
-          <div className="mb-3">
-            <label className={labelCls}>Subtitle</label>
-            <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
-            <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.subtitleColor ?? data.textColor} onChange={v => set('subtitleColor', v)} />
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
-              <label htmlFor="subtitleInline" className="text-sm text-zinc-300">
-                Inline before first presenter <span className="text-zinc-500">(75% size)</span>
-              </label>
-            </div>
-            <FontSizeSlider label="Font size" value={data.subtitleSize}
-              onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
-              min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
-          </div>
-
-          <div className="mb-3">
-            <label className={labelCls}>Subtitle 2</label>
-            <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
-            <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
-            </div>
-            <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
-          </div>
-
-          <div className="mb-3">
-            <label className={labelCls}>Presenters (one per line)</label>
-            <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
-              onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
-            <div className="mt-1.5 flex gap-1.5">
-              {(['Theinhardt', '92NY Text'] as const).map(font => (
-                <button key={font}
-                  onClick={() => setPresentersFont(font)}
-                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                    (data.presentersFont ?? 'Theinhardt') === font
-                      ? 'bg-white text-black border-white font-medium'
-                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                  }`}>
-                  {font}
-                </button>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
-              <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
-            </div>
-            <div className="mt-1.5">
-              <WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)}
-                disabled={(data.presentersFont ?? 'Theinhardt') === '92NY Text'} />
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.presentersColor ?? data.textColor} onChange={v => set('presentersColor', v)} />
-            </div>
-            <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
-              onChange={v => set('presentersSize', v)} min={24} max={250}
-              disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
-          </div>
-
-          <div className="mb-0">
-            <label className={labelCls}>Program / Work Title</label>
-            <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
-            <div className="mt-1.5 flex gap-1.5">
-              {(['Theinhardt', '92NY Text'] as const).map(font => (
-                <button key={font}
-                  onClick={() => setProgramTitleFont(font)}
-                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                    (data.programTitleFont ?? 'Theinhardt') === font
-                      ? 'bg-white text-black border-white font-medium'
-                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                  }`}>
-                  {font}
-                </button>
-              ))}
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
-              <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
-            </div>
-            <div className="mt-1.5">
-              <WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)}
-                disabled={(data.programTitleFont ?? 'Theinhardt') === '92NY Text'} />
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <span className="text-xs text-zinc-500">Color</span>
-              <ColorPalette value={data.programTitleColor ?? data.textColor} onChange={v => set('programTitleColor', v)} />
-            </div>
-            <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
-              onChange={v => set('programTitleSize', v)} min={24} max={250}
-              disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
-          </div>
-        </div>
-
-        {/* Image */}
-        <div className={sectionCls}>
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Image</p>
-
+          <CollapsibleSection id="image" open={openSections.image} onToggle={() => toggleSection('image')}
+            sectionRef={el => { sectionElsRef.current.image = el }}>
           {/* Mode selector */}
           <div className="grid grid-cols-3 gap-1.5 mb-4">
             {([
@@ -904,105 +996,217 @@ export default function EditorPanel({
               </div>
             </>
           )}
-        </div>
+          </CollapsibleSection>
 
-        {/* Layout */}
-        <div className={sectionCls}>
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Layout</p>
+          <CollapsibleSection id="layout" open={openSections.layout} onToggle={() => toggleSection('layout')}
+            sectionRef={el => { sectionElsRef.current.layout = el }}>
+            <div className="mb-4">
+              <label className={labelCls}>{orientation === 'portrait' ? 'Image position' : 'Image side'}</label>
+              <button
+                onClick={() => set('imageSide', data.imageSide === 'right' ? 'left' : 'right')}
+                className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
+                title={orientation === 'portrait'
+                  ? 'Swap whether the image sits on top of or below the text'
+                  : 'Swap which side the image sits on vs. the text'}
+              >
+                <span>⇄</span> {orientation === 'portrait'
+                  ? `Flip (image ${data.imageSide === 'right' ? 'bottom' : 'top'})`
+                  : `Flip (image ${data.imageSide === 'right' ? 'right' : 'left'})`}
+              </button>
+            </div>
 
-          <div className="mb-4">
-            <label className={labelCls}>{orientation === 'portrait' ? 'Image position' : 'Image side'}</label>
-            <button
-              onClick={() => set('imageSide', data.imageSide === 'right' ? 'left' : 'right')}
-              className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
-              title={orientation === 'portrait'
-                ? 'Swap whether the image sits on top of or below the text'
-                : 'Swap which side the image sits on vs. the text'}
-            >
-              <span>⇄</span> {orientation === 'portrait'
-                ? `Flip (image ${data.imageSide === 'right' ? 'bottom' : 'top'})`
-                : `Flip (image ${data.imageSide === 'right' ? 'right' : 'left'})`}
-            </button>
-          </div>
+            <div>
+              <label className={labelCls}>Text alignment</label>
+              {/* Highlights against a plain 'left' fallback rather than the
+                  canvas's actual mode-dependent historical default (which
+                  needs orientation, not passed to this panel) -- purely
+                  cosmetic until the user picks one explicitly, which this
+                  button does immediately regardless. */}
+              <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+                {(['left', 'center'] as const).map(align => (
+                  <button
+                    key={align}
+                    onClick={() => set('textAlign', align)}
+                    className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
+                      (data.textAlign ?? 'left') === align ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {align === 'left' ? 'Left' : 'Center'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CollapsibleSection>
 
-          <div>
-            <label className={labelCls}>Text alignment</label>
-            {/* Highlights against a plain 'left' fallback rather than the
-                canvas's actual mode-dependent historical default (which
-                needs orientation, not passed to this panel) -- purely
-                cosmetic until the user picks one explicitly, which this
-                button does immediately regardless. */}
-            <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
-              {(['left', 'center'] as const).map(align => (
-                <button
-                  key={align}
-                  onClick={() => set('textAlign', align)}
-                  className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
-                    (data.textAlign ?? 'left') === align ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  {align === 'left' ? 'Left' : 'Center'}
+          <CollapsibleSection id="subtitle" open={openSections.subtitle} onToggle={() => toggleSection('subtitle')}
+            sectionRef={el => { sectionElsRef.current.subtitle = el }}>
+            <div className="mb-3">
+              <label className={labelCls}>Subtitle</label>
+              <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
+              <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="text-xs text-zinc-500">Color</span>
+                <ColorPalette value={data.subtitleColor ?? data.textColor} onChange={v => set('subtitleColor', v)} />
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
+                <label htmlFor="subtitleInline" className="text-sm text-zinc-300">
+                  Inline before first presenter <span className="text-zinc-500">(75% size)</span>
+                </label>
+              </div>
+              <FontSizeSlider label="Font size" value={data.subtitleSize}
+                onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
+                min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
+            </div>
+
+            <div className="mb-0">
+              <label className={labelCls}>Subtitle 2</label>
+              <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
+              <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
+              <div className="mt-1.5 flex items-center gap-2">
+                <span className="text-xs text-zinc-500">Color</span>
+                <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
+              </div>
+              <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection id="presenters" open={openSections.presenters} onToggle={() => toggleSection('presenters')}
+            sectionRef={el => { sectionElsRef.current.presenters = el }}>
+            <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
+              onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+            <div className="mt-1.5 flex gap-1.5">
+              {(['Theinhardt', '92NY Text'] as const).map(font => (
+                <button key={font}
+                  onClick={() => setPresentersFont(font)}
+                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                    (data.presentersFont ?? 'Theinhardt') === font
+                      ? 'bg-white text-black border-white font-medium'
+                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                  }`}>
+                  {font}
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Logos */}
-        <div className={sectionCls}>
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Logo Bar</p>
-          <LogoUploader logos={data.logos || []} onChange={logos => set('logos', logos)} />
-          <FontSizeSlider label="Logo height" value={data.logoSize || 60} onChange={v => set('logoSize', v)} min={30} max={200} />
-        </div>
-
-        {/* Footer */}
-        <div className={sectionCls}>
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Footer</p>
-
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <input type="checkbox" id="showSeriesName" checked={data.showSeriesName}
-                onChange={e => set('showSeriesName', e.target.checked)} className="rounded" />
-              <label htmlFor="showSeriesName" className="text-sm text-zinc-300 font-medium">Series name</label>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
+              <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
             </div>
-            {data.showSeriesName && (
-              <>
-                <input className={inputCls} value={data.seriesName}
-                  onChange={e => set('seriesName', e.target.value)}
-                  placeholder="RECANATI-KAPLAN TALKS" />
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Color</span>
-                  <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
-                </div>
-              </>
-            )}
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <input type="checkbox" id="showListeningCredit" checked={data.showListeningCredit}
-                onChange={e => set('showListeningCredit', e.target.checked)} className="rounded" />
-              <label htmlFor="showListeningCredit" className="text-sm text-zinc-300 font-medium">Listening credit</label>
+            <div className="mt-1.5">
+              <WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)}
+                disabled={(data.presentersFont ?? 'Theinhardt') === '92NY Text'} />
             </div>
-            {data.showListeningCredit && (
-              <>
-                <textarea className={inputCls + ' resize-none'} rows={4}
-                  value={data.listeningCredit}
-                  onChange={e => set('listeningCredit', e.target.value)}
-                  placeholder="Assistive listening devices..." />
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Color</span>
-                  <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
-                </div>
-              </>
-            )}
-          </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.presentersColor ?? data.textColor} onChange={v => set('presentersColor', v)} />
+            </div>
+            <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
+              onChange={v => set('presentersSize', v)} min={24} max={250}
+              disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
+          </CollapsibleSection>
+
+          <CollapsibleSection id="programTitle" open={openSections.programTitle} onToggle={() => toggleSection('programTitle')}
+            sectionRef={el => { sectionElsRef.current.programTitle = el }}>
+            <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
+            <div className="mt-1.5 flex gap-1.5">
+              {(['Theinhardt', '92NY Text'] as const).map(font => (
+                <button key={font}
+                  onClick={() => setProgramTitleFont(font)}
+                  className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                    (data.programTitleFont ?? 'Theinhardt') === font
+                      ? 'bg-white text-black border-white font-medium'
+                      : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                  }`}>
+                  {font}
+                </button>
+              ))}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
+              <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
+            </div>
+            <div className="mt-1.5">
+              <WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)}
+                disabled={(data.programTitleFont ?? 'Theinhardt') === '92NY Text'} />
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Color</span>
+              <ColorPalette value={data.programTitleColor ?? data.textColor} onChange={v => set('programTitleColor', v)} />
+            </div>
+            <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
+              onChange={v => set('programTitleSize', v)} min={24} max={250}
+              disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
+          </CollapsibleSection>
+
+          <CollapsibleSection id="logos" open={openSections.logos} onToggle={() => toggleSection('logos')}
+            sectionRef={el => { sectionElsRef.current.logos = el }}>
+            <LogoUploader logos={data.logos || []} onChange={logos => set('logos', logos)} />
+            <FontSizeSlider label="Logo height" value={data.logoSize || 60} onChange={v => set('logoSize', v)} min={30} max={200} />
+          </CollapsibleSection>
+
+          <CollapsibleSection id="footer" open={openSections.footer} onToggle={() => toggleSection('footer')}
+            sectionRef={el => { sectionElsRef.current.footer = el }}>
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <input type="checkbox" id="showSeriesName" checked={data.showSeriesName}
+                  onChange={e => set('showSeriesName', e.target.checked)} className="rounded" />
+                <label htmlFor="showSeriesName" className="text-sm text-zinc-300 font-medium">Series name</label>
+              </div>
+              {data.showSeriesName && (
+                <>
+                  <input className={inputCls} value={data.seriesName}
+                    onChange={e => set('seriesName', e.target.value)}
+                    placeholder="RECANATI-KAPLAN TALKS" />
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">Color</span>
+                    <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <input type="checkbox" id="showListeningCredit" checked={data.showListeningCredit}
+                  onChange={e => set('showListeningCredit', e.target.checked)} className="rounded" />
+                <label htmlFor="showListeningCredit" className="text-sm text-zinc-300 font-medium">Listening credit</label>
+              </div>
+              {data.showListeningCredit && (
+                <>
+                  <textarea className={inputCls + ' resize-none'} rows={4}
+                    value={data.listeningCredit}
+                    onChange={e => set('listeningCredit', e.target.value)}
+                    placeholder="Assistive listening devices..." />
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">Color</span>
+                    <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
+                  </div>
+                </>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection id="accessibility" open={openSections.accessibility} onToggle={() => toggleSection('accessibility')}
+            sectionRef={el => { sectionElsRef.current.accessibility = el }}>
+            <WcagChecker bg={data.backgroundColor} text={data.textColor} accent={data.accentColor} />
+          </CollapsibleSection>
+
         </div>
 
-        {/* Accessibility */}
-        <div className={sectionCls}>
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-3">Accessibility</p>
-          <WcagChecker bg={data.backgroundColor} text={data.textColor} accent={data.accentColor} />
+        {/* Left icon rail -- jumps to (and expands) the section it names. */}
+        <div className="flex-shrink-0 w-10 flex flex-col items-center gap-1 pl-2 ml-1 border-l border-zinc-800">
+          {RAIL_SECTIONS.map(id => (
+            <button
+              key={id}
+              onClick={() => jumpToSection(id)}
+              title={SECTION_META[id].title}
+              className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                openSections[id] ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              {SECTION_META[id].glyph}
+            </button>
+          ))}
         </div>
 
       </div>

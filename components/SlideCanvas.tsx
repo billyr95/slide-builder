@@ -38,26 +38,39 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const textAlignItems = textAlign === 'center' ? 'center' : 'flex-start'
     const imageOnRight = data.imageSide === 'right'
 
-    // Every text block in a layout's column sits in a flex column with a
-    // fixed `gap` (below), so spacing between blocks is already independent
-    // of how many lines any one block wraps to -- gap is measured between
-    // box edges, not proportional to content height. The one exception the
-    // spec calls out is the Title -> next-block transition, which should
-    // read tighter than the rest. A fixed negative marginTop on whichever
-    // block actually follows Title (subtitle, subtitle2, presenters, or
-    // programTitle, in render order -- exactly one of these renders
-    // immediately after Title for any given slide) shaves a constant amount
-    // off that one gap without touching the others, and stays exact
-    // regardless of Title's wrap count since margin doesn't scale with it.
-    const TITLE_GAP_TIGHTEN = 8
-    const elementAfterTitle: 'subtitle' | 'subtitle2' | 'presenters' | 'programTitle' | null =
-      (data.subtitle && !data.subtitleInline) ? 'subtitle'
-      : data.subtitle2 ? 'subtitle2'
-      : data.presenters ? 'presenters'
-      : data.programTitle ? 'programTitle'
-      : null
-    function titleGapAdjust(key: NonNullable<typeof elementAfterTitle>) {
-      return elementAfterTitle === key ? { marginTop: `${-TITLE_GAP_TIGHTEN * scale}px` } : undefined
+    // Spacing between adjacent text blocks (label/title/subtitle/subtitle2/
+    // presenters/programTitle) is a real, explicit marginBottom on each
+    // block -- not a shared flex `gap`, and not something that falls out of
+    // any block's own line-height. A margin is measured from the box's own
+    // edge regardless of how many lines that box wraps to, so this is exact
+    // by construction: Title always gets the same fixed gap before whatever
+    // follows it, whether Title is 1 line or 3. Title's own value
+    // (TITLE_BLOCK_GAP) is deliberately tighter than the default spacing
+    // between every other pair (BLOCK_GAP), per spec.
+    const BLOCK_GAP = 16
+    const TITLE_BLOCK_GAP = 8
+
+    // Exactly one of these renders directly after Title for any given slide
+    // (in render order) -- precomputed once so marginAfter below only ever
+    // adds a margin when something real actually follows a block, instead
+    // of leaving stray trailing space after whichever block turns out last.
+    const blockOrder = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle'] as const
+    type BlockKey = typeof blockOrder[number]
+    const blockVisible: Record<BlockKey, boolean> = {
+      label: !!data.label,
+      title: true,
+      subtitle: !!(data.subtitle && !data.subtitleInline),
+      subtitle2: !!data.subtitle2,
+      presenters: !!data.presenters,
+      programTitle: !!data.programTitle,
+    }
+    const visibleBlocks = blockOrder.filter(k => blockVisible[k])
+
+    function marginAfter(key: BlockKey) {
+      const idx = visibleBlocks.indexOf(key)
+      if (idx === -1 || idx === visibleBlocks.length - 1) return undefined
+      const gap = key === 'title' ? TITLE_BLOCK_GAP : BLOCK_GAP
+      return { marginBottom: `${gap * scale}px` }
     }
 
     const titleFont = data.titleFont ?? '92NY Text'
@@ -235,33 +248,32 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             display: 'flex',
             flexDirection: 'column',
             alignItems: textAlignItems,
-            gap: `${16 * scale}px`,
             maxWidth: maxTextW * scale,
           }}>
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...marginAfter('label') }}>
                 {data.label}
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...marginAfter('title') }}>
               {data.title}
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...titleGapAdjust('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...marginAfter('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...titleGapAdjust('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...marginAfter('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...marginAfter('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -281,14 +293,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...marginAfter('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
 
             {/* Logo bar */}
             {data.logos && data.logos.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px`, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${24 * scale}px`, flexWrap: 'wrap' }}>
                 {data.logos.map(logo => (
                   <img key={logo.id} src={logo.url} alt={logo.alt}
                     style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
@@ -437,34 +449,33 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             flexDirection: 'column',
             justifyContent: 'center',
             textAlign,
-            gap: `${16 * scale}px`,
             position: 'relative',
           }}>
 
             {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
+              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...marginAfter('label') }}>
                 {data.label}
               </div>
             )}
 
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...marginAfter('title') }}>
               {data.title}
             </div>
 
             {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...titleGapAdjust('subtitle') }}>
+              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...marginAfter('subtitle') }}>
                 {data.subtitle}
               </div>
             )}
 
             {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...titleGapAdjust('subtitle2') }}>
+              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...marginAfter('subtitle2') }}>
                 {data.subtitle2}
               </div>
             )}
 
             {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
+              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...marginAfter('presenters') }}>
                 {data.subtitleInline && data.subtitle
                   ? (() => {
                       const lines = data.presenters.split('\n')
@@ -484,14 +495,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
 
             {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
+              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...marginAfter('programTitle') }}>
                 {data.programTitle}
               </div>
             )}
 
             {/* Logo bar */}
             {data.logos && data.logos.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px` }}>
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${32 * scale}px`, marginTop: `${24 * scale}px` }}>
                 {data.logos.map(logo => (
                   <img key={logo.id} src={logo.url} alt={logo.alt}
                     style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
@@ -616,33 +627,32 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         flexDirection: 'column',
         alignItems: textAlignItems,
         padding: `${60 * scale}px ${80 * scale}px`,
-        gap: `${16 * scale}px`,
         textAlign,
       }}>
         {!imageOnRight && data.label && (
-          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor) }}>
+          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...marginAfter('label') }}>
             {data.label}
           </div>
         )}
 
-        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle }}>
+        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: 0.88, whiteSpace: 'pre-line', ...titleStyle, ...marginAfter('title') }}>
           {data.title}
         </div>
 
         {data.subtitle && !data.subtitleInline && (
-          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...titleGapAdjust('subtitle') }}>
+          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...marginAfter('subtitle') }}>
             {data.subtitle}
           </div>
         )}
 
         {data.subtitle2 && (
-          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...titleGapAdjust('subtitle2') }}>
+          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: 0.95, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...marginAfter('subtitle2') }}>
             {data.subtitle2}
           </div>
         )}
 
         {data.presenters && (
-          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...titleGapAdjust('presenters') }}>
+          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeight, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...marginAfter('presenters') }}>
             {data.subtitleInline && data.subtitle
               ? (() => {
                   const lines = data.presenters.split('\n')
@@ -662,14 +672,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         )}
 
         {data.programTitle && (
-          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...titleGapAdjust('programTitle') }}>
+          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeight, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...marginAfter('programTitle') }}>
             {data.programTitle}
           </div>
         )}
 
         {/* Logo bar */}
         {data.logos && data.logos.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${8 * scale}px` }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${24 * scale}px` }}>
             {data.logos.map(logo => (
               <img key={logo.id} src={logo.url} alt={logo.alt}
                 style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />

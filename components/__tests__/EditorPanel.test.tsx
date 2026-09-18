@@ -12,7 +12,7 @@ import { SlideData } from '@/lib/types'
 function renderPanel(overrides: Partial<SlideData> = {}) {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, imageMode: 'two-stagger', ...overrides }
   const onChange = vi.fn()
-  render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" />)
+  render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} />)
   return { onChange }
 }
 

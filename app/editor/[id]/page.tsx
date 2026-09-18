@@ -264,24 +264,41 @@ export default function EditorPage() {
           </Link>
         </div>
 
-        {/* Center: Slide name input + save status */}
-        <div className="flex items-center gap-2 flex-1 mx-6 max-w-xl">
-          <input
-            type="text"
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            onBlur={() => { if (isDirty()) saveNow() }}
-            className="flex-1 bg-zinc-900 border border-zinc-700 hover:border-zinc-500 focus:border-zinc-400 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors text-center"
-            placeholder="Untitled Slide"
-          />
-          <button
-            onClick={() => saveNow(true)}
-            disabled={status === 'saving'}
-            className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white"
-          >
-            Save
-          </button>
-          <span className="text-xs text-zinc-500 w-28 flex-shrink-0">{saveStatusText}</span>
+        {/* Center: Slide name input + status dot + orientation toggle */}
+        <div className="flex items-center gap-4 flex-1 justify-center">
+          <div className="flex items-center gap-2 max-w-xs">
+            <span
+              title={saveStatusText || 'Untitled'}
+              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                status === 'error' ? 'bg-red-500'
+                : status === 'saving' ? 'bg-amber-400 animate-pulse'
+                : status === 'saved' ? 'bg-emerald-500'
+                : 'bg-zinc-600'
+              }`}
+            />
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              onBlur={() => { if (isDirty()) saveNow() }}
+              className="bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-400 px-1 py-1 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
+              placeholder="Untitled"
+            />
+          </div>
+
+          <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg flex-shrink-0">
+            {(['landscape', 'portrait'] as Orientation[]).map(o => (
+              <button
+                key={o}
+                onClick={() => setOrientation(o)}
+                className={`text-xs px-4 py-1.5 rounded-md transition-colors font-medium ${
+                  orientation === o ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                {o === 'landscape' ? '⬛ 16:9' : '▬ 9:16'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Right: Actions */}
@@ -290,23 +307,32 @@ export default function EditorPage() {
             onClick={undo}
             disabled={!canUndo}
             title="Undo (Cmd+Z)"
-            className="text-sm text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
-            ↶ Undo
+            ↶
           </button>
           <button
             onClick={redo}
             disabled={!canRedo}
             title="Redo (Cmd+Shift+Z)"
-            className="text-sm text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
           >
-            ↷ Redo
+            ↷
           </button>
           <button
             onClick={() => setShowNewFlow(true)}
-            className="text-sm text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+            title="New slide"
+            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
           >
-            + New
+            +
+          </button>
+          <button
+            onClick={() => saveNow(true)}
+            disabled={status === 'saving'}
+            title={saveStatusText || 'Save'}
+            className="w-8 h-8 flex items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ⤓
           </button>
 
           {/* Training-data logging -- lives right next to Export since
@@ -379,21 +405,6 @@ export default function EditorPage() {
         {/* Center: Preview */}
         <main className="flex-1 flex flex-col items-center justify-center bg-zinc-900 overflow-auto p-8 gap-6">
 
-          {/* Orientation toggle */}
-          <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg flex-shrink-0">
-            {(['landscape', 'portrait'] as Orientation[]).map(o => (
-              <button
-                key={o}
-                onClick={() => setOrientation(o)}
-                className={`text-xs px-4 py-1.5 rounded-md transition-colors font-medium ${
-                  orientation === o ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                {o === 'landscape' ? '⬛ 16:9' : '▬ 9:16'}
-              </button>
-            ))}
-          </div>
-
           {/* Preview area */}
           <div className="flex-shrink-0">
             {orientation === 'landscape' ? (
@@ -430,14 +441,14 @@ export default function EditorPage() {
         </main>
 
         {/* Right: Editor */}
-        <aside className="w-72 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 p-4 overflow-y-auto">
-          <p className="text-xs font-semibold text-zinc-300 uppercase tracking-widest mb-4">Edit</p>
+        <aside className="w-96 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 p-3 overflow-hidden flex flex-col">
           <EditorPanel
             data={data}
             onChange={setData}
             screenType={screenType}
             slideRevision={slideRevision}
             orientation={orientation}
+            onOrientationChange={setOrientation}
           />
         </aside>
       </div>
