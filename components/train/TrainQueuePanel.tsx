@@ -120,7 +120,7 @@ export default function TrainQueuePanel({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-1 min-h-0">
         {filtered.length === 0 && (
           <p className="text-zinc-600 text-sm text-center py-8">
             {queue.length === 0 ? 'No entries queued yet.' : 'No entries match this filter.'}

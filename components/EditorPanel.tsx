@@ -40,16 +40,22 @@ interface EditorPanelProps {
   // (matching the reference layout, which shows it inside that section) --
   // both control the same page-level state.
   onOrientationChange: (o: Orientation) => void
+  // Which tab is showing -- lifted to the parent so the icon rail can live
+  // outside this component (page.tsx renders it as its own leftmost column,
+  // not tucked inside this panel) while staying in sync with it.
+  activeSection: SectionId
+  onActiveSectionChange: (id: SectionId) => void
 }
 
-// Section ids for the collapsible right-panel layout + the left icon rail
-// that jumps between them. Purely a navigation/visual grouping -- every
-// field and its onChange wiring below is unchanged from before this
-// reorganization, just relocated into one of these containers.
-type SectionId =
-  | 'background' | 'content' | 'typography' | 'image'
-  | 'layout' | 'subtitle' | 'presenters' | 'programTitle'
-  | 'logos' | 'footer' | 'accessibility'
+// Section ids for the tabbed right-panel layout + the icon rail that
+// switches between them. Purely a navigation/visual grouping -- every field
+// and its onChange wiring below is unchanged from before this
+// reorganization, just relocated into one of these containers. Grouped by
+// input type rather than one tab per field: every typed field (Label,
+// Title, Subtitle, Presenters, Program Title, Series Name, Listening
+// Credit) lives under "text", and every uploaded-image field (the main
+// image slot(s) and the logo bar) lives under "image".
+export type SectionId = 'background' | 'text' | 'image' | 'layout' | 'accessibility'
 
 function TextGlyph({ children, className }: { children: React.ReactNode; className?: string }) {
   return <span className={`font-semibold leading-none ${className ?? ''}`}>{children}</span>
@@ -74,26 +80,6 @@ function ImageGlyph() {
   )
 }
 
-function ListGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
-      <circle cx="2.2" cy="4" r="0.9" fill="currentColor" />
-      <circle cx="2.2" cy="8" r="0.9" fill="currentColor" />
-      <circle cx="2.2" cy="12" r="0.9" fill="currentColor" />
-      <path d="M5.5 4h9M5.5 8h9M5.5 12h9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function PersonGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
-      <circle cx="8" cy="5" r="2.4" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M2.5 14c0-3 2.5-4.8 5.5-4.8s5.5 1.8 5.5 4.8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  )
-}
-
 function GridGlyph() {
   return (
     <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
@@ -101,24 +87,6 @@ function GridGlyph() {
       <rect x="9" y="1.5" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
       <rect x="1.5" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
       <rect x="9" y="9" width="5.5" height="5.5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-    </svg>
-  )
-}
-
-function LogoGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
-      <rect x="1.5" y="5.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-      <rect x="9.5" y="5.5" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.3" />
-    </svg>
-  )
-}
-
-function FooterGlyph() {
-  return (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none">
-      <rect x="1.5" y="1.5" width="13" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M1.5 10.5h13" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   )
 }
@@ -132,29 +100,20 @@ function AccessibilityGlyph() {
   )
 }
 
-const SECTION_META: Record<SectionId, { title: string; glyph: React.ReactNode }> = {
+export const SECTION_META: Record<SectionId, { title: string; glyph: React.ReactNode }> = {
   background: { title: 'Background', glyph: <BackgroundGlyph /> },
-  content: { title: 'Content', glyph: <TextGlyph className="text-[13px]">T</TextGlyph> },
-  typography: { title: 'Typography', glyph: <TextGlyph className="text-[10px]">Aa</TextGlyph> },
+  text: { title: 'Text', glyph: <TextGlyph className="text-[13px]">T</TextGlyph> },
   image: { title: 'Image', glyph: <ImageGlyph /> },
   layout: { title: 'Layout & Preview', glyph: <GridGlyph /> },
-  subtitle: { title: 'Subtitle (Optional)', glyph: <ListGlyph /> },
-  presenters: { title: 'Presenters (One per line)', glyph: <PersonGlyph /> },
-  programTitle: { title: 'Program / Work Title', glyph: <TextGlyph className="text-[13px]">T</TextGlyph> },
-  logos: { title: 'Logo Bar', glyph: <LogoGlyph /> },
-  footer: { title: 'Footer', glyph: <FooterGlyph /> },
   accessibility: { title: 'Accessibility', glyph: <AccessibilityGlyph /> },
 }
 
-// Every section gets a rail icon now -- clicking one shows ONLY that
-// section (a tab, not an accordion item), so nothing is reachable by
-// scrolling past something else the way the old stacked-accordion layout
-// worked. Order here is both the rail's visual order and (for anyone
-// tabbing through) the only order these sections exist in anymore.
-const SECTION_ORDER: SectionId[] = [
-  'background', 'content', 'typography', 'image', 'layout',
-  'subtitle', 'presenters', 'programTitle', 'logos', 'footer', 'accessibility',
-]
+// One rail icon per input TYPE, not per field -- every typed field (Label,
+// Title, Subtitle, Presenters, Program Title, Series Name, Listening
+// Credit) lives under "text", every uploaded-image field (the main image
+// slot(s) and the logo bar) lives under "image". Clicking an icon shows
+// ONLY that section (a tab, not an accordion item).
+export const SECTION_ORDER: SectionId[] = ['background', 'text', 'image', 'layout', 'accessibility']
 
 function Section({ id, headerExtra, children }: {
   id: SectionId
@@ -427,15 +386,12 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 
 export default function EditorPanel({
   data, onChange, screenType, slideRevision, orientation, onOrientationChange,
+  activeSection,
 }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   // -1 = the single-image slot; >=0 = index into data.staggerImages
   const [cropTarget, setCropTarget] = useState<number>(-1)
-
-  // The rail is a tab strip, not an accordion -- exactly one section is
-  // ever shown at a time, switched by clicking its rail icon.
-  const [activeSection, setActiveSection] = useState<SectionId>('background')
 
   // Once the user manually drags a slider (or manually adjusts an image),
   // stop auto-updating that field for the rest of the session on this
@@ -698,24 +654,10 @@ export default function EditorPanel({
 
       <div className="flex gap-0 text-white h-full min-h-0">
 
-        {/* Left icon rail -- picks which single section is shown, like tabs. */}
-        <div className="flex-shrink-0 w-10 flex flex-col items-center gap-1 pr-2 mr-2 border-r border-zinc-800 overflow-y-auto">
-          {SECTION_ORDER.map(id => (
-            <button
-              key={id}
-              onClick={() => setActiveSection(id)}
-              title={SECTION_META[id].title}
-              className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-lg transition-colors ${
-                activeSection === id ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
-              }`}
-            >
-              {SECTION_META[id].glyph}
-            </button>
-          ))}
-        </div>
-
-        {/* The one active section. */}
-        <div className="flex-1 min-w-0 overflow-y-auto pr-1">
+        {/* The one active section. The icon rail that picks it lives
+            outside this component now (page.tsx renders it as its own
+            leftmost column), so this is just the content pane. */}
+        <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar pr-1">
 
           {activeSection === 'background' && (
             <Section id="background">
@@ -741,8 +683,8 @@ export default function EditorPanel({
             </Section>
           )}
 
-          {activeSection === 'content' && (
-            <Section id="content">
+          {activeSection === 'text' && (
+            <Section id="text">
               <FieldCard>
                 <label className={labelCls}>Label (e.g. TONIGHT)</label>
                 <input className={inputCls} value={data.label} onChange={e => set('label', e.target.value)} placeholder="TONIGHT" />
@@ -756,19 +698,7 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Title</label>
                 <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Color</span>
-                  <ColorPalette value={data.accentColor} onChange={v => set('accentColor', v)} />
-                </div>
-              </FieldCard>
-            </Section>
-          )}
-
-          {activeSection === 'typography' && (
-            <Section id="typography">
-              <FieldCard>
-                <p className="text-xs text-zinc-500 mb-2">Title</p>
-                <div className="flex gap-1.5">
+                <div className="mt-1.5 flex gap-1.5">
                   {(['92NY Text', 'Theinhardt Heavy'] as const).map(font => (
                     <button key={font}
                       onClick={() => set('titleFont', font)}
@@ -784,6 +714,10 @@ export default function EditorPanel({
                 <div className="mt-1.5 flex items-center gap-2">
                   <input type="checkbox" id="titleItalic" checked={data.titleItalic} onChange={e => set('titleItalic', e.target.checked)} className="rounded" />
                   <label htmlFor="titleItalic" className="text-sm text-zinc-300">Italic</label>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.accentColor} onChange={v => set('accentColor', v)} />
                 </div>
                 <FontSizeSlider label="Font size" value={data.titleSize}
                   onChange={v => {
@@ -815,6 +749,142 @@ export default function EditorPanel({
                     Match Program / Work Title font size to Title
                   </label>
                 </div>
+              </FieldCard>
+
+              <FieldCard>
+                <label className={labelCls}>Subtitle</label>
+                <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
+                <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.subtitleColor ?? data.textColor} onChange={v => set('subtitleColor', v)} />
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
+                  <label htmlFor="subtitleInline" className="text-sm text-zinc-300">
+                    Inline before first presenter <span className="text-zinc-500">(75% size)</span>
+                  </label>
+                </div>
+                <FontSizeSlider label="Font size" value={data.subtitleSize}
+                  onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
+                  min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
+              </FieldCard>
+
+              <FieldCard>
+                <label className={labelCls}>Subtitle 2</label>
+                <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
+                <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
+                </div>
+                <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
+              </FieldCard>
+
+              <FieldCard>
+                <label className={labelCls}>Presenters (one per line)</label>
+                <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
+                  onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+                <div className="mt-1.5 flex gap-1.5">
+                  {(['Theinhardt', '92NY Text'] as const).map(font => (
+                    <button key={font}
+                      onClick={() => setPresentersFont(font)}
+                      className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                        (data.presentersFont ?? 'Theinhardt') === font
+                          ? 'bg-white text-black border-white font-medium'
+                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                      }`}>
+                      {font}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
+                  <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
+                </div>
+                <div className="mt-1.5">
+                  <WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)}
+                    disabled={(data.presentersFont ?? 'Theinhardt') === '92NY Text'} />
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.presentersColor ?? data.textColor} onChange={v => set('presentersColor', v)} />
+                </div>
+                <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
+                  onChange={v => set('presentersSize', v)} min={24} max={250}
+                  disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
+              </FieldCard>
+
+              <FieldCard>
+                <label className={labelCls}>Program / Work Title</label>
+                <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
+                <div className="mt-1.5 flex gap-1.5">
+                  {(['Theinhardt', '92NY Text'] as const).map(font => (
+                    <button key={font}
+                      onClick={() => setProgramTitleFont(font)}
+                      className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                        (data.programTitleFont ?? 'Theinhardt') === font
+                          ? 'bg-white text-black border-white font-medium'
+                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                      }`}>
+                      {font}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
+                  <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
+                </div>
+                <div className="mt-1.5">
+                  <WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)}
+                    disabled={(data.programTitleFont ?? 'Theinhardt') === '92NY Text'} />
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">Color</span>
+                  <ColorPalette value={data.programTitleColor ?? data.textColor} onChange={v => set('programTitleColor', v)} />
+                </div>
+                <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
+                  onChange={v => set('programTitleSize', v)} min={24} max={250}
+                  disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
+              </FieldCard>
+
+              <FieldCard>
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" id="showSeriesName" checked={data.showSeriesName}
+                    onChange={e => set('showSeriesName', e.target.checked)} className="rounded" />
+                  <label htmlFor="showSeriesName" className="text-sm text-zinc-300 font-medium">Series name</label>
+                </div>
+                {data.showSeriesName && (
+                  <>
+                    <input className={inputCls} value={data.seriesName}
+                      onChange={e => set('seriesName', e.target.value)}
+                      placeholder="RECANATI-KAPLAN TALKS" />
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">Color</span>
+                      <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
+                    </div>
+                  </>
+                )}
+              </FieldCard>
+
+              <FieldCard>
+                <div className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" id="showListeningCredit" checked={data.showListeningCredit}
+                    onChange={e => set('showListeningCredit', e.target.checked)} className="rounded" />
+                  <label htmlFor="showListeningCredit" className="text-sm text-zinc-300 font-medium">Listening credit</label>
+                </div>
+                {data.showListeningCredit && (
+                  <>
+                    <textarea className={inputCls + ' resize-none'} rows={4}
+                      value={data.listeningCredit}
+                      onChange={e => set('listeningCredit', e.target.value)}
+                      placeholder="Assistive listening devices..." />
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">Color</span>
+                      <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
+                    </div>
+                  </>
+                )}
               </FieldCard>
             </Section>
           )}
@@ -998,6 +1068,14 @@ export default function EditorPanel({
                   </FieldCard>
                 </>
               )}
+
+              <FieldCard>
+                <p className="text-xs text-zinc-500 mb-1.5">Logo bar</p>
+                <LogoUploader logos={data.logos || []} onChange={logos => set('logos', logos)} />
+                <div className="mt-2">
+                  <FontSizeSlider label="Logo height" value={data.logoSize || 60} onChange={v => set('logoSize', v)} min={30} max={200} />
+                </div>
+              </FieldCard>
             </Section>
           )}
 
@@ -1038,165 +1116,6 @@ export default function EditorPanel({
                     </button>
                   ))}
                 </div>
-              </FieldCard>
-            </Section>
-          )}
-
-          {activeSection === 'subtitle' && (
-            <Section id="subtitle">
-              <FieldCard>
-                <label className={labelCls}>Subtitle</label>
-                <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
-                <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Color</span>
-                  <ColorPalette value={data.subtitleColor ?? data.textColor} onChange={v => set('subtitleColor', v)} />
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <input type="checkbox" id="subtitleInline" checked={data.subtitleInline} onChange={e => set('subtitleInline', e.target.checked)} className="rounded" />
-                  <label htmlFor="subtitleInline" className="text-sm text-zinc-300">
-                    Inline before first presenter <span className="text-zinc-500">(75% size)</span>
-                  </label>
-                </div>
-                <FontSizeSlider label="Font size" value={data.subtitleSize}
-                  onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
-                  min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
-              </FieldCard>
-
-              <FieldCard>
-                <label className={labelCls}>Subtitle 2</label>
-                <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
-                <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Color</span>
-                  <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
-                </div>
-                <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
-              </FieldCard>
-            </Section>
-          )}
-
-          {activeSection === 'presenters' && (
-            <Section id="presenters">
-              <FieldCard>
-                <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
-                  onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
-                <div className="mt-1.5 flex gap-1.5">
-                  {(['Theinhardt', '92NY Text'] as const).map(font => (
-                    <button key={font}
-                      onClick={() => setPresentersFont(font)}
-                      className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                        (data.presentersFont ?? 'Theinhardt') === font
-                          ? 'bg-white text-black border-white font-medium'
-                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                      }`}>
-                      {font}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <input type="checkbox" id="presentersItalic" checked={data.presentersItalic} onChange={e => set('presentersItalic', e.target.checked)} className="rounded" />
-                  <label htmlFor="presentersItalic" className="text-sm text-zinc-300">Italic</label>
-                </div>
-                <div className="mt-1.5">
-                  <WeightPicker value={data.presentersWeight} onChange={v => set('presentersWeight', v)}
-                    disabled={(data.presentersFont ?? 'Theinhardt') === '92NY Text'} />
-                </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Color</span>
-                  <ColorPalette value={data.presentersColor ?? data.textColor} onChange={v => set('presentersColor', v)} />
-                </div>
-                <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
-                  onChange={v => set('presentersSize', v)} min={24} max={250}
-                  disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
-              </FieldCard>
-            </Section>
-          )}
-
-          {activeSection === 'programTitle' && (
-            <Section id="programTitle">
-              <FieldCard>
-                <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
-                <div className="mt-1.5 flex gap-1.5">
-                  {(['Theinhardt', '92NY Text'] as const).map(font => (
-                    <button key={font}
-                      onClick={() => setProgramTitleFont(font)}
-                      className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
-                        (data.programTitleFont ?? 'Theinhardt') === font
-                          ? 'bg-white text-black border-white font-medium'
-                          : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
-                      }`}>
-                      {font}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <input type="checkbox" id="programTitleItalic" checked={data.programTitleItalic} onChange={e => set('programTitleItalic', e.target.checked)} className="rounded" />
-                  <label htmlFor="programTitleItalic" className="text-sm text-zinc-300">Italic</label>
-                </div>
-                <div className="mt-1.5">
-                  <WeightPicker value={data.programTitleWeight} onChange={v => set('programTitleWeight', v)}
-                    disabled={(data.programTitleFont ?? 'Theinhardt') === '92NY Text'} />
-                </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <span className="text-xs text-zinc-500">Color</span>
-                  <ColorPalette value={data.programTitleColor ?? data.textColor} onChange={v => set('programTitleColor', v)} />
-                </div>
-                <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
-                  onChange={v => set('programTitleSize', v)} min={24} max={250}
-                  disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
-              </FieldCard>
-            </Section>
-          )}
-
-          {activeSection === 'logos' && (
-            <Section id="logos">
-              <FieldCard>
-                <LogoUploader logos={data.logos || []} onChange={logos => set('logos', logos)} />
-                <FontSizeSlider label="Logo height" value={data.logoSize || 60} onChange={v => set('logoSize', v)} min={30} max={200} />
-              </FieldCard>
-            </Section>
-          )}
-
-          {activeSection === 'footer' && (
-            <Section id="footer">
-              <FieldCard>
-                <div className="flex items-center gap-2 mb-2">
-                  <input type="checkbox" id="showSeriesName" checked={data.showSeriesName}
-                    onChange={e => set('showSeriesName', e.target.checked)} className="rounded" />
-                  <label htmlFor="showSeriesName" className="text-sm text-zinc-300 font-medium">Series name</label>
-                </div>
-                {data.showSeriesName && (
-                  <>
-                    <input className={inputCls} value={data.seriesName}
-                      onChange={e => set('seriesName', e.target.value)}
-                      placeholder="RECANATI-KAPLAN TALKS" />
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <span className="text-xs text-zinc-500">Color</span>
-                      <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
-                    </div>
-                  </>
-                )}
-              </FieldCard>
-
-              <FieldCard>
-                <div className="flex items-center gap-2 mb-2">
-                  <input type="checkbox" id="showListeningCredit" checked={data.showListeningCredit}
-                    onChange={e => set('showListeningCredit', e.target.checked)} className="rounded" />
-                  <label htmlFor="showListeningCredit" className="text-sm text-zinc-300 font-medium">Listening credit</label>
-                </div>
-                {data.showListeningCredit && (
-                  <>
-                    <textarea className={inputCls + ' resize-none'} rows={4}
-                      value={data.listeningCredit}
-                      onChange={e => set('listeningCredit', e.target.value)}
-                      placeholder="Assistive listening devices..." />
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <span className="text-xs text-zinc-500">Color</span>
-                      <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
-                    </div>
-                  </>
-                )}
               </FieldCard>
             </Section>
           )}

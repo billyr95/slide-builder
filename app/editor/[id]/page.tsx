@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { SlideData, Orientation } from '@/lib/types'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import SlideCanvas from '@/components/SlideCanvas'
-import EditorPanel from '@/components/EditorPanel'
+import EditorPanel, { SectionId, SECTION_META, SECTION_ORDER } from '@/components/EditorPanel'
 import NewSlideFlow from '@/components/NewSlideFlow'
 import { exportSlideAsPng } from '@/lib/exportSlide'
 import { useUndoableState } from '@/lib/useUndoableState'
@@ -44,6 +44,12 @@ export default function EditorPage() {
   // ordinary field edits) — tells EditorPanel to reset its heuristic
   // "manually overridden" tracking so the fresh slide gets auto-suggestions.
   const [slideRevision, setSlideRevision] = useState(0)
+
+  // Which editor tab is showing -- lifted up here (rather than living inside
+  // EditorPanel) so the icon rail that picks it can render as its own
+  // leftmost column, next to the canvas, instead of being tucked inside the
+  // editor panel on the right.
+  const [activeSection, setActiveSection] = useState<SectionId>('background')
 
   // Snapshot of what's actually persisted, for dirty-checking. Refs (not
   // state) for the autosave interval below, so its callback always reads
@@ -402,8 +408,24 @@ export default function EditorPage() {
 
       <div className="flex flex-1 min-h-0">
 
+        {/* Left: icon rail -- picks which editor tab shows on the right. */}
+        <nav className="w-14 flex-shrink-0 border-r border-zinc-800 bg-zinc-950 flex flex-col items-center gap-1 py-4 overflow-y-auto custom-scrollbar">
+          {SECTION_ORDER.map(id => (
+            <button
+              key={id}
+              onClick={() => setActiveSection(id)}
+              title={SECTION_META[id].title}
+              className={`w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-colors ${
+                activeSection === id ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
+              }`}
+            >
+              {SECTION_META[id].glyph}
+            </button>
+          ))}
+        </nav>
+
         {/* Center: Preview */}
-        <main className="flex-1 flex flex-col items-center justify-center bg-zinc-900 overflow-auto p-8 gap-6">
+        <main className="flex-1 flex flex-col items-center justify-center bg-zinc-900 overflow-auto custom-scrollbar p-8 gap-6">
 
           {/* Preview area */}
           <div className="flex-shrink-0">
@@ -449,6 +471,8 @@ export default function EditorPage() {
             slideRevision={slideRevision}
             orientation={orientation}
             onOrientationChange={setOrientation}
+            activeSection={activeSection}
+            onActiveSectionChange={setActiveSection}
           />
         </aside>
       </div>

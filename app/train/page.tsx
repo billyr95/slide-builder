@@ -130,7 +130,7 @@ export default function TrainPage() {
 
       <div className="flex flex-1 min-h-0">
         {/* Main: entry form */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto bg-zinc-900 p-6">
+        <main ref={mainRef} className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-900 p-6">
           <div className="max-w-xl mx-auto">
             <TrainForm
               editingEntry={editingEntry}

@@ -137,7 +137,7 @@ export default function CropModal({ imageSrc, onComplete, onCancel }: CropModalP
         </div>
 
         {/* Crop canvas */}
-        <div className="flex-1 overflow-auto flex items-center justify-center bg-zinc-950 p-4" style={{ minHeight: 0 }}>
+        <div className="flex-1 overflow-auto custom-scrollbar flex items-center justify-center bg-zinc-950 p-4" style={{ minHeight: 0 }}>
           <ReactCrop
             crop={crop}
             onChange={c => setCrop(c)}

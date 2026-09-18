@@ -253,7 +253,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           <button onClick={onCancel} className="text-zinc-500 hover:text-white transition-colors text-xl leading-none">✕</button>
         </div>
 
-        <div className="flex-1 overflow-auto p-5 flex flex-col gap-4">
+        <div className="flex-1 overflow-auto custom-scrollbar p-5 flex flex-col gap-4">
           <div className="flex items-center gap-2">
             <label className={fieldLabelCls + ' mb-0'}>Background</label>
             <ColorPalette value={backgroundColor} onChange={setBackgroundColor} />
