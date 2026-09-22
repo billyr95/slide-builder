@@ -144,10 +144,18 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // SlideData.blockOrder's comment), and defensively appends any known
     // block key missing from a stored order (forward-compatible if a future
     // block type ships after some slides already have an order saved) while
-    // dropping anything unrecognized.
+    // dropping anything unrecognized. `base` is computed once and reused for
+    // both the keep-filter and the missing-filter below -- computing the
+    // fallback twice (once per line) let the two calls disagree on what
+    // "the base order" even was whenever data.blockOrder was undefined
+    // (`?? DEFAULT_BLOCK_ORDER` vs `?? []`), which duplicated every single
+    // key: the first line correctly used DEFAULT_BLOCK_ORDER as the base,
+    // but the second line's fallback-to-[] made every one of those same
+    // keys look "missing" all over again and re-append itself.
+    const base = data.blockOrder ?? DEFAULT_BLOCK_ORDER
     const resolvedBlockOrder: TextBlockKey[] = [
-      ...(data.blockOrder ?? DEFAULT_BLOCK_ORDER).filter((k): k is TextBlockKey => DEFAULT_BLOCK_ORDER.includes(k)),
-      ...DEFAULT_BLOCK_ORDER.filter(k => !(data.blockOrder ?? []).includes(k)),
+      ...base.filter((k): k is TextBlockKey => DEFAULT_BLOCK_ORDER.includes(k)),
+      ...DEFAULT_BLOCK_ORDER.filter(k => !base.includes(k)),
     ]
     const blockVisible: Record<TextBlockKey, boolean> = {
       label: !!data.label,
