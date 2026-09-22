@@ -183,6 +183,27 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
     setImages(prev => prev.map(img => img.id === id ? { ...img, autoCropEnabled: !img.autoCropEnabled } : img))
   }
 
+  // Swaps this slot's image in place (same id, same position in the array,
+  // same autoCropEnabled toggle) rather than removing it and adding a new
+  // one -- that would move it to the end (breaking the "assigned in the
+  // order added" slot ordering) and silently reset autoCropEnabled back to
+  // its default. No size/position/crop to carry over here (unlike the main
+  // editor's slots) since none of that exists yet at this pre-Build stage --
+  // it's only computed once Build actually runs.
+  function replaceImage(id: string, file: File) {
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      try {
+        const raw = ev.target?.result as string
+        const url = await resizeImageDataUrl(raw, MAX_IMAGE_DIM, 0.9)
+        setImages(prev => prev.map(img => img.id === id ? { ...img, url, name: file.name.replace(/\.[^.]+$/, '') } : img))
+      } catch (err) {
+        console.error('Failed to replace image', err)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
   async function handleBuild() {
     setBuilding(true)
     try {
@@ -409,6 +430,14 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
                         className="absolute -top-1.5 -right-1.5 bg-red-600 hover:bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         ×
                       </button>
+                      <label
+                        title="Replace image"
+                        className="absolute inset-1 rounded flex items-center justify-center bg-black/60 text-white text-[9px] font-medium opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        Replace
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={e => { const file = e.target.files?.[0]; if (file) replaceImage(img.id, file); e.target.value = '' }} />
+                      </label>
                     </div>
                     <label className="mt-1 flex items-center justify-center gap-1 cursor-pointer" title="Auto-crop this image (face detection)">
                       <input type="checkbox" checked={img.autoCropEnabled} onChange={() => toggleAutoCrop(img.id)} className="rounded w-3 h-3" />

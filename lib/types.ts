@@ -61,6 +61,15 @@ export function staggerCount(mode: ImageMode): number {
   return 0
 }
 
+// Every text block SlideCanvas can render in the main vertical stack, in
+// the user-controllable order EditorPanel's drag list edits (see
+// SlideData.blockOrder below). Series Name is included here (rather than
+// only ever pinned to the fixed footer) because it's explicitly one of the
+// blocks this ordering feature covers; Listening Credit stays footer-only
+// (a fixed legal/ADA notice, not part of the content stack).
+export const TEXT_BLOCK_KEYS = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName'] as const
+export type TextBlockKey = typeof TEXT_BLOCK_KEYS[number]
+
 export interface SlideData {
   // Content
   label: string
@@ -120,6 +129,18 @@ export interface SlideData {
   // slides and slides saved before this field existed render with their
   // traditional alignment until a user explicitly picks one via the toggle.
   textAlign?: 'left' | 'center'
+  // Vertical render order of the text blocks within the text side of the
+  // slide (Flip still swaps which SIDE the text sits on vs. the image --
+  // this only controls order WITHIN that side). Optional so a slide saved
+  // before this field existed has no stored order at all; SlideCanvas and
+  // EditorPanel both fall back to DEFAULT_BLOCK_ORDER (lib/defaults.ts) in
+  // that case, which matches the old hardcoded render order exactly, so
+  // nothing shifts retroactively. A block not present in the array simply
+  // isn't rendered/reorderable -- doesn't currently happen since every
+  // known key ships in DEFAULT_BLOCK_ORDER, but keeps this forward-
+  // compatible if a future block type needs the same append-only treatment
+  // blockVisible-style flags already get elsewhere in this codebase.
+  blockOrder?: TextBlockKey[]
 
   // Images
   imageMode: ImageMode

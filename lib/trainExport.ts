@@ -22,6 +22,9 @@ function commonKnownLines(entry: TrainEntry): string[] {
     `Image count: ${entry.imageCount}`,
     `Image side: ${entry.imageSide}`,
   ]
+  if (entry.blockOrder && entry.blockOrder.length > 0) {
+    known.push(`Block order: ${entry.blockOrder.join(', ')}`)
+  }
   if (entry.hasLabel && entry.label) known.push(`Label: "${entry.label}"`)
   if (entry.title) known.push(`Title: "${entry.title}"`)
   known.push(`Title font: ${entry.titleFont}`)

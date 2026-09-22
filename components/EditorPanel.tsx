@@ -1,12 +1,49 @@
 'use client'
 
-import { SlideData, TheinhardtWeight, PresentersFont, LogoItem, StaggerImage, ImageMode, Orientation, FaceCropBox, staggerCount } from '@/lib/types'
+import { SlideData, TheinhardtWeight, PresentersFont, LogoItem, StaggerImage, ImageMode, Orientation, FaceCropBox, TextBlockKey, staggerCount } from '@/lib/types'
 import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
+import { DEFAULT_BLOCK_ORDER } from '@/lib/defaults'
+
+const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
+  label: 'Label',
+  title: 'Title',
+  subtitle: 'Subtitle',
+  subtitle2: 'Subtitle 2',
+  presenters: 'Presenters',
+  programTitle: 'Program / Work Title',
+  seriesName: 'Series Name',
+}
+
+// Mirrors SlideCanvas.tsx's own resolvedBlockOrder exactly (same fallback +
+// defensive-append logic) so the drag list here always reflects the order
+// that will actually render, including for a slide with no blockOrder yet.
+function resolveBlockOrder(stored: TextBlockKey[] | undefined): TextBlockKey[] {
+  const base = stored ?? DEFAULT_BLOCK_ORDER
+  return [
+    ...base.filter((k): k is TextBlockKey => DEFAULT_BLOCK_ORDER.includes(k)),
+    ...DEFAULT_BLOCK_ORDER.filter(k => !base.includes(k)),
+  ]
+}
+
+// Which blocks currently have something to show -- mirrors
+// SlideCanvas.tsx's own blockVisible exactly, so the drag list only lists
+// rows for blocks that are actually populated right now.
+function isBlockPopulated(data: SlideData, key: TextBlockKey): boolean {
+  switch (key) {
+    case 'label': return !!data.label
+    case 'title': return true
+    case 'subtitle': return !!(data.subtitle && !data.subtitleInline)
+    case 'subtitle2': return !!data.subtitle2
+    case 'presenters': return !!data.presenters
+    case 'programTitle': return !!data.programTitle
+    case 'seriesName': return !!(data.showSeriesName && data.seriesName)
+  }
+}
 
 const MAX_LOGO_DIM = 400
 
@@ -384,6 +421,55 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
   )
 }
 
+// Drag-and-drop reorderable list for SlideData.blockOrder -- one row per
+// currently-populated text block (an empty field has nothing to reorder,
+// so it's left out of the list entirely, same as it's left out of
+// SlideCanvas's own render). Reordering moves the dragged key within the
+// FULL stored order (including any not-currently-populated blocks), not
+// just the visible subset, so a hidden block's relative position is
+// preserved rather than getting silently reshuffled the next time it's
+// populated.
+function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order: TextBlockKey[]) => void }) {
+  const [draggedKey, setDraggedKey] = useState<TextBlockKey | null>(null)
+  const [dragOverKey, setDragOverKey] = useState<TextBlockKey | null>(null)
+
+  const fullOrder = resolveBlockOrder(data.blockOrder)
+  const visibleKeys = fullOrder.filter(k => isBlockPopulated(data, k))
+
+  function handleDrop(targetKey: TextBlockKey) {
+    setDragOverKey(null)
+    if (!draggedKey || draggedKey === targetKey) return
+    const without = fullOrder.filter(k => k !== draggedKey)
+    const targetIdx = without.indexOf(targetKey)
+    without.splice(targetIdx, 0, draggedKey)
+    onChange(without)
+    setDraggedKey(null)
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {visibleKeys.map(key => (
+        <div
+          key={key}
+          draggable
+          onDragStart={() => setDraggedKey(key)}
+          onDragEnd={() => { setDraggedKey(null); setDragOverKey(null) }}
+          onDragOver={e => { e.preventDefault(); if (dragOverKey !== key) setDragOverKey(key) }}
+          onDrop={e => { e.preventDefault(); handleDrop(key) }}
+          className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border text-sm cursor-grab active:cursor-grabbing transition-colors ${
+            draggedKey === key ? 'opacity-40 border-zinc-700 bg-zinc-800'
+              : dragOverKey === key ? 'border-white bg-zinc-800 text-white'
+              : 'border-zinc-700 bg-zinc-800 text-zinc-300'
+          }`}
+        >
+          <span className="text-zinc-500 select-none" aria-hidden>⠿</span>
+          <span className="flex-1">{TEXT_BLOCK_LABELS[key]}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function EditorPanel({
   data, onChange, screenType, slideRevision, orientation, onOrientationChange,
   activeSection,
@@ -531,9 +617,29 @@ export default function EditorPanel({
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, target: number = -1) {
     const file = e.target.files?.[0]
     if (!file) return
+    // A slot that already has an image is a REPLACE, not a fresh upload --
+    // once a slot's crop has been set (by auto-detection or by hand), the
+    // same "manual override" treatment the rest of this file already gives
+    // font sizes/image positions applies here too: swapping the photo
+    // underneath it keeps that slot's existing size/position/zIndex/crop
+    // exactly as they are rather than re-running face-detection on the new
+    // photo and silently overwriting them. (If the new image's aspect ratio
+    // differs a lot from the old one, the retained crop may look off on it
+    // -- an accepted tradeoff; "Edit crop" still re-opens to adjust it by
+    // hand, same as always.)
+    const existingUrl = target >= 0 ? data.staggerImages?.[target]?.url : data.imageUrl
+    const isReplace = !!existingUrl
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const rawUrl = ev.target?.result as string
+      if (isReplace) {
+        if (target >= 0) {
+          updateStaggerImage(target, { url: rawUrl })
+        } else {
+          set('imageUrl', rawUrl)
+        }
+        return
+      }
       // Dynamically imported rather than a normal top-level import -- this
       // module pulls in @vladmandic/face-api (and, transitively,
       // @tensorflow/tfjs), which crashed Next's server-side page prerendering
@@ -1116,6 +1222,12 @@ export default function EditorPanel({
                     </button>
                   ))}
                 </div>
+              </FieldCard>
+
+              <FieldCard>
+                <label className={labelCls}>Text block order</label>
+                <p className="text-xs text-zinc-500 mb-2">Drag to reorder. Only fields with content are listed.</p>
+                <BlockOrderList data={data} onChange={order => set('blockOrder', order)} />
               </FieldCard>
             </Section>
           )}

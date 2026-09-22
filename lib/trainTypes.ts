@@ -1,4 +1,4 @@
-import { TheinhardtWeight, TitleFont, PresentersFont, Orientation, FaceCropBox } from './types'
+import { TheinhardtWeight, TitleFont, PresentersFont, Orientation, FaceCropBox, TextBlockKey } from './types'
 
 export type ScreenType = 'projector' | 'lobby'
 // 'upload' = hand-entered via /train from an old/scanned slide (style values
@@ -56,6 +56,9 @@ export interface TrainEntry {
   imagesLinkedSize?: boolean
   presentersMatchTitleSize?: boolean
   programTitleMatchTitleSize?: boolean
+  // Vertical render order of the text blocks (SlideData.blockOrder) --
+  // same live-only convention as the fields above.
+  blockOrder?: TextBlockKey[]
 
   seriesName: string       // '' = unused
   hasQrCode: boolean

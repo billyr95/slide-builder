@@ -124,4 +124,49 @@ describe('EditorPanel image upload -- face detection integration', () => {
     const patch = onChange.mock.calls[0][0]
     expect(patch.imageFaceCropWasOverridden).toBeUndefined()
   })
+
+  it('replacing an already-filled slot swaps the url but skips face-detection entirely and keeps the existing crop/size', async () => {
+    const { onChange, container } = renderPanel({
+      imageUrl: 'data:image/png;base64,OLD',
+      imageSize: 137,
+      imageFaceCropSuggested: FAKE_CROP_BOX,
+      imageFaceCropFinal: FAKE_CROP_BOX,
+      imageFaceCropWasOverridden: true,
+    })
+
+    uploadFile(container)
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled())
+    expect(detectFaceCropBox).not.toHaveBeenCalled()
+    const patch = onChange.mock.calls[0][0]
+    expect(patch.imageUrl).toMatch(/^data:/)
+    expect(patch.imageUrl).not.toBe('data:image/png;base64,OLD')
+    expect(patch.imageSize).toBe(137)
+    expect(patch.imageFaceCropSuggested).toEqual(FAKE_CROP_BOX)
+    expect(patch.imageFaceCropFinal).toEqual(FAKE_CROP_BOX)
+    expect(patch.imageFaceCropWasOverridden).toBe(true)
+    expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument()
+  })
+
+  it('replacing an already-filled STAGGER slot swaps the url but keeps its x/y/scale/zIndex/crop and skips detection', async () => {
+    const { onChange, container } = renderPanel({
+      imageMode: 'two-stagger',
+      staggerImages: [
+        { id: 'a', url: 'data:image/png;base64,OLD', alt: 'Image 1', x: 12, y: -8, scale: 310, zIndex: 2, faceCropSuggested: FAKE_CROP_BOX, faceCropFinal: FAKE_CROP_BOX, faceCropWasOverridden: false },
+      ],
+    })
+
+    uploadFile(container)
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled())
+    expect(detectFaceCropBox).not.toHaveBeenCalled()
+    const images = onChange.mock.calls[0][0].staggerImages
+    expect(images[0].url).not.toBe('data:image/png;base64,OLD')
+    expect(images[0].x).toBe(12)
+    expect(images[0].y).toBe(-8)
+    expect(images[0].scale).toBe(310)
+    expect(images[0].zIndex).toBe(2)
+    expect(images[0].faceCropFinal).toEqual(FAKE_CROP_BOX)
+    expect(images[0].faceCropWasOverridden).toBe(false)
+  })
 })

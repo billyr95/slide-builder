@@ -1,0 +1,1 @@
+ALTER TABLE "training_entries" ADD COLUMN "block_order" jsonb;

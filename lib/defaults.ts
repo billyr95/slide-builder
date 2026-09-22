@@ -1,10 +1,16 @@
-import { SlideData } from './types'
+import { SlideData, TextBlockKey } from './types'
 
 // Text defaults to black on every field (per-field colors below) since the
 // slide background now defaults to periwinkle (from lib/palette.ts's fixed
 // brand palette), not black -- black text stays legible against it out of
 // the box, unlike against the old black-on-black default.
 const DEFAULT_TEXT_COLOR = '#000000'
+
+// The historical fixed render order, preserved as the default for new
+// slides and for any existing saved slide with no blockOrder of its own
+// (see SlideData.blockOrder's comment) -- so this refactor to
+// user-controlled ordering doesn't shift a single existing slide.
+export const DEFAULT_BLOCK_ORDER: TextBlockKey[] = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName']
 
 export const DEFAULT_SLIDE_DATA: SlideData = {
   label: 'TONIGHT',
@@ -41,6 +47,7 @@ export const DEFAULT_SLIDE_DATA: SlideData = {
   textColor: '#ffffff', // Legacy -- see SlideData's own comment on this field
   accentColor: DEFAULT_TEXT_COLOR, // Title's own color
   imageSide: 'left',
+  blockOrder: DEFAULT_BLOCK_ORDER,
   imageMode: 'single' as const,
   imageUrl: '',
   imageAlt: '',

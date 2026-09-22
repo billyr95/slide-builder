@@ -74,6 +74,11 @@ export const trainingEntries = pgTable('training_entries', {
   imagesLinkedSize: boolean('images_linked_size'),
   presentersMatchTitleSize: boolean('presenters_match_title_size'),
   programTitleMatchTitleSize: boolean('program_title_match_title_size'),
+  // Vertical render order of the text blocks (SlideData.blockOrder) -- an
+  // ordered array of a handful of known block-key strings, e.g.
+  // ["label","title","programTitle","presenters"]. 'live' only, same as the
+  // three booleans above.
+  blockOrder: jsonb('block_order'),
 
   seriesName: text('series_name').notNull().default(''),
   listeningCredit: text('listening_credit').notNull().default(''),

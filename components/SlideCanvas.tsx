@@ -1,5 +1,40 @@
 import React, { forwardRef } from 'react'
-import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount } from '@/lib/types'
+import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount, TextBlockKey } from '@/lib/types'
+import { DEFAULT_BLOCK_ORDER } from '@/lib/defaults'
+
+// A diacritic/accent mark that extends ABOVE the base letter (acute,
+// grave, circumflex, tilde, diaeresis, ring, macron, breve, caron, dot
+// above, double acute -- essentially all common Latin accents: á é í ó ú à
+// è ì ò ù â ê î ô û ã õ ñ ü ö ä å ý č š ž, etc.) collides with whatever
+// text sits above it once that text's own gap has been trimmed down to its
+// cap-height (see STACK_LINE_HEIGHT's comment below) -- there's no room
+// left for an ascender-topping mark that a plain capital letter wouldn't
+// have needed. Marks that sit BELOW the base letter (cedilla, ogonek, dot
+// below, etc.) don't cause that collision, so they're excluded here.
+const BELOW_BASE_MARKS = new Set([
+  0x0316, 0x0317, 0x0318, 0x0319, 0x031C, 0x031D, 0x031E, 0x031F, 0x0320,
+  0x0321, 0x0322, 0x0323, 0x0324, 0x0325, 0x0326, 0x0327, 0x0328, 0x0329,
+  0x032A, 0x032B, 0x032C, 0x032D, 0x032E, 0x032F, 0x0330, 0x0331, 0x0332,
+  0x0333, 0x0339, 0x033A, 0x033B, 0x033C, 0x0345,
+])
+
+// Detects an upward-extending accent on the FIRST LINE of `text` --
+// Unicode-general rather than a hardcoded letter list: NFD-normalizing
+// splits any precomposed accented letter (e.g. "Á") into its base letter
+// plus a separate combining-mark codepoint (U+0301 COMBINING ACUTE ACCENT),
+// which a plain range check over the Combining Diacritical Marks block
+// (U+0300-U+036F) then catches regardless of which specific letter or
+// accent it is.
+function hasLeadingUpwardAccent(text: string): boolean {
+  const firstLine = text.split('\n')[0] ?? ''
+  const decomposed = firstLine.normalize('NFD')
+  for (const ch of decomposed) {
+    const code = ch.codePointAt(0)
+    if (code === undefined) continue
+    if (code >= 0x0300 && code <= 0x036F && !BELOW_BASE_MARKS.has(code)) return true
+  }
+  return false
+}
 
 interface SlideCanvasProps {
   data: SlideData
@@ -73,6 +108,15 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       return font === '92NY Text' ? 0.70 : 0.68
     }
 
+    // Empirically measured (real Chromium render, cap-alphabetic-trimmed
+    // "VÁCLAV" vs "VACLAV", pixel-scanned): how far an upward accent's own
+    // ink extends above the trimmed box's top edge (which sits at
+    // cap-height -- accents on capitals always overshoot it), as a fraction
+    // of em. Used only for the targeted Label->Title exception above.
+    function accentClearanceRatio(font: string): number {
+      return font === '92NY Text' ? 0.16 : 0.20
+    }
+
     // `text-box-trim` + `text-box-edge` (Baseline-supported in current
     // Chromium/Safari; unsupported browsers just ignore these two
     // properties and silently fall back to plain line-height spacing, since
@@ -94,26 +138,42 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // Title specifically.
     const STACK_GAP = STACK_LINE_HEIGHT * titleSize - capHeightRatio(titleFont) * titleSize
 
-    // Exactly one of these renders directly after Title for any given slide
-    // (in render order) -- precomputed once so marginAfter below only ever
-    // adds a margin when something real actually follows a block, instead
-    // of leaving stray trailing space after whichever block turns out last.
-    const blockOrder = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle'] as const
-    type BlockKey = typeof blockOrder[number]
-    const blockVisible: Record<BlockKey, boolean> = {
+    // User-controlled render order (EditorPanel's drag list in Layout &
+    // Preview edits data.blockOrder directly) -- falls back to the historical
+    // fixed order for a slide with no blockOrder of its own (see
+    // SlideData.blockOrder's comment), and defensively appends any known
+    // block key missing from a stored order (forward-compatible if a future
+    // block type ships after some slides already have an order saved) while
+    // dropping anything unrecognized.
+    const resolvedBlockOrder: TextBlockKey[] = [
+      ...(data.blockOrder ?? DEFAULT_BLOCK_ORDER).filter((k): k is TextBlockKey => DEFAULT_BLOCK_ORDER.includes(k)),
+      ...DEFAULT_BLOCK_ORDER.filter(k => !(data.blockOrder ?? []).includes(k)),
+    ]
+    const blockVisible: Record<TextBlockKey, boolean> = {
       label: !!data.label,
       title: true,
       subtitle: !!(data.subtitle && !data.subtitleInline),
       subtitle2: !!data.subtitle2,
       presenters: !!data.presenters,
       programTitle: !!data.programTitle,
+      seriesName: !!(data.showSeriesName && data.seriesName),
     }
-    const visibleBlocks = blockOrder.filter(k => blockVisible[k])
+    const visibleBlocks = resolvedBlockOrder.filter(k => blockVisible[k])
 
-    function marginAfter(key: BlockKey) {
+    function marginAfter(key: TextBlockKey) {
       const idx = visibleBlocks.indexOf(key)
       if (idx === -1 || idx === visibleBlocks.length - 1) return undefined
-      return { marginBottom: `${STACK_GAP * scale}px` }
+      const next = visibleBlocks[idx + 1]
+      // Targeted exception, not a change to the general rule: Label->Title
+      // needs extra clearance ONLY when Title's first line has an
+      // upward-extending accent that would otherwise collide with Label
+      // above it (see hasLeadingUpwardAccent's comment) -- every other gap,
+      // including every other pair Label might now sit next to after a
+      // manual reorder, stays exactly STACK_GAP.
+      const accentClearance = (key === 'label' && next === 'title' && hasLeadingUpwardAccent(data.title))
+        ? accentClearanceRatio(titleFont) * titleSize
+        : 0
+      return { marginBottom: `${(STACK_GAP + accentClearance) * scale}px` }
     }
     const titleWeight = titleFont === 'Theinhardt Heavy' ? 900 : 700
     const titleStyle = titleFont === 'Theinhardt Heavy'
@@ -174,6 +234,87 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
     function programTitleStyle(weight: TheinhardtWeight, sizePx: number) {
       return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx, data.programTitleColor ?? data.textColor)
+    }
+
+    // Renders whichever single block `key` refers to -- called identically
+    // from all three layout branches below (imageMode 'none', landscape,
+    // portrait) so blockOrder only has to be resolved once and each block's
+    // markup exists in exactly one place, not triplicated per layout.
+    function renderBlock(key: TextBlockKey): React.ReactNode {
+      switch (key) {
+        case 'label':
+          return data.label ? (
+            <div key="label" style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
+              {data.label}
+            </div>
+          ) : null
+
+        case 'title':
+          return (
+            <div key="title" style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
+              {data.title}
+            </div>
+          )
+
+        case 'subtitle':
+          return (data.subtitle && !data.subtitleInline) ? (
+            <div key="subtitle" style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
+              {data.subtitle}
+            </div>
+          ) : null
+
+        case 'subtitle2':
+          return data.subtitle2 ? (
+            <div key="subtitle2" style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
+              {data.subtitle2}
+            </div>
+          ) : null
+
+        case 'presenters':
+          return data.presenters ? (
+            <div key="presenters" style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
+              {data.subtitleInline && data.subtitle
+                ? (() => {
+                    const lines = data.presenters.split('\n')
+                    return (
+                      <>
+                        <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75, data.subtitleColor ?? data.textColor) }}>
+                          {data.subtitle}{' '}
+                        </span>
+                        <span>{lines[0]}</span>
+                        {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
+                      </>
+                    )
+                  })()
+                : data.presenters
+              }
+            </div>
+          ) : null
+
+        case 'programTitle':
+          return data.programTitle ? (
+            <div key="programTitle" style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
+              {data.programTitle}
+            </div>
+          ) : null
+
+        case 'seriesName':
+          return (data.showSeriesName && data.seriesName) ? (
+            <div key="seriesName" style={{
+              fontSize: `${38 * scale}px`,
+              lineHeight: STACK_LINE_HEIGHT,
+              fontFamily: THEINHARDT,
+              fontWeight: theinhardtWeight('heavy'),
+              color: data.seriesNameColor ?? data.textColor,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              ...trimEdges,
+              ...marginAfter('seriesName'),
+            }}>
+              {data.seriesName}
+            </div>
+          ) : null
+      }
     }
 
     const placeholderBox = (w: number, h: number) => (
@@ -248,8 +389,11 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       return { images, widths, heights, lefts, tops, groupW, groupH }
     }
 
-    const hasFooter = data.showSeriesName || data.showListeningCredit
-    const footerH = hasFooter ? (data.showSeriesName && data.showListeningCredit ? 120 : 80) : 0
+    // Series Name moved into the reorderable text stack (renderBlock's
+    // 'seriesName' case) -- the fixed absolutely-positioned footer now only
+    // ever holds Listening Credit.
+    const hasFooter = data.showListeningCredit
+    const footerH = hasFooter ? 80 : 0
 
     if (data.imageMode === 'none') {
       const maxTextW = dim.w * (orientation === 'landscape' ? 0.7 : 0.8)
@@ -280,53 +424,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             alignItems: textAlignItems,
             maxWidth: maxTextW * scale,
           }}>
-            {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
-                {data.label}
-              </div>
-            )}
-
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
-              {data.title}
-            </div>
-
-            {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
-                {data.subtitle}
-              </div>
-            )}
-
-            {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
-                {data.subtitle2}
-              </div>
-            )}
-
-            {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
-                {data.subtitleInline && data.subtitle
-                  ? (() => {
-                      const lines = data.presenters.split('\n')
-                      return (
-                        <>
-                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75, data.subtitleColor ?? data.textColor) }}>
-                            {data.subtitle}{' '}
-                          </span>
-                          <span>{lines[0]}</span>
-                          {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
-                        </>
-                      )
-                    })()
-                  : data.presenters
-                }
-              </div>
-            )}
-
-            {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
-                {data.programTitle}
-              </div>
-            )}
+            {visibleBlocks.map(key => renderBlock(key))}
 
             {/* Logo bar */}
             {data.logos && data.logos.length > 0 && (
@@ -339,7 +437,9 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
           </div>
 
-          {/* Fixed footer */}
+          {/* Fixed footer -- Listening Credit only now; Series Name moved
+              into the reorderable text stack above (see renderBlock's
+              'seriesName' case). */}
           {hasFooter && (
             <div style={{
               position: 'absolute',
@@ -352,19 +452,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               gap: `${6 * scale}px`,
               textAlign: 'center',
             }}>
-              {data.showSeriesName && data.seriesName && (
-                <div style={{
-                  fontSize: `${38 * scale}px`,
-                  lineHeight: 1,
-                  fontFamily: THEINHARDT,
-                  fontWeight: theinhardtWeight('heavy'),
-                  color: data.seriesNameColor ?? data.textColor,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                }}>
-                  {data.seriesName}
-                </div>
-              )}
               {data.showListeningCredit && data.listeningCredit && (
                 <div style={{
                   fontSize: `${23 * scale}px`,
@@ -479,53 +566,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             position: 'relative',
           }}>
 
-            {data.label && (
-              <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
-                {data.label}
-              </div>
-            )}
-
-            <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
-              {data.title}
-            </div>
-
-            {data.subtitle && !data.subtitleInline && (
-              <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
-                {data.subtitle}
-              </div>
-            )}
-
-            {data.subtitle2 && (
-              <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
-                {data.subtitle2}
-              </div>
-            )}
-
-            {data.presenters && (
-              <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
-                {data.subtitleInline && data.subtitle
-                  ? (() => {
-                      const lines = data.presenters.split('\n')
-                      return (
-                        <>
-                          <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75, data.subtitleColor ?? data.textColor) }}>
-                            {data.subtitle}{' '}
-                          </span>
-                          <span>{lines[0]}</span>
-                          {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
-                        </>
-                      )
-                    })()
-                  : data.presenters
-                }
-              </div>
-            )}
-
-            {data.programTitle && (
-              <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
-                {data.programTitle}
-              </div>
-            )}
+            {visibleBlocks.map(key => renderBlock(key))}
 
             {/* Logo bar */}
             {data.logos && data.logos.length > 0 && (
@@ -537,7 +578,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               </div>
             )}
 
-            {/* Fixed footer */}
+            {/* Fixed footer -- Listening Credit only now; see the 'none'
+                branch's identical comment above. */}
             {hasFooter && (
               <div style={{
                 position: 'absolute',
@@ -548,19 +590,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 flexDirection: 'column',
                 gap: `${6 * scale}px`,
               }}>
-                {data.showSeriesName && data.seriesName && (
-                  <div style={{
-                    fontSize: `${38 * scale}px`,
-                    lineHeight: 1,
-                    fontFamily: THEINHARDT,
-                    fontWeight: theinhardtWeight('heavy'),
-                    color: data.seriesNameColor ?? data.textColor,
-                    letterSpacing: '0.05em',
-                    textTransform: 'uppercase',
-                  }}>
-                    {data.seriesName}
-                  </div>
-                )}
                 {data.showListeningCredit && data.listeningCredit && (
                   <div style={{
                     fontSize: `${23 * scale}px`,
@@ -630,10 +659,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       </React.Fragment>
     )
 
-    // Only when flipped -- leads the entire slide, above the image. When
-    // not flipped, Label instead renders inline inside portraitTextSection
-    // below (unchanged), since Image already comes first there.
-    const portraitLabelSection = (imageOnRight && data.label) ? (
+    // Only when flipped, AND Label is actually first in the resolved order --
+    // leads the entire slide, above the image. If a manual reorder moves
+    // Label anywhere else, it renders inline in portraitTextSection like
+    // any other block instead (this "lead the whole slide" carve-out is a
+    // portrait-flip-specific quirk that only makes sense for a
+    // leading Label, not for Label at some other position).
+    const labelLeadsPortrait = imageOnRight && data.label && visibleBlocks[0] === 'label'
+    const portraitLabelSection = labelLeadsPortrait ? (
       <div key="label" style={{
         padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
         textAlign,
@@ -652,53 +685,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         padding: `${60 * scale}px ${80 * scale}px`,
         textAlign,
       }}>
-        {!imageOnRight && data.label && (
-          <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
-            {data.label}
-          </div>
-        )}
-
-        <div style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
-          {data.title}
-        </div>
-
-        {data.subtitle && !data.subtitleInline && (
-          <div style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
-            {data.subtitle}
-          </div>
-        )}
-
-        {data.subtitle2 && (
-          <div style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
-            {data.subtitle2}
-          </div>
-        )}
-
-        {data.presenters && (
-          <div style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
-            {data.subtitleInline && data.subtitle
-              ? (() => {
-                  const lines = data.presenters.split('\n')
-                  return (
-                    <>
-                      <span style={{ fontSize: `${presenterSize * scale * 0.75}px`, ...bodyStyle(data.subtitleWeight, presenterSize * 0.75, data.subtitleColor ?? data.textColor) }}>
-                        {data.subtitle}{' '}
-                      </span>
-                      <span>{lines[0]}</span>
-                      {lines.slice(1).join('\n') && <>{'\n'}{lines.slice(1).join('\n')}</>}
-                    </>
-                  )
-                })()
-              : data.presenters
-            }
-          </div>
-        )}
-
-        {data.programTitle && (
-          <div style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
-            {data.programTitle}
-          </div>
-        )}
+        {visibleBlocks.filter(key => !(labelLeadsPortrait && key === 'label')).map(key => renderBlock(key))}
 
         {/* Logo bar */}
         {data.logos && data.logos.length > 0 && (
@@ -740,7 +727,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           <>{portraitImageSection}{portraitTextSection}</>
         )}
 
-        {/* Fixed footer */}
+        {/* Fixed footer -- Listening Credit only now; see the 'none'
+            branch's identical comment above. */}
         {hasFooter && (
           <div style={{
             position: 'absolute',
@@ -751,19 +739,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             flexDirection: 'column',
             gap: `${6 * scale}px`,
           }}>
-            {data.showSeriesName && data.seriesName && (
-              <div style={{
-                fontSize: `${38 * scale}px`,
-                lineHeight: 1,
-                fontFamily: THEINHARDT,
-                fontWeight: theinhardtWeight('heavy'),
-                color: data.seriesNameColor ?? data.textColor,
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-              }}>
-                {data.seriesName}
-              </div>
-            )}
             {data.showListeningCredit && data.listeningCredit && (
               <div style={{
                 fontSize: `${23 * scale}px`,
