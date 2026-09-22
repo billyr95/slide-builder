@@ -436,19 +436,51 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
   const fullOrder = resolveBlockOrder(data.blockOrder)
   const visibleKeys = fullOrder.filter(k => isBlockPopulated(data, k))
 
+  // Both the drag handle and the up/down buttons below ultimately go
+  // through this one function -- neither can desync from the other since
+  // there's only one place that actually computes a new order.
+  function moveBefore(key: TextBlockKey, targetKey: TextBlockKey) {
+    if (key === targetKey) return
+    const without = fullOrder.filter(k => k !== key)
+    const targetIdx = without.indexOf(targetKey)
+    without.splice(targetIdx, 0, key)
+    onChange(without)
+  }
+
   function handleDrop(targetKey: TextBlockKey) {
     setDragOverKey(null)
-    if (!draggedKey || draggedKey === targetKey) return
-    const without = fullOrder.filter(k => k !== draggedKey)
-    const targetIdx = without.indexOf(targetKey)
-    without.splice(targetIdx, 0, draggedKey)
-    onChange(without)
+    if (!draggedKey) return
+    moveBefore(draggedKey, targetKey)
     setDraggedKey(null)
+  }
+
+  // Moves `key` past its immediately-adjacent VISIBLE neighbor in the
+  // given direction. Reuses moveBefore against the full order (not just
+  // the visible subset), so a hidden/unpopulated block sitting between
+  // them keeps its own relative position instead of getting shuffled.
+  function moveStep(key: TextBlockKey, direction: -1 | 1) {
+    const idx = visibleKeys.indexOf(key)
+    const neighborIdx = idx + direction
+    if (neighborIdx < 0 || neighborIdx >= visibleKeys.length) return
+    const neighborKey = visibleKeys[neighborIdx]
+    if (direction === -1) {
+      // Moving up: land directly before the neighbor above.
+      moveBefore(key, neighborKey)
+    } else {
+      // Moving down: land directly after the neighbor below -- i.e.
+      // before whatever (visible or hidden) currently follows it, or at
+      // the very end if the neighbor is currently last in the full order.
+      const without = fullOrder.filter(k => k !== key)
+      const neighborPos = without.indexOf(neighborKey)
+      const after = without[neighborPos + 1]
+      if (after !== undefined) moveBefore(key, after)
+      else onChange([...without, key])
+    }
   }
 
   return (
     <div className="flex flex-col gap-1">
-      {visibleKeys.map(key => (
+      {visibleKeys.map((key, i) => (
         <div
           key={key}
           draggable
@@ -464,6 +496,30 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
         >
           <span className="text-zinc-500 select-none" aria-hidden>⠿</span>
           <span className="flex-1">{TEXT_BLOCK_LABELS[key]}</span>
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            <button
+              type="button"
+              draggable={false}
+              onDragStart={e => e.stopPropagation()}
+              onClick={() => moveStep(key, -1)}
+              disabled={i === 0}
+              title={`Move ${TEXT_BLOCK_LABELS[key]} up`}
+              className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            >
+              ▲
+            </button>
+            <button
+              type="button"
+              draggable={false}
+              onDragStart={e => e.stopPropagation()}
+              onClick={() => moveStep(key, 1)}
+              disabled={i === visibleKeys.length - 1}
+              title={`Move ${TEXT_BLOCK_LABELS[key]} down`}
+              className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+            >
+              ▼
+            </button>
+          </div>
         </div>
       ))}
     </div>
