@@ -229,15 +229,19 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       showSeriesName: data.showSeriesName,
       showListeningCredit: data.showListeningCredit,
 
-      // Per-field line-spacing overrides -- undefined for any field still
-      // on its automatic value (see SlideData's own comment on these).
-      labelLineHeight: data.labelLineHeight,
-      titleLineHeight: data.titleLineHeight,
-      subtitleLineHeight: data.subtitleLineHeight,
-      subtitle2LineHeight: data.subtitle2LineHeight,
-      presentersLineHeight: data.presentersLineHeight,
-      programTitleLineHeight: data.programTitleLineHeight,
-      seriesNameLineHeight: data.seriesNameLineHeight,
+      // Per-field margin-top overrides -- the gap ABOVE that field relative
+      // to whichever block currently precedes it in blockOrder; undefined
+      // for any field still on its automatic value (see SlideData's own
+      // comment on these, and lib/textStackGap.ts for the shared formula).
+      labelMarginTop: data.labelMarginTop,
+      titleMarginTop: data.titleMarginTop,
+      subtitleMarginTop: data.subtitleMarginTop,
+      subtitle2MarginTop: data.subtitle2MarginTop,
+      presentersMarginTop: data.presentersMarginTop,
+      programTitleMarginTop: data.programTitleMarginTop,
+      seriesNameMarginTop: data.seriesNameMarginTop,
+      // Listening Credit isn't part of blockOrder (fixed footer), so it
+      // keeps a genuinely separate internal-line-height override instead.
       listeningCreditLineHeight: data.listeningCreditLineHeight,
     },
   }

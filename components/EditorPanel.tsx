@@ -7,7 +7,8 @@ import dynamic from 'next/dynamic'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
-import { DEFAULT_BLOCK_ORDER, DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
+import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
+import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop } from '@/lib/textStackGap'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -17,32 +18,6 @@ const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   presenters: 'Presenters',
   programTitle: 'Program / Work Title',
   seriesName: 'Series Name',
-}
-
-// Mirrors SlideCanvas.tsx's own resolvedBlockOrder exactly (same fallback +
-// defensive-append logic) so the drag list here always reflects the order
-// that will actually render, including for a slide with no blockOrder yet.
-function resolveBlockOrder(stored: TextBlockKey[] | undefined): TextBlockKey[] {
-  const base = stored ?? DEFAULT_BLOCK_ORDER
-  return [
-    ...base.filter((k): k is TextBlockKey => DEFAULT_BLOCK_ORDER.includes(k)),
-    ...DEFAULT_BLOCK_ORDER.filter(k => !base.includes(k)),
-  ]
-}
-
-// Which blocks currently have something to show -- mirrors
-// SlideCanvas.tsx's own blockVisible exactly, so the drag list only lists
-// rows for blocks that are actually populated right now.
-function isBlockPopulated(data: SlideData, key: TextBlockKey): boolean {
-  switch (key) {
-    case 'label': return !!data.label
-    case 'title': return true
-    case 'subtitle': return !!(data.subtitle && !data.subtitleInline)
-    case 'subtitle2': return !!data.subtitle2
-    case 'presenters': return !!data.presenters
-    case 'programTitle': return !!data.programTitle
-    case 'seriesName': return !!(data.showSeriesName && data.seriesName)
-  }
 }
 
 const MAX_LOGO_DIM = 400
@@ -336,15 +311,33 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
   )
 }
 
-// Every text field's line-spacing control -- a thin FontSizeSlider preset
-// (fractional step/decimals, no unit). `value` is the field's EFFECTIVE
-// line-height (its stored override if set, else the same shared default
-// SlideCanvas.tsx itself falls back to -- see lib/defaults.ts's
-// DEFAULT_STACK_LINE_HEIGHT/DEFAULT_LISTENING_CREDIT_LINE_HEIGHT), so
-// dragging it away from that starting point is the ONLY way its badge ever
-// flips from "auto" to "manual" -- there's no separate recomputation to
-// track the way font-size heuristics need, since a field's automatic
-// line-height never changes on its own.
+// The gap ABOVE a text block (in the reorderable stack -- Label, Title,
+// Subtitle, Subtitle2, Presenters, Program Title, Series Name), relative to
+// whichever block currently precedes it in blockOrder. `value` is that
+// field's EFFECTIVE margin-top (its own stored override if set, else
+// lib/textStackGap.ts's computeAutoMarginTop -- the exact same function
+// SlideCanvas.tsx itself calls to render, so this can't silently disagree
+// with what's actually on the canvas), so dragging it away from that
+// starting point is the ONLY way its badge ever flips from "auto" to
+// "manual" -- there's no separate recomputation to track the way font-size
+// heuristics need, since the automatic value only ever changes if the
+// field's OWN position (or its predecessor) changes, and this always
+// re-reads live. NOT the same thing as "Line height" below -- this never
+// touches a field's own internal wrapped-line spacing, only the space
+// before it.
+function MarginTopSlider({ label, value, onChange, badge }: {
+  label: string; value: number; onChange: (v: number) => void; badge?: 'auto' | 'manual'
+}) {
+  return <FontSizeSlider label={label} value={value} onChange={onChange} min={0} max={120} unit="px" badge={badge} numberInput />
+}
+
+// Listening Credit's own internal line-height (the gap between ITS OWN
+// wrapped lines -- it's often a long paragraph). Distinct from Margin Top
+// above: Listening Credit lives in the fixed footer, outside blockOrder
+// entirely, so "margin relative to whichever block precedes it" doesn't
+// apply to it -- this is a genuinely separate control, not a renamed
+// duplicate, which is why it's the one field that still gets a line-height
+// slider instead of a margin-top one.
 function LineHeightSlider({ label, value, onChange, badge }: {
   label: string; value: number; onChange: (v: number) => void; badge?: 'auto' | 'manual'
 }) {
@@ -888,8 +881,8 @@ export default function EditorPanel({
                   <span className="text-xs text-zinc-500">Color</span>
                   <ColorPalette value={data.labelColor ?? data.textColor} onChange={v => set('labelColor', v)} />
                 </div>
-                <LineHeightSlider label="Line spacing" value={data.labelLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
-                  onChange={v => set('labelLineHeight', v)} badge={data.labelLineHeight !== undefined ? 'manual' : 'auto'} />
+                <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'label')}
+                  onChange={v => set('labelMarginTop', v)} badge={data.labelMarginTop !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -946,8 +939,8 @@ export default function EditorPanel({
                     Match Program / Work Title font size to Title
                   </label>
                 </div>
-                <LineHeightSlider label="Line spacing" value={data.titleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
-                  onChange={v => set('titleLineHeight', v)} badge={data.titleLineHeight !== undefined ? 'manual' : 'auto'} />
+                <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'title')}
+                  onChange={v => set('titleMarginTop', v)} badge={data.titleMarginTop !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -967,8 +960,8 @@ export default function EditorPanel({
                 <FontSizeSlider label="Font size" value={data.subtitleSize}
                   onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
                   min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
-                <LineHeightSlider label="Line spacing" value={data.subtitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
-                  onChange={v => set('subtitleLineHeight', v)} badge={data.subtitleLineHeight !== undefined ? 'manual' : 'auto'} />
+                <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'subtitle')}
+                  onChange={v => set('subtitleMarginTop', v)} badge={data.subtitleMarginTop !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -980,8 +973,8 @@ export default function EditorPanel({
                   <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
                 </div>
                 <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
-                <LineHeightSlider label="Line spacing" value={data.subtitle2LineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
-                  onChange={v => set('subtitle2LineHeight', v)} badge={data.subtitle2LineHeight !== undefined ? 'manual' : 'auto'} />
+                <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'subtitle2')}
+                  onChange={v => set('subtitle2MarginTop', v)} badge={data.subtitle2MarginTop !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -1016,8 +1009,8 @@ export default function EditorPanel({
                 <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
                   onChange={v => set('presentersSize', v)} min={24} max={250}
                   disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
-                <LineHeightSlider label="Line spacing" value={data.presentersLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
-                  onChange={v => set('presentersLineHeight', v)} badge={data.presentersLineHeight !== undefined ? 'manual' : 'auto'} />
+                <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'presenters')}
+                  onChange={v => set('presentersMarginTop', v)} badge={data.presentersMarginTop !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -1051,8 +1044,8 @@ export default function EditorPanel({
                 <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
                   onChange={v => set('programTitleSize', v)} min={24} max={250}
                   disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
-                <LineHeightSlider label="Line spacing" value={data.programTitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
-                  onChange={v => set('programTitleLineHeight', v)} badge={data.programTitleLineHeight !== undefined ? 'manual' : 'auto'} />
+                <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'programTitle')}
+                  onChange={v => set('programTitleMarginTop', v)} badge={data.programTitleMarginTop !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -1070,8 +1063,8 @@ export default function EditorPanel({
                       <span className="text-xs text-zinc-500">Color</span>
                       <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
                     </div>
-                    <LineHeightSlider label="Line spacing" value={data.seriesNameLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
-                      onChange={v => set('seriesNameLineHeight', v)} badge={data.seriesNameLineHeight !== undefined ? 'manual' : 'auto'} />
+                    <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'seriesName')}
+                      onChange={v => set('seriesNameMarginTop', v)} badge={data.seriesNameMarginTop !== undefined ? 'manual' : 'auto'} />
                   </>
                 )}
               </FieldCard>
@@ -1092,7 +1085,7 @@ export default function EditorPanel({
                       <span className="text-xs text-zinc-500">Color</span>
                       <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
                     </div>
-                    <LineHeightSlider label="Line spacing" value={data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT}
+                    <LineHeightSlider label="Line height" value={data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT}
                       onChange={v => set('listeningCreditLineHeight', v)} badge={data.listeningCreditLineHeight !== undefined ? 'manual' : 'auto'} />
                   </>
                 )}

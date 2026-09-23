@@ -70,49 +70,54 @@ export function staggerCount(mode: ImageMode): number {
 export const TEXT_BLOCK_KEYS = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName'] as const
 export type TextBlockKey = typeof TEXT_BLOCK_KEYS[number]
 
-// Optional per-field line-height overrides -- undefined means "use whatever
-// the app already computes automatically" (the uniform stack rhythm for the
-// six main text blocks + Series Name, or the fixed 1.4 for Listening
-// Credit; see lib/defaults.ts's DEFAULT_STACK_LINE_HEIGHT/
-// DEFAULT_LISTENING_CREDIT_LINE_HEIGHT and SlideCanvas.tsx's own use of
-// them). Setting one is a manual escape hatch for that field's OWN internal
-// line spacing ONLY -- every field, Title included, is fully decoupled from
-// the gap between blocks, which always stays governed by the existing
-// uniform-gap/accent-clearance system regardless of any field's
-// line-spacing override (that system reads box edges via text-box-trim,
-// fixed to font metrics independent of line-height, and its one shared gap
-// constant is never read back from a field's own possibly-overridden
-// value -- see SlideCanvas.tsx's own comment on STACK_GAP for why that
-// matters even for Title specifically).
+// Optional per-field MARGIN-TOP overrides -- the gap ABOVE that field,
+// relative to whichever block currently renders before it in blockOrder
+// (see lib/textStackGap.ts, the single shared source of truth for both
+// what SlideCanvas.tsx renders and what EditorPanel.tsx's "Margin top"
+// sliders show before they've been touched). Undefined means "use whatever
+// the uniform stack-gap system already computes automatically for the gap
+// above this field right now" -- since blockOrder is dynamic, that
+// automatic value is evaluated from CURRENT position, not a hardcoded
+// "Title's gap" vs. "Presenters' gap", so it naturally follows a field if
+// it's reordered. Setting one overrides the automatic calculation for THAT
+// gap specifically (the space above this field) and nothing else -- it has
+// no effect on this field's own internal wrapped-line spacing (an entirely
+// separate, non-overridable concern; see DEFAULT_STACK_LINE_HEIGHT) or on
+// the gap below it (owned by whichever field renders after this one, via
+// that field's OWN margin-top). Listening Credit has no margin-top field:
+// it lives in the fixed footer, outside blockOrder, so "the block before
+// it in blockOrder" doesn't apply -- it keeps a genuinely separate
+// listeningCreditLineHeight instead, for its own (often long, multi-line)
+// paragraph's internal spacing.
 export interface SlideData {
   // Content
   label: string
   labelWeight: TheinhardtWeight
   labelColor?: string
-  labelLineHeight?: number
+  labelMarginTop?: number
   title: string
   titleFont: TitleFont
   titleItalic: boolean
   titleSize: number
-  titleLineHeight?: number
+  titleMarginTop?: number
   subtitle: string
   subtitleWeight: TheinhardtWeight
   subtitleSize: number
   subtitleInline: boolean
   subtitleColor?: string
-  subtitleLineHeight?: number
+  subtitleMarginTop?: number
   subtitle2: string
   subtitle2Weight: TheinhardtWeight
   subtitle2Size: number
   subtitle2Color?: string
-  subtitle2LineHeight?: number
+  subtitle2MarginTop?: number
   presenters: string
   presentersFont: PresentersFont
   presentersItalic: boolean
   presentersWeight: TheinhardtWeight
   presentersSize: number
   presentersColor?: string
-  presentersLineHeight?: number
+  presentersMarginTop?: number
   // When true, presentersSize is kept equal to titleSize instead of being
   // independently adjustable -- toggled from a checkbox near Title.
   presentersMatchTitleSize: boolean
@@ -125,7 +130,7 @@ export interface SlideData {
   programTitleItalic: boolean
   programTitleSize: number
   programTitleColor?: string
-  programTitleLineHeight?: number
+  programTitleMarginTop?: number
   programTitleMatchTitleSize: boolean
 
   // Style
@@ -188,9 +193,13 @@ export interface SlideData {
   showSeriesName: boolean
   seriesName: string
   seriesNameColor?: string
-  seriesNameLineHeight?: number
+  seriesNameMarginTop?: number
   showListeningCredit: boolean
   listeningCredit: string
   listeningCreditColor?: string
+  // Series Name is part of the reorderable stack (see seriesNameMarginTop
+  // above) and Listening Credit isn't -- see this interface's own top
+  // comment for why Listening Credit keeps a genuinely separate
+  // internal-line-height control instead of a margin-top one.
   listeningCreditLineHeight?: number
 }

@@ -1,40 +1,7 @@
 import React, { forwardRef } from 'react'
 import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount, TextBlockKey } from '@/lib/types'
-import { DEFAULT_BLOCK_ORDER, DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
-
-// A diacritic/accent mark that extends ABOVE the base letter (acute,
-// grave, circumflex, tilde, diaeresis, ring, macron, breve, caron, dot
-// above, double acute -- essentially all common Latin accents: á é í ó ú à
-// è ì ò ù â ê î ô û ã õ ñ ü ö ä å ý č š ž, etc.) collides with whatever
-// text sits above it once that text's own gap has been trimmed down to its
-// cap-height (see DEFAULT_STACK_LINE_HEIGHT's comment below) -- there's no room
-// left for an ascender-topping mark that a plain capital letter wouldn't
-// have needed. Marks that sit BELOW the base letter (cedilla, ogonek, dot
-// below, etc.) don't cause that collision, so they're excluded here.
-const BELOW_BASE_MARKS = new Set([
-  0x0316, 0x0317, 0x0318, 0x0319, 0x031C, 0x031D, 0x031E, 0x031F, 0x0320,
-  0x0321, 0x0322, 0x0323, 0x0324, 0x0325, 0x0326, 0x0327, 0x0328, 0x0329,
-  0x032A, 0x032B, 0x032C, 0x032D, 0x032E, 0x032F, 0x0330, 0x0331, 0x0332,
-  0x0333, 0x0339, 0x033A, 0x033B, 0x033C, 0x0345,
-])
-
-// Detects an upward-extending accent on the FIRST LINE of `text` --
-// Unicode-general rather than a hardcoded letter list: NFD-normalizing
-// splits any precomposed accented letter (e.g. "Á") into its base letter
-// plus a separate combining-mark codepoint (U+0301 COMBINING ACUTE ACCENT),
-// which a plain range check over the Combining Diacritical Marks block
-// (U+0300-U+036F) then catches regardless of which specific letter or
-// accent it is.
-function hasLeadingUpwardAccent(text: string): boolean {
-  const firstLine = text.split('\n')[0] ?? ''
-  const decomposed = firstLine.normalize('NFD')
-  for (const ch of decomposed) {
-    const code = ch.codePointAt(0)
-    if (code === undefined) continue
-    if (code >= 0x0300 && code <= 0x036F && !BELOW_BASE_MARKS.has(code)) return true
-  }
-  return false
-}
+import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
+import { visibleBlockOrder, effectiveMarginTop } from '@/lib/textStackGap'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -73,69 +40,31 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const textAlignItems = textAlign === 'center' ? 'center' : 'flex-start'
     const imageOnRight = data.imageSide === 'right'
 
-    // Every gap BETWEEN separate blocks (Label->Title, Title->Presenters,
-    // Presenters->Program Title, etc.) is driven by ONE shared default
-    // (DEFAULT_STACK_LINE_HEIGHT, imported from lib/defaults.ts -- also
-    // read by EditorPanel.tsx's per-field line-spacing sliders so the two
-    // can't drift out of sync the way a constant copied into both files
-    // already has once before), so there's no way for those gaps to drift
-    // apart the way separate per-boundary values (the old
-    // BLOCK_GAP/TITLE_BLOCK_GAP) already proved they could. Two fully
-    // independent things read this same constant, and MUST stay
-    // independent -- a field's line-spacing control (below) only ever
-    // changes #1 for that one field, never #2 for anything:
-    //  1. Each block's OWN line-height (the gap between that block's own
-    //     wrapped lines) defaults to this shared value, but can be
-    //     overridden per field (see labelLineHeight etc. below) -- doing so
-    //     only changes that field's own internal wrapping, since trimEdges
-    //     below trims a block's outer top/bottom to its font's cap-height/
-    //     baseline regardless of whatever line-height it's using
-    //     internally, which is what keeps the two independent.
-    //  2. Title is this stack's visual anchor (always present, generally
-    //     the largest text), so ONE reference gap (STACK_GAP) is computed
-    //     from Title's own size/font using the exact same math that
-    //     governs its own internal line gap -- `DEFAULT_STACK_LINE_HEIGHT *
-    //     fontSize - capHeight(font)` (the next line's box, once trimmed,
-    //     starts at its cap-height; `text-box-trim` below makes that a
-    //     physical certainty, not an approximation -- verified with a real
-    //     Chromium render) -- and that SAME reference value is then used as
-    //     the marginBottom before every other block, regardless of that
-    //     block's own size/font/line-height override. That's what makes
-    //     "the gap after Presenters" pixel-identical to "the gap after
-    //     Title" even though Presenters and Program Title can be
-    //     completely different sizes: every inter-block gap points at the
-    //     one constant-derived number, not a formula re-evaluated per pair
-    //     -- and critically, it does NOT re-derive from Title's own
-    //     line-height override, precisely so a manual line-spacing change
-    //     on Title (or any field) can never leak into the gap before or
-    //     after it.
-
-    // Empirically measured (real Chromium render, text-box-trim'd
-    // single-line all-caps sample, box height / font-size): cap-height as a
-    // fraction of em. Identical across Theinhardt's weights and italic --
-    // only 92NY Text differs.
-    function capHeightRatio(font: string): number {
-      return font === '92NY Text' ? 0.70 : 0.68
-    }
-
-    // Empirically measured (real Chromium render, cap-alphabetic-trimmed
-    // "VÁCLAV" vs "VACLAV", pixel-scanned): how far an upward accent's own
-    // ink extends above the trimmed box's top edge (which sits at
-    // cap-height -- accents on capitals always overshoot it), as a fraction
-    // of em. Used only for the targeted Label->Title exception above.
-    function accentClearanceRatio(font: string): number {
-      return font === '92NY Text' ? 0.16 : 0.20
-    }
+    // Every block's own internal line-height (the gap between that block's
+    // OWN wrapped lines, e.g. Title's "BEN" -> "MACINTYRE") is fixed at
+    // DEFAULT_STACK_LINE_HEIGHT for every field in the reorderable stack --
+    // not user-overridable per field (an earlier pass added that, then
+    // discovered "line spacing" was the wrong property for what was
+    // actually wanted: a per-field GAP-ABOVE-THIS-BLOCK control, which is
+    // what SlideData's *MarginTop fields and lib/textStackGap.ts's
+    // effectiveMarginTop are, below). Listening Credit is the one
+    // exception -- it sits in the fixed footer outside blockOrder entirely,
+    // so "margin relative to whichever block precedes it in blockOrder"
+    // doesn't apply to it; it keeps its own genuinely separate
+    // listeningCreditLineHeight override instead, for its own (often long)
+    // paragraph's internal wrapped-line spacing.
+    const listeningCreditLineHeight = data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT
 
     // `text-box-trim` + `text-box-edge` (Baseline-supported in current
     // Chromium/Safari; unsupported browsers just ignore these two
     // properties and silently fall back to plain line-height spacing, since
     // unknown CSS properties on an inline style are no-ops, not errors)
     // trims a text box's own top edge to its font's cap-height and its
-    // bottom edge to its alphabetic baseline. That's what makes the
-    // reference-gap formula below exact rather than approximate: it removes
-    // each block's own invisible leading padding entirely, so the box edge
-    // really is the cap-height/baseline the formula assumes it is.
+    // bottom edge to its alphabetic baseline. That's what makes
+    // lib/textStackGap.ts's gap formulas exact rather than approximate: it
+    // removes each block's own invisible leading padding entirely, so the
+    // box edge really is the cap-height/baseline those formulas assume it
+    // is.
     const trimEdges = { textBoxTrim: 'trim-both', textBoxEdge: 'cap alphabetic' } as React.CSSProperties
 
     const labelSize = 48
@@ -143,79 +72,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const presenterSize = data.presentersSize
     const titleFont = data.titleFont ?? '92NY Text'
 
-    // Each field's actual rendered line-height: DEFAULT_STACK_LINE_HEIGHT
-    // (or DEFAULT_LISTENING_CREDIT_LINE_HEIGHT for that one) until the user
-    // sets their own via EditorPanel's per-field line-spacing control, at
-    // which point that value takes over for THAT field's own wrapped-line
-    // spacing only -- it doesn't touch the gap between blocks (see
-    // SlideData's own comment on why text-box-trim makes those independent).
-    const labelLineHeight = data.labelLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
-    const titleLineHeight = data.titleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
-    const subtitleLineHeight = data.subtitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
-    const subtitle2LineHeight = data.subtitle2LineHeight ?? DEFAULT_STACK_LINE_HEIGHT
-    const presentersLineHeightVal = data.presentersLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
-    const programTitleLineHeightVal = data.programTitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
-    const seriesNameLineHeight = data.seriesNameLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
-    const listeningCreditLineHeight = data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT
+    const visibleBlocks = visibleBlockOrder(data)
 
-    // The ONE gap value for every block-to-block transition in the stack --
-    // deliberately anchored to DEFAULT_STACK_LINE_HEIGHT (the fixed shared
-    // constant), NEVER to `titleLineHeight` (Title's own, possibly
-    // overridden, effective value). Block-to-block gaps and a block's own
-    // internal line-spacing are two fully independent concerns: a field's
-    // line-spacing control (including Title's) is only ever allowed to
-    // change that field's OWN wrapped-line spacing, never the space before
-    // or after it. Reading the override-aware variable here once made
-    // Title's line-spacing slider silently reshape the Label->Title and
-    // Title->Presenters gaps too -- exactly the coupling this constant
-    // exists to prevent, and exactly the bug this comment is now here so
-    // nobody re-introduces it.
-    const STACK_GAP = DEFAULT_STACK_LINE_HEIGHT * titleSize - capHeightRatio(titleFont) * titleSize
-
-    // User-controlled render order (EditorPanel's drag list in Layout &
-    // Preview edits data.blockOrder directly) -- falls back to the historical
-    // fixed order for a slide with no blockOrder of its own (see
-    // SlideData.blockOrder's comment), and defensively appends any known
-    // block key missing from a stored order (forward-compatible if a future
-    // block type ships after some slides already have an order saved) while
-    // dropping anything unrecognized. `base` is computed once and reused for
-    // both the keep-filter and the missing-filter below -- computing the
-    // fallback twice (once per line) let the two calls disagree on what
-    // "the base order" even was whenever data.blockOrder was undefined
-    // (`?? DEFAULT_BLOCK_ORDER` vs `?? []`), which duplicated every single
-    // key: the first line correctly used DEFAULT_BLOCK_ORDER as the base,
-    // but the second line's fallback-to-[] made every one of those same
-    // keys look "missing" all over again and re-append itself.
-    const base = data.blockOrder ?? DEFAULT_BLOCK_ORDER
-    const resolvedBlockOrder: TextBlockKey[] = [
-      ...base.filter((k): k is TextBlockKey => DEFAULT_BLOCK_ORDER.includes(k)),
-      ...DEFAULT_BLOCK_ORDER.filter(k => !base.includes(k)),
-    ]
-    const blockVisible: Record<TextBlockKey, boolean> = {
-      label: !!data.label,
-      title: true,
-      subtitle: !!(data.subtitle && !data.subtitleInline),
-      subtitle2: !!data.subtitle2,
-      presenters: !!data.presenters,
-      programTitle: !!data.programTitle,
-      seriesName: !!(data.showSeriesName && data.seriesName),
-    }
-    const visibleBlocks = resolvedBlockOrder.filter(k => blockVisible[k])
-
-    function marginAfter(key: TextBlockKey) {
-      const idx = visibleBlocks.indexOf(key)
-      if (idx === -1 || idx === visibleBlocks.length - 1) return undefined
-      const next = visibleBlocks[idx + 1]
-      // Targeted exception, not a change to the general rule: Label->Title
-      // needs extra clearance ONLY when Title's first line has an
-      // upward-extending accent that would otherwise collide with Label
-      // above it (see hasLeadingUpwardAccent's comment) -- every other gap,
-      // including every other pair Label might now sit next to after a
-      // manual reorder, stays exactly STACK_GAP.
-      const accentClearance = (key === 'label' && next === 'title' && hasLeadingUpwardAccent(data.title))
-        ? accentClearanceRatio(titleFont) * titleSize
-        : 0
-      return { marginBottom: `${(STACK_GAP + accentClearance) * scale}px` }
+    // The margin-top that renders ABOVE `key`, relative to whichever block
+    // CURRENTLY precedes it in blockOrder -- see lib/textStackGap.ts's own
+    // comments for the full formula (uniform stack gap + the Label->Title
+    // accent-clearance exception) and for why this is evaluated from
+    // current position rather than a hardcoded pair, so it follows a field
+    // if it's reordered. A field's own manual override (its *MarginTop
+    // value) takes precedence for this gap specifically; nothing else
+    // (that field's own internal line-height, or the gap below it, owned
+    // by whatever renders after it) is affected either way.
+    function marginBefore(key: TextBlockKey) {
+      if (visibleBlocks.indexOf(key) <= 0) return undefined
+      return { marginTop: `${effectiveMarginTop(data, key) * scale}px` }
     }
     const titleWeight = titleFont === 'Theinhardt Heavy' ? 900 : 700
     const titleStyle = titleFont === 'Theinhardt Heavy'
@@ -286,35 +156,35 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       switch (key) {
         case 'label':
           return data.label ? (
-            <div key="label" style={{ fontSize: `${labelSize * scale}px`, lineHeight: labelLineHeight, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
+            <div key="label" style={{ fontSize: `${labelSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginBefore('label') }}>
               {data.label}
             </div>
           ) : null
 
         case 'title':
           return (
-            <div key="title" style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: titleLineHeight, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
+            <div key="title" style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: DEFAULT_STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginBefore('title') }}>
               {data.title}
             </div>
           )
 
         case 'subtitle':
           return (data.subtitle && !data.subtitleInline) ? (
-            <div key="subtitle" style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: subtitleLineHeight, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
+            <div key="subtitle" style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginBefore('subtitle') }}>
               {data.subtitle}
             </div>
           ) : null
 
         case 'subtitle2':
           return data.subtitle2 ? (
-            <div key="subtitle2" style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: subtitle2LineHeight, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
+            <div key="subtitle2" style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginBefore('subtitle2') }}>
               {data.subtitle2}
             </div>
           ) : null
 
         case 'presenters':
           return data.presenters ? (
-            <div key="presenters" style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeightVal, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
+            <div key="presenters" style={{ fontSize: `${presenterSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginBefore('presenters') }}>
               {data.subtitleInline && data.subtitle
                 ? (() => {
                     const lines = data.presenters.split('\n')
@@ -335,7 +205,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
         case 'programTitle':
           return data.programTitle ? (
-            <div key="programTitle" style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeightVal, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
+            <div key="programTitle" style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginBefore('programTitle') }}>
               {data.programTitle}
             </div>
           ) : null
@@ -344,14 +214,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           return (data.showSeriesName && data.seriesName) ? (
             <div key="seriesName" style={{
               fontSize: `${38 * scale}px`,
-              lineHeight: seriesNameLineHeight,
+              lineHeight: DEFAULT_STACK_LINE_HEIGHT,
               fontFamily: THEINHARDT,
               fontWeight: theinhardtWeight('heavy'),
               color: data.seriesNameColor ?? data.textColor,
               letterSpacing: '0.05em',
               textTransform: 'uppercase',
               ...trimEdges,
-              ...marginAfter('seriesName'),
+              ...marginBefore('seriesName'),
             }}>
               {data.seriesName}
             </div>
@@ -713,7 +583,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
         textAlign,
       }}>
-        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: labelLineHeight, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
+        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
           {data.label}
         </div>
       </div>
