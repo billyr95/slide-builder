@@ -60,4 +60,29 @@ describe('SlideCanvas per-field line-height', () => {
     expect(screen.getByText('SERIES').style.lineHeight).toBe('1.5')
     expect(screen.getByText('Credit line').style.lineHeight).toBe('1.6')
   })
+
+  // Regression coverage for a real bug caught after this feature first
+  // shipped: STACK_GAP (the shared inter-block marginBottom) briefly read
+  // Title's own EFFECTIVE line-height, so overriding Title's line-spacing
+  // silently reshaped the Label->Title and Title->Presenters gaps too --
+  // exactly the coupling a field's line-spacing control must never cause.
+  // Asserting the raw `marginBottom` inline style (computed synchronously,
+  // no real layout engine needed) catches this reliably in jsdom; the full
+  // pixel-level claim is additionally verified with a real Chromium render.
+  it('overriding a field\'s own line-spacing (including Title\'s) never changes the marginBottom gap before/after it', () => {
+    const withoutOverride = baseData()
+    const { unmount: unmount1 } = render(<SlideCanvas data={withoutOverride} orientation="landscape" />)
+    const baselineLabelMargin = screen.getByText('TONIGHT').style.marginBottom
+    const baselineTitleMargin = screen.getByText((_, n) => n?.textContent === 'A Talk').style.marginBottom
+    unmount1()
+
+    for (const titleLineHeight of [0.75, 1.6]) {
+      const { unmount } = render(<SlideCanvas data={baseData({ titleLineHeight })} orientation="landscape" />)
+      expect(screen.getByText('TONIGHT').style.marginBottom).toBe(baselineLabelMargin)
+      expect(screen.getByText((_, n) => n?.textContent === 'A Talk').style.marginBottom).toBe(baselineTitleMargin)
+      // The override itself IS actually applied, just scoped to Title's own line-height.
+      expect(screen.getByText((_, n) => n?.textContent === 'A Talk').style.lineHeight).toBe(String(titleLineHeight))
+      unmount()
+    }
+  })
 })

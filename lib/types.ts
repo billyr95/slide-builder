@@ -76,12 +76,14 @@ export type TextBlockKey = typeof TEXT_BLOCK_KEYS[number]
 // Credit; see lib/defaults.ts's DEFAULT_STACK_LINE_HEIGHT/
 // DEFAULT_LISTENING_CREDIT_LINE_HEIGHT and SlideCanvas.tsx's own use of
 // them). Setting one is a manual escape hatch for that field's OWN internal
-// line spacing only -- it does not affect the gap between blocks, which
-// stays governed by the existing uniform-gap/accent-clearance system
-// regardless (that system reads box edges via text-box-trim, which are
-// fixed to font metrics independent of line-height). The one exception is
-// Title: since the whole stack's gap is anchored to Title's own rhythm, an
-// override there also reshapes STACK_GAP to match (see SlideCanvas.tsx).
+// line spacing ONLY -- every field, Title included, is fully decoupled from
+// the gap between blocks, which always stays governed by the existing
+// uniform-gap/accent-clearance system regardless of any field's
+// line-spacing override (that system reads box edges via text-box-trim,
+// fixed to font metrics independent of line-height, and its one shared gap
+// constant is never read back from a field's own possibly-overridden
+// value -- see SlideCanvas.tsx's own comment on STACK_GAP for why that
+// matters even for Title specifically).
 export interface SlideData {
   // Content
   label: string

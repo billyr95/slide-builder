@@ -80,9 +80,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // can't drift out of sync the way a constant copied into both files
     // already has once before), so there's no way for those gaps to drift
     // apart the way separate per-boundary values (the old
-    // BLOCK_GAP/TITLE_BLOCK_GAP) already proved they could:
+    // BLOCK_GAP/TITLE_BLOCK_GAP) already proved they could. Two fully
+    // independent things read this same constant, and MUST stay
+    // independent -- a field's line-spacing control (below) only ever
+    // changes #1 for that one field, never #2 for anything:
     //  1. Each block's OWN line-height (the gap between that block's own
-    //     wrapped lines) defaults to this same shared value too, but can be
+    //     wrapped lines) defaults to this shared value, but can be
     //     overridden per field (see labelLineHeight etc. below) -- doing so
     //     only changes that field's own internal wrapping, since trimEdges
     //     below trims a block's outer top/bottom to its font's cap-height/
@@ -90,21 +93,22 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     //     internally, which is what keeps the two independent.
     //  2. Title is this stack's visual anchor (always present, generally
     //     the largest text), so ONE reference gap (STACK_GAP) is computed
-    //     from Title's own size/font/EFFECTIVE line-height using the exact
-    //     same math that governs its own internal line gap --
-    //     `titleLineHeight * fontSize - capHeight(font)` (the next line's
-    //     box, once trimmed, starts at its cap-height; `text-box-trim`
-    //     below makes that a physical certainty, not an approximation --
-    //     verified with a real Chromium render) -- and that SAME reference
-    //     value is then used as the marginBottom before every other block,
-    //     regardless of that block's own size/font/line-height override.
-    //     That's what makes "the gap after Presenters" pixel-identical to
-    //     "the gap after Title" even though Presenters and Program Title
-    //     can be completely different sizes: every inter-block gap points
-    //     at the one Title-derived number, not a formula re-evaluated per
-    //     pair -- and it re-anchors itself automatically if Title's own
-    //     line-height is ever manually overridden, so the whole stack's
-    //     rhythm still matches what Title itself visibly does.
+    //     from Title's own size/font using the exact same math that
+    //     governs its own internal line gap -- `DEFAULT_STACK_LINE_HEIGHT *
+    //     fontSize - capHeight(font)` (the next line's box, once trimmed,
+    //     starts at its cap-height; `text-box-trim` below makes that a
+    //     physical certainty, not an approximation -- verified with a real
+    //     Chromium render) -- and that SAME reference value is then used as
+    //     the marginBottom before every other block, regardless of that
+    //     block's own size/font/line-height override. That's what makes
+    //     "the gap after Presenters" pixel-identical to "the gap after
+    //     Title" even though Presenters and Program Title can be
+    //     completely different sizes: every inter-block gap points at the
+    //     one constant-derived number, not a formula re-evaluated per pair
+    //     -- and critically, it does NOT re-derive from Title's own
+    //     line-height override, precisely so a manual line-spacing change
+    //     on Title (or any field) can never leak into the gap before or
+    //     after it.
 
     // Empirically measured (real Chromium render, text-box-trim'd
     // single-line all-caps sample, box height / font-size): cap-height as a
@@ -155,11 +159,18 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const listeningCreditLineHeight = data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT
 
     // The ONE gap value for every block-to-block transition in the stack --
-    // anchored to Title's own EFFECTIVE line-height (its override if the
-    // user set one, else the shared default) rather than always the shared
-    // default, so the inter-block rhythm still matches Title's own internal
-    // rhythm even when Title's line-spacing has been manually adjusted.
-    const STACK_GAP = titleLineHeight * titleSize - capHeightRatio(titleFont) * titleSize
+    // deliberately anchored to DEFAULT_STACK_LINE_HEIGHT (the fixed shared
+    // constant), NEVER to `titleLineHeight` (Title's own, possibly
+    // overridden, effective value). Block-to-block gaps and a block's own
+    // internal line-spacing are two fully independent concerns: a field's
+    // line-spacing control (including Title's) is only ever allowed to
+    // change that field's OWN wrapped-line spacing, never the space before
+    // or after it. Reading the override-aware variable here once made
+    // Title's line-spacing slider silently reshape the Label->Title and
+    // Title->Presenters gaps too -- exactly the coupling this constant
+    // exists to prevent, and exactly the bug this comment is now here so
+    // nobody re-introduces it.
+    const STACK_GAP = DEFAULT_STACK_LINE_HEIGHT * titleSize - capHeightRatio(titleFont) * titleSize
 
     // User-controlled render order (EditorPanel's drag list in Layout &
     // Preview edits data.blockOrder directly) -- falls back to the historical

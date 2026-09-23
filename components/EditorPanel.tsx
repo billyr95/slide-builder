@@ -216,20 +216,32 @@ function WeightPicker({ value, onChange, disabled }: { value: TheinhardtWeight; 
 // state (the raw text being edited) doesn't get clobbered mid-keystroke by
 // the `value` prop re-rendering, but still stays in sync with it whenever
 // the slider (or a linked field) changes it from outside.
-function SliderNumberInput({ value, onChange, min, max, disabled }: {
+function SliderNumberInput({ value, onChange, min, max, disabled, step = 1, decimals = 0 }: {
   value: number; onChange: (v: number) => void; min: number; max: number; disabled?: boolean
+  // Arrow-key increment and the precision the typed/committed value rounds
+  // to -- default to whole numbers (every original caller: image size/
+  // position/z-index/overlap); line-height sliders pass a fractional step
+  // (e.g. 0.01) and decimals=2 so both the arrow-key nudge and manual
+  // typing land on the same grid the range slider itself steps by.
+  step?: number
+  decimals?: number
 }) {
-  const [text, setText] = useState(String(value))
+  const round = (n: number) => {
+    const factor = Math.pow(10, decimals)
+    return Math.round(n * factor) / factor
+  }
+
+  const [text, setText] = useState(value.toFixed(decimals))
   const [focused, setFocused] = useState(false)
 
   useEffect(() => {
-    if (!focused) setText(String(value))
-  }, [value, focused])
+    if (!focused) setText(value.toFixed(decimals))
+  }, [value, focused, decimals])
 
   function commit(raw: string) {
-    const parsed = Math.round(Number(raw))
+    const parsed = round(Number(raw))
     const clamped = Number.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : value
-    setText(String(clamped))
+    setText(clamped.toFixed(decimals))
     if (clamped !== value) onChange(clamped)
   }
 
@@ -239,10 +251,10 @@ function SliderNumberInput({ value, onChange, min, max, disabled }: {
       // a complete, atomic change, unlike free typing which should only
       // commit once the user is done.
       e.preventDefault()
-      const current = Math.round(Number(text))
+      const current = round(Number(text))
       const base = Number.isFinite(current) ? current : value
-      const next = Math.max(min, Math.min(max, base + (e.key === 'ArrowUp' ? 1 : -1)))
-      setText(String(next))
+      const next = round(Math.max(min, Math.min(max, base + (e.key === 'ArrowUp' ? step : -step))))
+      setText(next.toFixed(decimals))
       if (next !== base) onChange(next)
     } else if (e.key === 'Enter') {
       commit(text)
@@ -253,11 +265,11 @@ function SliderNumberInput({ value, onChange, min, max, disabled }: {
   return (
     <input
       type="text"
-      inputMode="numeric"
+      inputMode={decimals > 0 ? 'decimal' : 'numeric'}
       value={text}
       disabled={disabled}
       onFocus={() => setFocused(true)}
-      onChange={e => setText(e.target.value.replace(/[^0-9-]/g, ''))}
+      onChange={e => setText(e.target.value.replace(decimals > 0 ? /[^0-9.-]/g : /[^0-9-]/g, ''))}
       onKeyDown={handleKeyDown}
       onBlur={() => { setFocused(false); commit(text) }}
       className="w-12 text-xs font-mono text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-right focus:outline-none focus:border-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -309,7 +321,7 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
         </span>
         {numberInput ? (
           <span className="flex items-center gap-1">
-            <SliderNumberInput value={value} onChange={onChange} min={min} max={max} disabled={disabled} />
+            <SliderNumberInput value={value} onChange={onChange} min={min} max={max} disabled={disabled} step={step} decimals={decimals} />
             {unit && <span className="text-xs text-zinc-500">{unit}</span>}
           </span>
         ) : (
@@ -336,7 +348,7 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
 function LineHeightSlider({ label, value, onChange, badge }: {
   label: string; value: number; onChange: (v: number) => void; badge?: 'auto' | 'manual'
 }) {
-  return <FontSizeSlider label={label} value={value} onChange={onChange} min={0.7} max={1.8} step={0.01} decimals={2} unit="" badge={badge} />
+  return <FontSizeSlider label={label} value={value} onChange={onChange} min={0.7} max={1.8} step={0.01} decimals={2} unit="" badge={badge} numberInput />
 }
 
 function luminance(hex: string): number {
