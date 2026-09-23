@@ -10,12 +10,59 @@ interface ColorPaletteProps {
   // where an unset color is meaningful (e.g. "let the model estimate it"),
   // as opposed to the main editor where a color is always required.
   clearable?: boolean
+  // Renders the swatch grid directly, always visible, with no trigger
+  // button/dropdown wrapper at all -- for a control used often enough that
+  // an extra click to even see the options isn't worth it (currently just
+  // Background Color; every other per-field color control keeps the
+  // click-to-open behavior below).
+  inline?: boolean
+}
+
+function SwatchGrid({ value, onChange, clearable, onSelect }: ColorPaletteProps & { onSelect?: () => void }) {
+  function select(hex: string) {
+    onChange(hex)
+    onSelect?.()
+  }
+  return (
+    <div className="grid grid-cols-5 gap-1.5">
+      {clearable && (
+        <button
+          type="button"
+          onClick={() => select('')}
+          aria-label="Auto"
+          className="rounded flex items-center justify-center box-border"
+          style={{
+            width: 28, height: 28,
+            border: !value ? '2px solid white' : '2px dashed #666',
+            color: '#888', fontSize: 12,
+          }}
+        >
+          ?
+        </button>
+      )}
+      {PALETTE.map(({ hex }) => (
+        <button
+          key={hex}
+          type="button"
+          onClick={() => select(hex)}
+          aria-label={hex}
+          className="rounded box-border"
+          style={{
+            width: 28, height: 28,
+            backgroundColor: hex,
+            border: value.toLowerCase() === hex.toLowerCase() ? '2px solid white' : '1px solid #444',
+          }}
+        />
+      ))}
+    </div>
+  )
 }
 
 // A closed swatch button that opens a small grid of plain color swatches on
 // click -- no names/labels anywhere, even on hover; picking one selects it
-// and closes the dropdown immediately.
-export default function ColorPalette({ value, onChange, clearable }: ColorPaletteProps) {
+// and closes the dropdown immediately. Pass `inline` to skip the
+// trigger/dropdown entirely and render the same grid always-visible instead.
+export default function ColorPalette({ value, onChange, clearable, inline }: ColorPaletteProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -28,9 +75,8 @@ export default function ColorPalette({ value, onChange, clearable }: ColorPalett
     return () => document.removeEventListener('mousedown', onPointerDown)
   }, [open])
 
-  function select(hex: string) {
-    onChange(hex)
-    setOpen(false)
+  if (inline) {
+    return <SwatchGrid value={value} onChange={onChange} clearable={clearable} />
   }
 
   return (
@@ -52,38 +98,10 @@ export default function ColorPalette({ value, onChange, clearable }: ColorPalett
 
       {open && (
         <div
-          className="absolute z-20 mt-1.5 p-2 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl grid grid-cols-5 gap-1.5"
+          className="absolute z-20 mt-1.5 p-2 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl"
           style={{ width: 176 }}
         >
-          {clearable && (
-            <button
-              type="button"
-              onClick={() => select('')}
-              aria-label="Auto"
-              className="rounded flex items-center justify-center box-border"
-              style={{
-                width: 28, height: 28,
-                border: !value ? '2px solid white' : '2px dashed #666',
-                color: '#888', fontSize: 12,
-              }}
-            >
-              ?
-            </button>
-          )}
-          {PALETTE.map(({ hex }) => (
-            <button
-              key={hex}
-              type="button"
-              onClick={() => select(hex)}
-              aria-label={hex}
-              className="rounded box-border"
-              style={{
-                width: 28, height: 28,
-                backgroundColor: hex,
-                border: value.toLowerCase() === hex.toLowerCase() ? '2px solid white' : '1px solid #444',
-              }}
-            />
-          ))}
+          <SwatchGrid value={value} onChange={onChange} clearable={clearable} onSelect={() => setOpen(false)} />
         </div>
       )}
     </div>

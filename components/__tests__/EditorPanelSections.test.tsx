@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import EditorPanel, { SectionId } from '@/components/EditorPanel'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import { SlideData } from '@/lib/types'
+import { PALETTE } from '@/lib/palette'
 
 // Covers the tabbed right-panel layout: which tab is showing is a
 // controlled prop now (the icon rail that sets it lives outside this
@@ -29,6 +30,14 @@ describe('EditorPanel tabbed sections', () => {
     expect(screen.getByText('Background color')).toBeInTheDocument()
     expect(screen.queryByPlaceholderText('TONIGHT')).not.toBeInTheDocument()
     expect(screen.queryByText('Text alignment')).not.toBeInTheDocument()
+  })
+
+  it('Background Color shows the full swatch grid inline, with no click-to-open trigger', () => {
+    renderPanel('background')
+    expect(screen.queryByRole('button', { name: 'Choose color' })).not.toBeInTheDocument()
+    for (const { hex } of PALETTE) {
+      expect(screen.getByRole('button', { name: hex })).toBeInTheDocument()
+    }
   })
 
   it('the "text" tab groups every typed field together: Label, Title, Subtitle(s), Presenters, Program Title, Series Name, Listening Credit', () => {

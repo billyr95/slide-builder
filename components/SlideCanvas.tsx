@@ -1,13 +1,13 @@
 import React, { forwardRef } from 'react'
 import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount, TextBlockKey } from '@/lib/types'
-import { DEFAULT_BLOCK_ORDER } from '@/lib/defaults'
+import { DEFAULT_BLOCK_ORDER, DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
 
 // A diacritic/accent mark that extends ABOVE the base letter (acute,
 // grave, circumflex, tilde, diaeresis, ring, macron, breve, caron, dot
 // above, double acute -- essentially all common Latin accents: á é í ó ú à
 // è ì ò ù â ê î ô û ã õ ñ ü ö ä å ý č š ž, etc.) collides with whatever
 // text sits above it once that text's own gap has been trimmed down to its
-// cap-height (see STACK_LINE_HEIGHT's comment below) -- there's no room
+// cap-height (see DEFAULT_STACK_LINE_HEIGHT's comment below) -- there's no room
 // left for an ascender-topping mark that a plain capital letter wouldn't
 // have needed. Marks that sit BELOW the base letter (cedilla, ogonek, dot
 // below, etc.) don't cause that collision, so they're excluded here.
@@ -73,32 +73,38 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const textAlignItems = textAlign === 'center' ? 'center' : 'flex-start'
     const imageOnRight = data.imageSide === 'right'
 
-    // Every gap in this text stack -- both BETWEEN wrapped lines inside one
-    // block (Title's own "BEN" -> "MACINTYRE") and BETWEEN separate blocks
-    // (Label->Title, Title->Presenters, Presenters->Program Title, etc.) --
-    // is driven by this ONE constant, so there's no way for them to drift
-    // apart the way separate per-boundary values (previously
-    // BLOCK_GAP/TITLE_BLOCK_GAP, tuned independently of each block's own
-    // `lineHeight`) already proved they could.
-    //  1. It's used directly as the `lineHeight` on every block (governs
-    //     the gap between a block's own wrapped lines -- unaffected by
-    //     trimEdges below, which only trims the outer top/bottom of the
-    //     whole block).
+    // Every gap BETWEEN separate blocks (Label->Title, Title->Presenters,
+    // Presenters->Program Title, etc.) is driven by ONE shared default
+    // (DEFAULT_STACK_LINE_HEIGHT, imported from lib/defaults.ts -- also
+    // read by EditorPanel.tsx's per-field line-spacing sliders so the two
+    // can't drift out of sync the way a constant copied into both files
+    // already has once before), so there's no way for those gaps to drift
+    // apart the way separate per-boundary values (the old
+    // BLOCK_GAP/TITLE_BLOCK_GAP) already proved they could:
+    //  1. Each block's OWN line-height (the gap between that block's own
+    //     wrapped lines) defaults to this same shared value too, but can be
+    //     overridden per field (see labelLineHeight etc. below) -- doing so
+    //     only changes that field's own internal wrapping, since trimEdges
+    //     below trims a block's outer top/bottom to its font's cap-height/
+    //     baseline regardless of whatever line-height it's using
+    //     internally, which is what keeps the two independent.
     //  2. Title is this stack's visual anchor (always present, generally
-    //     the largest text), so ONE reference gap is computed from Title's
-    //     own size/font using the exact same math that governs its own
-    //     internal line gap -- `STACK_LINE_HEIGHT * fontSize -
-    //     capHeight(font)` (the next line's box, once trimmed, starts at
-    //     its cap-height; `text-box-trim` below makes that a physical
-    //     certainty, not an approximation -- verified with a real Chromium
-    //     render) -- and that SAME reference value is then used as the
-    //     marginBottom before every other block, regardless of that
-    //     block's own size/font. That's what makes "the gap after
-    //     Presenters" pixel-identical to "the gap after Title" even though
-    //     Presenters and Program Title can be completely different sizes:
-    //     every inter-block gap point at the one Title-derived number, not
-    //     at a formula re-evaluated per pair.
-    const STACK_LINE_HEIGHT = 0.88
+    //     the largest text), so ONE reference gap (STACK_GAP) is computed
+    //     from Title's own size/font/EFFECTIVE line-height using the exact
+    //     same math that governs its own internal line gap --
+    //     `titleLineHeight * fontSize - capHeight(font)` (the next line's
+    //     box, once trimmed, starts at its cap-height; `text-box-trim`
+    //     below makes that a physical certainty, not an approximation --
+    //     verified with a real Chromium render) -- and that SAME reference
+    //     value is then used as the marginBottom before every other block,
+    //     regardless of that block's own size/font/line-height override.
+    //     That's what makes "the gap after Presenters" pixel-identical to
+    //     "the gap after Title" even though Presenters and Program Title
+    //     can be completely different sizes: every inter-block gap points
+    //     at the one Title-derived number, not a formula re-evaluated per
+    //     pair -- and it re-anchors itself automatically if Title's own
+    //     line-height is ever manually overridden, so the whole stack's
+    //     rhythm still matches what Title itself visibly does.
 
     // Empirically measured (real Chromium render, text-box-trim'd
     // single-line all-caps sample, box height / font-size): cap-height as a
@@ -133,10 +139,27 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const presenterSize = data.presentersSize
     const titleFont = data.titleFont ?? '92NY Text'
 
+    // Each field's actual rendered line-height: DEFAULT_STACK_LINE_HEIGHT
+    // (or DEFAULT_LISTENING_CREDIT_LINE_HEIGHT for that one) until the user
+    // sets their own via EditorPanel's per-field line-spacing control, at
+    // which point that value takes over for THAT field's own wrapped-line
+    // spacing only -- it doesn't touch the gap between blocks (see
+    // SlideData's own comment on why text-box-trim makes those independent).
+    const labelLineHeight = data.labelLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
+    const titleLineHeight = data.titleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
+    const subtitleLineHeight = data.subtitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
+    const subtitle2LineHeight = data.subtitle2LineHeight ?? DEFAULT_STACK_LINE_HEIGHT
+    const presentersLineHeightVal = data.presentersLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
+    const programTitleLineHeightVal = data.programTitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
+    const seriesNameLineHeight = data.seriesNameLineHeight ?? DEFAULT_STACK_LINE_HEIGHT
+    const listeningCreditLineHeight = data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT
+
     // The ONE gap value for every block-to-block transition in the stack --
-    // see STACK_LINE_HEIGHT's comment above for why it's derived from
-    // Title specifically.
-    const STACK_GAP = STACK_LINE_HEIGHT * titleSize - capHeightRatio(titleFont) * titleSize
+    // anchored to Title's own EFFECTIVE line-height (its override if the
+    // user set one, else the shared default) rather than always the shared
+    // default, so the inter-block rhythm still matches Title's own internal
+    // rhythm even when Title's line-spacing has been manually adjusted.
+    const STACK_GAP = titleLineHeight * titleSize - capHeightRatio(titleFont) * titleSize
 
     // User-controlled render order (EditorPanel's drag list in Layout &
     // Preview edits data.blockOrder directly) -- falls back to the historical
@@ -252,35 +275,35 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       switch (key) {
         case 'label':
           return data.label ? (
-            <div key="label" style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
+            <div key="label" style={{ fontSize: `${labelSize * scale}px`, lineHeight: labelLineHeight, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginAfter('label') }}>
               {data.label}
             </div>
           ) : null
 
         case 'title':
           return (
-            <div key="title" style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
+            <div key="title" style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: titleLineHeight, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginAfter('title') }}>
               {data.title}
             </div>
           )
 
         case 'subtitle':
           return (data.subtitle && !data.subtitleInline) ? (
-            <div key="subtitle" style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
+            <div key="subtitle" style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: subtitleLineHeight, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginAfter('subtitle') }}>
               {data.subtitle}
             </div>
           ) : null
 
         case 'subtitle2':
           return data.subtitle2 ? (
-            <div key="subtitle2" style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
+            <div key="subtitle2" style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: subtitle2LineHeight, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginAfter('subtitle2') }}>
               {data.subtitle2}
             </div>
           ) : null
 
         case 'presenters':
           return data.presenters ? (
-            <div key="presenters" style={{ fontSize: `${presenterSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
+            <div key="presenters" style={{ fontSize: `${presenterSize * scale}px`, lineHeight: presentersLineHeightVal, whiteSpace: 'pre-line', ...presentersStyle(data.presentersWeight, presenterSize), ...trimEdges, ...marginAfter('presenters') }}>
               {data.subtitleInline && data.subtitle
                 ? (() => {
                     const lines = data.presenters.split('\n')
@@ -301,7 +324,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
         case 'programTitle':
           return data.programTitle ? (
-            <div key="programTitle" style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
+            <div key="programTitle" style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: programTitleLineHeightVal, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginAfter('programTitle') }}>
               {data.programTitle}
             </div>
           ) : null
@@ -310,7 +333,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           return (data.showSeriesName && data.seriesName) ? (
             <div key="seriesName" style={{
               fontSize: `${38 * scale}px`,
-              lineHeight: STACK_LINE_HEIGHT,
+              lineHeight: seriesNameLineHeight,
               fontFamily: THEINHARDT,
               fontWeight: theinhardtWeight('heavy'),
               color: data.seriesNameColor ?? data.textColor,
@@ -463,7 +486,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               {data.showListeningCredit && data.listeningCredit && (
                 <div style={{
                   fontSize: `${23 * scale}px`,
-                  lineHeight: 1.4,
+                  lineHeight: listeningCreditLineHeight,
                   fontFamily: THEINHARDT,
                   fontWeight: 400,
                   color: data.listeningCreditColor ?? data.textColor,
@@ -601,7 +624,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 {data.showListeningCredit && data.listeningCredit && (
                   <div style={{
                     fontSize: `${23 * scale}px`,
-                    lineHeight: 1.4,
+                    lineHeight: listeningCreditLineHeight,
                     fontFamily: THEINHARDT,
                     fontWeight: 400,
                     color: data.listeningCreditColor ?? data.textColor,
@@ -679,7 +702,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
         textAlign,
       }}>
-        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
+        <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: labelLineHeight, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
           {data.label}
         </div>
       </div>
@@ -750,7 +773,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             {data.showListeningCredit && data.listeningCredit && (
               <div style={{
                 fontSize: `${23 * scale}px`,
-                lineHeight: 1.4,
+                lineHeight: listeningCreditLineHeight,
                 fontFamily: THEINHARDT,
                 fontWeight: 400,
                 color: data.listeningCreditColor ?? data.textColor,

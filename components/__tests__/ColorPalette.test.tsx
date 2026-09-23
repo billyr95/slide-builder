@@ -61,3 +61,30 @@ describe('ColorPalette (swatch-only dropdown)', () => {
     expect(onChange).toHaveBeenCalledWith('')
   })
 })
+
+describe('ColorPalette (inline, e.g. Background Color)', () => {
+  it('shows every swatch immediately -- no trigger button, no click needed', () => {
+    render(<ColorPalette value={PALETTE[0].hex} onChange={vi.fn()} inline />)
+    // No "Choose color" trigger at all -- just one button per palette color.
+    expect(screen.queryByRole('button', { name: 'Choose color' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button')).toHaveLength(PALETTE.length)
+  })
+
+  it('selecting a swatch calls onChange and the grid stays visible (nothing to close)', () => {
+    const onChange = vi.fn()
+    render(<ColorPalette value={PALETTE[0].hex} onChange={onChange} inline />)
+    const target = PALETTE[3]
+    fireEvent.click(screen.getByRole('button', { name: target.hex }))
+    expect(onChange).toHaveBeenCalledWith(target.hex)
+    expect(screen.getAllByRole('button')).toHaveLength(PALETTE.length)
+  })
+
+  it('marks the currently-selected swatch active with a distinct border', () => {
+    const selected = PALETTE[2]
+    render(<ColorPalette value={selected.hex} onChange={vi.fn()} inline />)
+    const selectedBtn = screen.getByRole('button', { name: selected.hex }) as HTMLButtonElement
+    const otherBtn = screen.getByRole('button', { name: PALETTE[0].hex }) as HTMLButtonElement
+    expect(selectedBtn.style.border).toContain('2px solid white')
+    expect(otherBtn.style.border).not.toContain('2px solid white')
+  })
+})

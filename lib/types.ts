@@ -70,30 +70,47 @@ export function staggerCount(mode: ImageMode): number {
 export const TEXT_BLOCK_KEYS = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName'] as const
 export type TextBlockKey = typeof TEXT_BLOCK_KEYS[number]
 
+// Optional per-field line-height overrides -- undefined means "use whatever
+// the app already computes automatically" (the uniform stack rhythm for the
+// six main text blocks + Series Name, or the fixed 1.4 for Listening
+// Credit; see lib/defaults.ts's DEFAULT_STACK_LINE_HEIGHT/
+// DEFAULT_LISTENING_CREDIT_LINE_HEIGHT and SlideCanvas.tsx's own use of
+// them). Setting one is a manual escape hatch for that field's OWN internal
+// line spacing only -- it does not affect the gap between blocks, which
+// stays governed by the existing uniform-gap/accent-clearance system
+// regardless (that system reads box edges via text-box-trim, which are
+// fixed to font metrics independent of line-height). The one exception is
+// Title: since the whole stack's gap is anchored to Title's own rhythm, an
+// override there also reshapes STACK_GAP to match (see SlideCanvas.tsx).
 export interface SlideData {
   // Content
   label: string
   labelWeight: TheinhardtWeight
   labelColor?: string
+  labelLineHeight?: number
   title: string
   titleFont: TitleFont
   titleItalic: boolean
   titleSize: number
+  titleLineHeight?: number
   subtitle: string
   subtitleWeight: TheinhardtWeight
   subtitleSize: number
   subtitleInline: boolean
   subtitleColor?: string
+  subtitleLineHeight?: number
   subtitle2: string
   subtitle2Weight: TheinhardtWeight
   subtitle2Size: number
   subtitle2Color?: string
+  subtitle2LineHeight?: number
   presenters: string
   presentersFont: PresentersFont
   presentersItalic: boolean
   presentersWeight: TheinhardtWeight
   presentersSize: number
   presentersColor?: string
+  presentersLineHeight?: number
   // When true, presentersSize is kept equal to titleSize instead of being
   // independently adjustable -- toggled from a checkbox near Title.
   presentersMatchTitleSize: boolean
@@ -106,6 +123,7 @@ export interface SlideData {
   programTitleItalic: boolean
   programTitleSize: number
   programTitleColor?: string
+  programTitleLineHeight?: number
   programTitleMatchTitleSize: boolean
 
   // Style
@@ -168,7 +186,9 @@ export interface SlideData {
   showSeriesName: boolean
   seriesName: string
   seriesNameColor?: string
+  seriesNameLineHeight?: number
   showListeningCredit: boolean
   listeningCredit: string
   listeningCreditColor?: string
+  listeningCreditLineHeight?: number
 }

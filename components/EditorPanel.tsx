@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
-import { DEFAULT_BLOCK_ORDER } from '@/lib/defaults'
+import { DEFAULT_BLOCK_ORDER, DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -265,7 +265,7 @@ function SliderNumberInput({ value, onChange, min, max, disabled }: {
   )
 }
 
-function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge, disabled, numberInput }: {
+function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge, disabled, numberInput, step = 1, decimals = 0 }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
   // Displayed after the value (e.g. "px" for a real pixel size, "%" for a
   // percentage-based control like single-image mode's size) — defaults to
@@ -284,6 +284,12 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
   // requested for image-related controls (size/position/z-index/overlap),
   // not every slider in the panel.
   numberInput?: boolean
+  // Range input step -- defaults to 1 (every existing caller is a whole-px
+  // or whole-percent control); line-height sliders pass a fractional step.
+  step?: number
+  // Decimal places shown in the plain (non-numberInput) readout -- defaults
+  // to 0 (existing integer callers); line-height sliders pass 2.
+  decimals?: number
 }) {
   return (
     <div className="mt-1.5">
@@ -307,15 +313,30 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
             {unit && <span className="text-xs text-zinc-500">{unit}</span>}
           </span>
         ) : (
-          <span className="text-xs font-mono text-zinc-400">{value}{unit}</span>
+          <span className="text-xs font-mono text-zinc-400">{value.toFixed(decimals)}{unit}</span>
         )}
       </div>
-      <input type="range" min={min} max={max} step={1} value={value}
+      <input type="range" min={min} max={max} step={step} value={value}
         disabled={disabled}
         onChange={e => onChange(Number(e.target.value))}
         className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-white disabled:opacity-40 disabled:cursor-not-allowed" />
     </div>
   )
+}
+
+// Every text field's line-spacing control -- a thin FontSizeSlider preset
+// (fractional step/decimals, no unit). `value` is the field's EFFECTIVE
+// line-height (its stored override if set, else the same shared default
+// SlideCanvas.tsx itself falls back to -- see lib/defaults.ts's
+// DEFAULT_STACK_LINE_HEIGHT/DEFAULT_LISTENING_CREDIT_LINE_HEIGHT), so
+// dragging it away from that starting point is the ONLY way its badge ever
+// flips from "auto" to "manual" -- there's no separate recomputation to
+// track the way font-size heuristics need, since a field's automatic
+// line-height never changes on its own.
+function LineHeightSlider({ label, value, onChange, badge }: {
+  label: string; value: number; onChange: (v: number) => void; badge?: 'auto' | 'manual'
+}) {
+  return <FontSizeSlider label={label} value={value} onChange={onChange} min={0.7} max={1.8} step={0.01} decimals={2} unit="" badge={badge} />
 }
 
 function luminance(hex: string): number {
@@ -825,7 +846,7 @@ export default function EditorPanel({
             <Section id="background">
               <FieldCard>
                 <p className="text-xs text-zinc-500 mb-2">Background color</p>
-                <ColorPalette value={data.backgroundColor} onChange={v => set('backgroundColor', v)} />
+                <ColorPalette value={data.backgroundColor} onChange={v => set('backgroundColor', v)} inline />
               </FieldCard>
               <FieldCard>
                 <p className="text-xs text-zinc-500 mb-2">Orientation</p>
@@ -855,6 +876,8 @@ export default function EditorPanel({
                   <span className="text-xs text-zinc-500">Color</span>
                   <ColorPalette value={data.labelColor ?? data.textColor} onChange={v => set('labelColor', v)} />
                 </div>
+                <LineHeightSlider label="Line spacing" value={data.labelLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
+                  onChange={v => set('labelLineHeight', v)} badge={data.labelLineHeight !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -911,6 +934,8 @@ export default function EditorPanel({
                     Match Program / Work Title font size to Title
                   </label>
                 </div>
+                <LineHeightSlider label="Line spacing" value={data.titleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
+                  onChange={v => set('titleLineHeight', v)} badge={data.titleLineHeight !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -930,6 +955,8 @@ export default function EditorPanel({
                 <FontSizeSlider label="Font size" value={data.subtitleSize}
                   onChange={v => { setSubtitleSizeOverridden(true); set('subtitleSize', v) }}
                   min={16} max={120} badge={subtitleSizeOverridden ? 'manual' : 'auto'} />
+                <LineHeightSlider label="Line spacing" value={data.subtitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
+                  onChange={v => set('subtitleLineHeight', v)} badge={data.subtitleLineHeight !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -941,6 +968,8 @@ export default function EditorPanel({
                   <ColorPalette value={data.subtitle2Color ?? data.textColor} onChange={v => set('subtitle2Color', v)} />
                 </div>
                 <FontSizeSlider label="Font size" value={data.subtitle2Size} onChange={v => set('subtitle2Size', v)} min={16} max={120} />
+                <LineHeightSlider label="Line spacing" value={data.subtitle2LineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
+                  onChange={v => set('subtitle2LineHeight', v)} badge={data.subtitle2LineHeight !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -975,6 +1004,8 @@ export default function EditorPanel({
                 <FontSizeSlider label="Font size" value={data.presentersMatchTitleSize ? data.titleSize : data.presentersSize}
                   onChange={v => set('presentersSize', v)} min={24} max={250}
                   disabled={data.presentersMatchTitleSize} badge={data.presentersMatchTitleSize ? 'linked' : undefined} />
+                <LineHeightSlider label="Line spacing" value={data.presentersLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
+                  onChange={v => set('presentersLineHeight', v)} badge={data.presentersLineHeight !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -1008,6 +1039,8 @@ export default function EditorPanel({
                 <FontSizeSlider label="Font size" value={data.programTitleMatchTitleSize ? data.titleSize : data.programTitleSize}
                   onChange={v => set('programTitleSize', v)} min={24} max={250}
                   disabled={data.programTitleMatchTitleSize} badge={data.programTitleMatchTitleSize ? 'linked' : undefined} />
+                <LineHeightSlider label="Line spacing" value={data.programTitleLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
+                  onChange={v => set('programTitleLineHeight', v)} badge={data.programTitleLineHeight !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>
@@ -1025,6 +1058,8 @@ export default function EditorPanel({
                       <span className="text-xs text-zinc-500">Color</span>
                       <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
                     </div>
+                    <LineHeightSlider label="Line spacing" value={data.seriesNameLineHeight ?? DEFAULT_STACK_LINE_HEIGHT}
+                      onChange={v => set('seriesNameLineHeight', v)} badge={data.seriesNameLineHeight !== undefined ? 'manual' : 'auto'} />
                   </>
                 )}
               </FieldCard>
@@ -1045,6 +1080,8 @@ export default function EditorPanel({
                       <span className="text-xs text-zinc-500">Color</span>
                       <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
                     </div>
+                    <LineHeightSlider label="Line spacing" value={data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT}
+                      onChange={v => set('listeningCreditLineHeight', v)} badge={data.listeningCreditLineHeight !== undefined ? 'manual' : 'auto'} />
                   </>
                 )}
               </FieldCard>

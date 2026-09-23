@@ -228,6 +228,17 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
 
       showSeriesName: data.showSeriesName,
       showListeningCredit: data.showListeningCredit,
+
+      // Per-field line-spacing overrides -- undefined for any field still
+      // on its automatic value (see SlideData's own comment on these).
+      labelLineHeight: data.labelLineHeight,
+      titleLineHeight: data.titleLineHeight,
+      subtitleLineHeight: data.subtitleLineHeight,
+      subtitle2LineHeight: data.subtitle2LineHeight,
+      presentersLineHeight: data.presentersLineHeight,
+      programTitleLineHeight: data.programTitleLineHeight,
+      seriesNameLineHeight: data.seriesNameLineHeight,
+      listeningCreditLineHeight: data.listeningCreditLineHeight,
     },
   }
 }
