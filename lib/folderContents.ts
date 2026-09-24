@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { folders, slides, users } from '@/lib/db/schema'
-import { eq, isNull, asc, desc } from 'drizzle-orm'
+import { eq, isNull, asc, desc, sql } from 'drizzle-orm'
 
 // Server-side shape, pre-JSON-serialization -- drizzle's timestamp columns
 // return Date objects here; NextResponse.json() turns them into ISO
@@ -20,6 +20,7 @@ export interface SlideSummary {
   updatedAt: Date
   userId: string
   ownerEmail: string
+  sizeBytes: number
 }
 
 export interface FolderContents {
@@ -62,6 +63,7 @@ export async function getFolderContents(folderId: string): Promise<FolderContent
   const slideRows = await db.select({
     id: slides.id, title: slides.title, orientation: slides.orientation,
     createdAt: slides.createdAt, updatedAt: slides.updatedAt, userId: slides.userId, ownerEmail: users.email,
+    sizeBytes: sql<number>`pg_column_size(${slides.data})`.mapWith(Number),
   }).from(slides).innerJoin(users, eq(slides.userId, users.id)).where(eq(slides.folderId, folderId)).orderBy(desc(slides.updatedAt))
 
   return {

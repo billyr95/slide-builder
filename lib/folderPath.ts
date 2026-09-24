@@ -2,6 +2,7 @@ export interface FolderFlat {
   id: string
   name: string
   parentFolderId: string | null
+  createdAt: string
 }
 
 // Shared by the Dashboard's global-search result captions ("which folder
