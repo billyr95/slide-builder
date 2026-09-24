@@ -5,10 +5,9 @@ export interface FolderFlat {
   createdAt: string
 }
 
-// Shared by the Dashboard's global-search result captions ("which folder
-// does this live in") and FolderPickerModal's row labels -- both need the
-// same full "Root / Sub / Sub" path string built from the same flat folder
-// list, so this is the one place that walks the parentFolderId chain.
+// Used by the Dashboard's global-search result captions ("which folder
+// does this live in") -- walks the parentFolderId chain to build the full
+// "Root / Sub / Sub" path string from a flat folder list.
 export function buildFolderPath(folders: FolderFlat[], folderId: string | null | undefined): string {
   if (!folderId) return ''
   const byId = new Map(folders.map(f => [f.id, f]))

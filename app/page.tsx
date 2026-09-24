@@ -2,23 +2,24 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import NewSlideFlow from '@/components/NewSlideFlow'
 import SlideCard from '@/components/SlideCard'
-import FolderTreeView, { SlideRow } from '@/components/FolderTreeView'
-import FolderPickerModal from '@/components/FolderPickerModal'
+import FolderTreeView, { SlideRow, TreeSelection } from '@/components/FolderTreeView'
+import SlidePreviewPanel, { PreviewSelection } from '@/components/SlidePreviewPanel'
 import { buildFolderPath, FolderFlat } from '@/lib/folderPath'
 
 export default function Dashboard() {
   const { data: session } = useSession()
+  const router = useRouter()
 
   const [folders, setFolders] = useState<FolderFlat[] | null>(null)
   const [slides, setSlides] = useState<SlideRow[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showNewFlow, setShowNewFlow] = useState(false)
-  const [movingSlideId, setMovingSlideId] = useState<string | null>(null)
-  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<TreeSelection>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -41,18 +42,27 @@ export default function Dashboard() {
 
   function handleDeleted(id: string) {
     setSlides(prev => (prev ? prev.filter(s => s.id !== id) : prev))
+    setSelection(prev => (prev?.kind === 'slide' && prev.id === id ? null : prev))
   }
+
+  // Where a new folder/slide is created: the currently selected folder, or
+  // (if a slide is selected instead) that slide's own folder, or root if
+  // nothing is selected.
+  const targetFolderId = useMemo(() => {
+    if (selection?.kind === 'folder') return selection.id
+    if (selection?.kind === 'slide') return slides?.find(s => s.id === selection.id)?.folderId ?? rootId
+    return rootId
+  }, [selection, slides, rootId])
 
   async function handleNewFolder() {
     const name = window.prompt('Folder name:')
     if (!name || !name.trim()) return
-    const parentFolderId = selectedFolderId ?? rootId
-    if (!parentFolderId) return
+    if (!targetFolderId) return
     try {
       const res = await fetch('/api/folders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), parentFolderId }),
+        body: JSON.stringify({ name: name.trim(), parentFolderId: targetFolderId }),
       })
       if (!res.ok) throw new Error(`Create failed (${res.status})`)
       const created = await res.json()
@@ -78,21 +88,29 @@ export default function Dashboard() {
     }
   }
 
-  async function handleMovePick(folderId: string) {
-    const slideId = movingSlideId
-    setMovingSlideId(null)
-    if (!slideId) return
-    await moveSlide(slideId, folderId)
-  }
+  // Maps the tree's lightweight {kind,id} selection into the full record
+  // SlidePreviewPanel needs to render (slide metadata, or a folder's
+  // direct-child item count) -- computed here since Dashboard already
+  // holds both flat lists.
+  const previewSelection: PreviewSelection = useMemo(() => {
+    if (!selection) return null
+    if (selection.kind === 'slide') {
+      const slide = slides?.find(s => s.id === selection.id)
+      if (!slide) return null
+      return { kind: 'slide', slide: { id: slide.id, title: slide.title, orientation: slide.orientation, updatedAt: slide.updatedAt, ownerEmail: slide.ownerEmail } }
+    }
+    const folder = folders?.find(f => f.id === selection.id)
+    if (!folder) return null
+    const itemCount =
+      (folders?.filter(f => f.parentFolderId === folder.id).length ?? 0) +
+      (slides?.filter(s => s.folderId === folder.id).length ?? 0)
+    return { kind: 'folder', folder: { id: folder.id, name: folder.name, createdAt: folder.createdAt, itemCount } }
+  }, [selection, folders, slides])
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white" style={{ fontFamily: "'Theinhardt', sans-serif" }}>
       {showNewFlow && (
-        <NewSlideFlow initialScreenType="projector" folderId={selectedFolderId ?? rootId ?? undefined} onClose={() => setShowNewFlow(false)} />
-      )}
-
-      {movingSlideId && folders && (
-        <FolderPickerModal folders={folders} onPick={handleMovePick} onClose={() => setMovingSlideId(null)} />
+        <NewSlideFlow initialScreenType="projector" folderId={targetFolderId ?? undefined} onClose={() => setShowNewFlow(false)} />
       )}
 
       <header className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
@@ -116,7 +134,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-6 py-8">
         <div className="flex items-center gap-3 mb-6">
           <input
             type="text"
@@ -166,16 +184,20 @@ export default function Dashboard() {
         ) : loading || !folders || !slides || !rootId ? (
           <p className="text-sm text-zinc-500">Loading…</p>
         ) : (
-          <FolderTreeView
-            folders={folders}
-            slides={slides}
-            rootId={rootId}
-            selectedFolderId={selectedFolderId}
-            onSelectFolder={setSelectedFolderId}
-            onRequestMove={setMovingSlideId}
-            onDeleteSlide={handleDeleted}
-            onMoveSlide={moveSlide}
-          />
+          <div className="flex gap-6 items-start">
+            <div className="flex-1 min-w-0">
+              <FolderTreeView
+                folders={folders}
+                slides={slides}
+                rootId={rootId}
+                selection={selection}
+                onSelect={setSelection}
+                onOpenSlide={id => router.push(`/editor/${id}`)}
+                onMoveSlide={moveSlide}
+              />
+            </div>
+            <SlidePreviewPanel selection={previewSelection} onDeleted={handleDeleted} />
+          </div>
         )}
       </main>
     </div>

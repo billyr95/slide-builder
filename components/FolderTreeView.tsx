@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { FolderFlat } from '@/lib/folderPath'
 import { timeAgo } from '@/lib/timeAgo'
 import { formatBytes } from '@/lib/formatBytes'
@@ -17,14 +16,18 @@ export interface SlideRow {
   sizeBytes: number
 }
 
+export type TreeSelection =
+  | { kind: 'folder'; id: string }
+  | { kind: 'slide'; id: string }
+  | null
+
 interface FolderTreeViewProps {
   folders: FolderFlat[]
   slides: SlideRow[]
   rootId: string
-  selectedFolderId: string | null
-  onSelectFolder: (id: string | null) => void
-  onRequestMove: (slideId: string) => void
-  onDeleteSlide: (id: string) => void
+  selection: TreeSelection
+  onSelect: (selection: TreeSelection) => void
+  onOpenSlide: (id: string) => void
   onMoveSlide: (slideId: string, folderId: string) => void
 }
 
@@ -67,11 +70,17 @@ function Chevron({ expanded }: { expanded: boolean }) {
 // fetched per-folder), since several folders can be expanded at once --
 // expand state is purely a client-side Set, so toggling never needs a
 // round trip.
-export default function FolderTreeView({ folders, slides, rootId, selectedFolderId, onSelectFolder, onRequestMove, onDeleteSlide, onMoveSlide }: FolderTreeViewProps) {
-  const router = useRouter()
+//
+// Selection vs. expansion vs. opening are three separate gestures, same as
+// Finder's own list view: single-click a row selects it (folder or slide;
+// a slide's selection drives the Dashboard's preview panel); the chevron
+// (or a double-click on a folder row) toggles expand/collapse; a
+// double-click on a SLIDE row opens it in the editor. Per-row hover action
+// icons were removed -- Move (drag-and-drop only now) and Delete live in
+// the preview panel instead, scoped to whatever's currently selected.
+export default function FolderTreeView({ folders, slides, rootId, selection, onSelect, onOpenSlide, onMoveSlide }: FolderTreeViewProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const { childFoldersByParent, slidesByFolder } = useMemo(() => {
     const childFoldersByParent = new Map<string, FolderFlat[]>()
@@ -110,31 +119,13 @@ export default function FolderTreeView({ folders, slides, rootId, selectedFolder
     return out
   }, [rootId, childFoldersByParent, slidesByFolder, expanded])
 
-  function toggleExpanded(id: string, e: React.MouseEvent) {
-    e.stopPropagation()
+  function toggleExpanded(id: string) {
     setExpanded(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
-  }
-
-  async function handleDelete(slide: SlideRow, e: React.MouseEvent) {
-    e.stopPropagation()
-    if (deletingId) return
-    if (!window.confirm(`Delete "${slide.title}"? This can't be undone.`)) return
-    setDeletingId(slide.id)
-    try {
-      const res = await fetch(`/api/slides/${slide.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error(`Delete failed (${res.status})`)
-      onDeleteSlide(slide.id)
-    } catch (err) {
-      console.error(err)
-      window.alert('Failed to delete the slide. Please try again.')
-    } finally {
-      setDeletingId(null)
-    }
   }
 
   function handleDrop(folderId: string, e: React.DragEvent) {
@@ -161,13 +152,14 @@ export default function FolderTreeView({ folders, slides, rootId, selectedFolder
       <tbody>
         {rows.map(row => {
           if (row.kind === 'folder') {
-            const isSelected = selectedFolderId === row.folder.id
+            const isSelected = selection?.kind === 'folder' && selection.id === row.folder.id
             const isDragOver = dragOverFolderId === row.folder.id
             const isExpanded = expanded.has(row.folder.id)
             return (
               <tr
                 key={`folder-${row.folder.id}`}
-                onClick={() => onSelectFolder(row.folder.id)}
+                onClick={() => onSelect({ kind: 'folder', id: row.folder.id })}
+                onDoubleClick={() => toggleExpanded(row.folder.id)}
                 onDragOver={e => { e.preventDefault(); setDragOverFolderId(row.folder.id) }}
                 onDragLeave={() => setDragOverFolderId(prev => (prev === row.folder.id ? null : prev))}
                 onDrop={e => handleDrop(row.folder.id, e)}
@@ -177,7 +169,11 @@ export default function FolderTreeView({ folders, slides, rootId, selectedFolder
               >
                 <td className="py-1.5 pr-4">
                   <div className="flex items-center gap-1.5" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX }}>
-                    <button onClick={e => toggleExpanded(row.folder.id, e)} className="w-4 h-4 flex items-center justify-center flex-shrink-0 hover:text-white">
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleExpanded(row.folder.id) }}
+                      onDoubleClick={e => e.stopPropagation()}
+                      className="w-4 h-4 flex items-center justify-center flex-shrink-0 hover:text-white"
+                    >
                       <Chevron expanded={isExpanded} />
                     </button>
                     <FolderIcon className="text-zinc-400 flex-shrink-0" />
@@ -192,45 +188,20 @@ export default function FolderTreeView({ folders, slides, rootId, selectedFolder
           }
 
           const slide = row.slide
+          const isSelected = selection?.kind === 'slide' && selection.id === slide.id
           return (
             <tr
               key={`slide-${slide.id}`}
               draggable
               onDragStart={e => e.dataTransfer.setData('text/slide-id', slide.id)}
-              onClick={() => router.push(`/editor/${slide.id}`)}
-              className="group cursor-pointer border-b border-zinc-900 hover:bg-zinc-900 transition-colors"
+              onClick={() => onSelect({ kind: 'slide', id: slide.id })}
+              onDoubleClick={() => onOpenSlide(slide.id)}
+              className={`cursor-pointer border-b border-zinc-900 transition-colors ${isSelected ? 'bg-blue-900/40' : 'hover:bg-zinc-900'}`}
             >
               <td className="py-1.5 pr-4">
-                <div className="flex items-center gap-1.5 justify-between" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX + 20 }}>
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <SlideIcon className="text-zinc-500 flex-shrink-0" />
-                    <span className="truncate text-zinc-300">{slide.title}</span>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 flex-shrink-0 pr-2">
-                    <button
-                      onClick={e => { e.stopPropagation(); onRequestMove(slide.id) }}
-                      title="Move to…"
-                      className="w-6 h-6 flex items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-700 hover:text-white transition-colors"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M2 8a2 2 0 0 1 2-2h4l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8Z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={e => handleDelete(slide, e)}
-                      disabled={deletingId === slide.id}
-                      title="Delete slide"
-                      className="w-6 h-6 flex items-center justify-center rounded-md text-zinc-500 hover:bg-red-900 hover:text-white transition-colors disabled:opacity-60"
-                    >
-                      {deletingId === slide.id ? '…' : (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18" />
-                          <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1.5" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX + 20 }}>
+                  <SlideIcon className="text-zinc-500 flex-shrink-0" />
+                  <span className="truncate text-zinc-300">{slide.title}</span>
                 </div>
               </td>
               <td className="py-1.5 pr-4 text-zinc-500">{timeAgo(slide.updatedAt)}</td>
