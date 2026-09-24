@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, boolean, integer, doublePrecision, pgEnum, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, jsonb, boolean, integer, doublePrecision, pgEnum, index, AnyPgColumn } from 'drizzle-orm/pg-core'
 
 export const roleEnum = pgEnum('role', ['admin', 'member'])
 export const orientationEnum = pgEnum('orientation', ['landscape', 'portrait'])
@@ -11,9 +11,42 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// A file-system-style tree for organizing shared slides. Exactly one row
+// has parentFolderId null -- the seeded "All Slides" root every browsing
+// path starts from (see the migration that seeds it and backfills every
+// pre-existing slide into it, so nothing becomes orphaned/invisible).
+// Folders are shared/org-wide same as slides: any logged-in user can
+// create one or move a slide into one, consistent with the rest of the
+// access model -- there's no per-user ownership check anywhere on this
+// table, createdBy is metadata only.
+export const folders = pgTable('folders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  // Self-referencing FK -- typed via a lazy callback (AnyPgColumn) since
+  // `folders` isn't done being defined yet at the point this column
+  // literal is evaluated. onDelete cascade matches ordinary file-system
+  // behavior (deleting a folder takes its subfolders with it); there's no
+  // delete-folder UI yet, so this only matters for a future one or a
+  // manual DB edit.
+  parentFolderId: uuid('parent_folder_id').references((): AnyPgColumn => folders.id, { onDelete: 'cascade' }),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  parentFolderIdIdx: index('folders_parent_folder_id_idx').on(table.parentFolderId),
+}))
+
 export const slides = pgTable('slides', {
   id: uuid('id').primaryKey().defaultRandom(),
+  // Slides are shared/org-wide -- every logged-in user can view and edit
+  // every slide, this column is no longer an access-control boundary.
+  // Kept purely as "who originally created this" metadata (shown as
+  // "Created by ..." in the dashboard/editor).
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // Nullable at the DB level as a safety net (onDelete set null -- moving
+  // or deleting a folder never destroys a slide), but application code
+  // always resolves a concrete folder on create (falling back to the root
+  // "All Slides" folder), so this is effectively always populated.
+  folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }),
   title: text('title').notNull().default('Untitled Slide'),
   // Which canvas shape this slide was last being edited/previewed in --
   // a single slide's content can be exported as either, this is just a
@@ -28,8 +61,17 @@ export const slides = pgTable('slides', {
   data: jsonb('data').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  // Lightweight "someone has this open" heartbeat -- who last pinged the
+  // editor's heartbeat endpoint for this slide, and when. Refreshed every
+  // autosave tick while a user has the editor open; treated as stale (see
+  // lib/activeEditorTracking.ts's ACTIVE_EDITOR_WINDOW_MS) after a couple
+  // minutes of no refresh. Advisory only -- never blocks a save, just
+  // powers the "X is currently editing this" banner for a second opener.
+  activeEditorId: uuid('active_editor_id').references(() => users.id, { onDelete: 'set null' }),
+  activeEditorAt: timestamp('active_editor_at', { withTimezone: true }),
 }, (table) => ({
   userIdIdx: index('slides_user_id_idx').on(table.userId),
+  folderIdIdx: index('slides_folder_id_idx').on(table.folderId),
 }))
 
 export const trainingSourceEnum = pgEnum('training_source', ['upload', 'live'])

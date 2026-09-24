@@ -8,7 +8,7 @@ import { resizeImageDataUrl } from '@/lib/resizeImage'
 import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
 import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
-import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop } from '@/lib/textStackGap'
+import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -17,7 +17,6 @@ const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   subtitle2: 'Subtitle 2',
   presenters: 'Presenters',
   programTitle: 'Program / Work Title',
-  seriesName: 'Series Name',
 }
 
 const MAX_LOGO_DIM = 400
@@ -1063,7 +1062,7 @@ export default function EditorPanel({
                       <span className="text-xs text-zinc-500">Color</span>
                       <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
                     </div>
-                    <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, 'seriesName')}
+                    <MarginTopSlider label="Margin top" value={effectiveSeriesNameMarginTop(data)}
                       onChange={v => set('seriesNameMarginTop', v)} badge={data.seriesNameMarginTop !== undefined ? 'manual' : 'auto'} />
                   </>
                 )}

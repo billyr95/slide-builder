@@ -23,7 +23,10 @@ export default function AdminPage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetch('/api/slides?all=1')
+    // Slides are shared/org-wide now -- the plain slides list already
+    // includes everyone's, same data the main dashboard shows. This page
+    // is just a convenience view with owner-email search built in.
+    fetch('/api/slides')
       .then(res => res.json())
       .then(setSlides)
       .finally(() => setLoading(false))
@@ -68,7 +71,7 @@ export default function AdminPage() {
         <div className="mb-6">
           <h1 className="text-lg font-semibold mb-1">All slides</h1>
           <p className="text-sm text-zinc-500">
-            Every user's saved slides. Opening one loads it into the normal editor for viewing/editing.
+            Every slide is already visible to everyone from the main dashboard -- this view just adds search by owner email.
           </p>
         </div>
 

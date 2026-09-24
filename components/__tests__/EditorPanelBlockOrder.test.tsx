@@ -28,10 +28,16 @@ describe('EditorPanel block order drag list', () => {
     expect(rows.map(r => r.textContent)).toEqual(['Label', 'Title', 'Presenters'])
   })
 
+  it('never lists Series Name as a reorderable row, even when it\'s populated -- it\'s pinned to its own fixed footer slot', () => {
+    renderPanel({ label: 'TONIGHT', title: 'A Talk', presenters: 'Jane Doe', showSeriesName: true, seriesName: 'SERIES' })
+    const rows = screen.getAllByText(/Label|Title|Subtitle|Presenters|Program \/ Work Title|Series Name/)
+    expect(rows.map(r => r.textContent)).not.toContain('Series Name')
+  })
+
   it('dragging a row onto another reorders blockOrder, preserving an unpopulated block\'s relative position', () => {
     const { onChange } = renderPanel({
       label: 'TONIGHT', title: 'A Talk', subtitle: '', subtitle2: '', presenters: 'Jane Doe', programTitle: 'Some Work', showSeriesName: false,
-      blockOrder: ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName'],
+      blockOrder: ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle'],
     })
 
     const presentersRow = screen.getByText('Presenters').closest('div')!
@@ -42,7 +48,7 @@ describe('EditorPanel block order drag list', () => {
     fireEvent.drop(titleRow)
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      blockOrder: ['label', 'presenters', 'title', 'subtitle', 'subtitle2', 'programTitle', 'seriesName'],
+      blockOrder: ['label', 'presenters', 'title', 'subtitle', 'subtitle2', 'programTitle'],
     }))
   })
 })
@@ -64,7 +70,7 @@ describe('EditorPanel block order up/down arrow buttons', () => {
       label: 'TONIGHT', title: 'A Talk', subtitle: '', subtitle2: '', presenters: 'Jane Doe', programTitle: 'Some Work', showSeriesName: false,
       // subtitle/subtitle2/seriesName are unpopulated (hidden) but sit
       // between title and presenters/programTitle in the stored order.
-      blockOrder: ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName'],
+      blockOrder: ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle'],
     })
 
     fireEvent.click(screen.getByTitle('Move Title down'))
@@ -74,20 +80,20 @@ describe('EditorPanel block order up/down arrow buttons', () => {
     // (subtitle2's neighbor "programTitle") -- subtitle/subtitle2 keep
     // their own original relative position untouched.
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      blockOrder: ['label', 'subtitle', 'subtitle2', 'presenters', 'title', 'programTitle', 'seriesName'],
+      blockOrder: ['label', 'subtitle', 'subtitle2', 'presenters', 'title', 'programTitle'],
     }))
   })
 
   it('clicking the up arrow moves that block before its previous visible neighbor', () => {
     const { onChange } = renderPanel({
       label: 'TONIGHT', title: 'A Talk', subtitle: '', subtitle2: '', presenters: 'Jane Doe', programTitle: 'Some Work', showSeriesName: false,
-      blockOrder: ['label', 'title', 'presenters', 'programTitle', 'subtitle', 'subtitle2', 'seriesName'],
+      blockOrder: ['label', 'title', 'presenters', 'programTitle', 'subtitle', 'subtitle2'],
     })
 
     fireEvent.click(screen.getByTitle('Move Program / Work Title up'))
 
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({
-      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2', 'seriesName'],
+      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2'],
     }))
   })
 })

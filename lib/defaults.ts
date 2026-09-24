@@ -9,8 +9,10 @@ const DEFAULT_TEXT_COLOR = '#000000'
 // The historical fixed render order, preserved as the default for new
 // slides and for any existing saved slide with no blockOrder of its own
 // (see SlideData.blockOrder's comment) -- so this refactor to
-// user-controlled ordering doesn't shift a single existing slide.
-export const DEFAULT_BLOCK_ORDER: TextBlockKey[] = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName']
+// user-controlled ordering doesn't shift a single existing slide. Series
+// Name is NOT part of this -- it's pinned to its own fixed footer slot
+// (directly above Listening Credit), never reorderable.
+export const DEFAULT_BLOCK_ORDER: TextBlockKey[] = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle']
 
 // The single source of truth for "what line-height does this field render
 // at automatically, before anyone touches its line-spacing control" --
@@ -19,9 +21,11 @@ export const DEFAULT_BLOCK_ORDER: TextBlockKey[] = ['label', 'title', 'subtitle'
 // manually overridden), so the two can't quietly drift out of sync the way
 // a hardcoded constant copied into both files already has once before in
 // this app. DEFAULT_STACK_LINE_HEIGHT covers every text block that's part
-// of the uniform stack (Label/Title/Subtitle/Subtitle2/Presenters/Program
-// Title/Series Name); Listening Credit sits in the fixed footer outside
-// that stack and has always used a looser value for its own body-text
+// of the reorderable stack (Label/Title/Subtitle/Subtitle2/Presenters/
+// Program Title), plus Series Name's own internal line-height (fixed, not
+// user-overridable, even though Series Name itself is pinned outside the
+// stack in its own fixed footer slot). Listening Credit sits in that same
+// fixed footer and has always used a looser value for its own body-text
 // paragraph.
 export const DEFAULT_STACK_LINE_HEIGHT = 0.88
 export const DEFAULT_LISTENING_CREDIT_LINE_HEIGHT = 1.4

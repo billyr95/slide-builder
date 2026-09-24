@@ -16,18 +16,24 @@ interface SlideCardProps {
   title: string
   orientation: Orientation
   updatedAt: string
-  // e.g. the owner's email, shown for the admin portal's all-users view.
+  // e.g. the owner's email (Dashboard/Admin), or a folder path (Dashboard
+  // search results) -- whatever caption line makes sense for the caller.
   subtitle?: string
   // Omitted entirely hides the delete control -- both current callers
   // (Dashboard, Admin portal) always pass it, but this keeps the card
   // usable read-only if that ever changes.
   onDeleted?: (id: string) => void
+  // Omitted hides the "Move to..." control -- only the Dashboard's
+  // folder-browse view (not search results, not the Admin portal) offers
+  // it, since search results already show their folder as the caption and
+  // clicking them should open the slide directly.
+  onMove?: () => void
 }
 
 // Shared by the Dashboard and Admin portal: a card linking into the real
 // editor, with a live preview lazily fetched per-card (the list endpoints
 // stay lightweight -- they don't return each slide's full `data` blob).
-export default function SlideCard({ id, title, orientation, updatedAt, subtitle, onDeleted }: SlideCardProps) {
+export default function SlideCard({ id, title, orientation, updatedAt, subtitle, onDeleted, onMove }: SlideCardProps) {
   const [data, setData] = useState<SlideData | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -59,17 +65,35 @@ export default function SlideCard({ id, title, orientation, updatedAt, subtitle,
     }
   }
 
+  function handleMove(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    onMove?.()
+  }
+
   return (
     <Link
       href={`/editor/${id}`}
       className="group relative block bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-zinc-600 transition-colors"
     >
-      <button
-        onClick={handleDelete}
-        disabled={deleting}
-        title="Delete slide"
-        className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-950/80 text-zinc-400 opacity-0 group-hover:opacity-100 hover:bg-red-900 hover:text-white transition-colors disabled:opacity-60"
-      >
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100">
+        {onMove && (
+          <button
+            onClick={handleMove}
+            title="Move to…"
+            className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-950/80 text-zinc-400 hover:bg-zinc-700 hover:text-white transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 8a2 2 0 0 1 2-2h4l2 2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8Z" />
+            </svg>
+          </button>
+        )}
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          title="Delete slide"
+          className="w-7 h-7 flex items-center justify-center rounded-lg bg-zinc-950/80 text-zinc-400 hover:bg-red-900 hover:text-white transition-colors disabled:opacity-60"
+        >
         {deleting ? (
           '…'
         ) : (
@@ -81,7 +105,8 @@ export default function SlideCard({ id, title, orientation, updatedAt, subtitle,
             <path d="M14 11v6" />
           </svg>
         )}
-      </button>
+        </button>
+      </div>
       <div className="rounded-lg overflow-hidden mb-3 bg-zinc-800" style={{ aspectRatio: ASPECT[orientation] }}>
         {data ? (
           <SlideThumbnail data={data} orientation={orientation} />

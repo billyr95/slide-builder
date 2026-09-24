@@ -90,7 +90,6 @@ export function isBlockPopulated(data: SlideData, key: TextBlockKey): boolean {
     case 'subtitle2': return !!data.subtitle2
     case 'presenters': return !!data.presenters
     case 'programTitle': return !!data.programTitle
-    case 'seriesName': return !!(data.showSeriesName && data.seriesName)
   }
 }
 
@@ -150,7 +149,6 @@ export function marginTopField(key: TextBlockKey): keyof SlideData {
     case 'subtitle2': return 'subtitle2MarginTop'
     case 'presenters': return 'presentersMarginTop'
     case 'programTitle': return 'programTitleMarginTop'
-    case 'seriesName': return 'seriesNameMarginTop'
   }
 }
 
@@ -160,4 +158,16 @@ export function marginTopField(key: TextBlockKey): keyof SlideData {
 export function effectiveMarginTop(data: SlideData, key: TextBlockKey): number {
   const override = data[marginTopField(key)] as number | undefined
   return override !== undefined ? override : computeAutoMarginTop(data, key)
+}
+
+// Series Name's own margin-top -- NOT a TextBlockKey (it's pinned to its
+// own fixed footer slot, directly above Listening Credit, entirely outside
+// blockOrder), so it doesn't go through marginTopField/effectiveMarginTop
+// above. Same auto-until-touched/manual-override pattern as every other
+// field though: undefined falls back to the same uniform stackGap every
+// other block-to-block transition uses, just not evaluated relative to a
+// blockOrder position (Series Name has none) -- it's the gap above its own
+// fixed anchor point instead.
+export function effectiveSeriesNameMarginTop(data: SlideData): number {
+  return data.seriesNameMarginTop ?? computeStackGap(data)
 }

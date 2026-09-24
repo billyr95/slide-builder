@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react'
 import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount, TextBlockKey } from '@/lib/types'
 import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
-import { visibleBlockOrder, effectiveMarginTop } from '@/lib/textStackGap'
+import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -209,25 +209,33 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               {data.programTitle}
             </div>
           ) : null
-
-        case 'seriesName':
-          return (data.showSeriesName && data.seriesName) ? (
-            <div key="seriesName" style={{
-              fontSize: `${38 * scale}px`,
-              lineHeight: DEFAULT_STACK_LINE_HEIGHT,
-              fontFamily: THEINHARDT,
-              fontWeight: theinhardtWeight('heavy'),
-              color: data.seriesNameColor ?? data.textColor,
-              letterSpacing: '0.05em',
-              textTransform: 'uppercase',
-              ...trimEdges,
-              ...marginBefore('seriesName'),
-            }}>
-              {data.seriesName}
-            </div>
-          ) : null
       }
     }
+
+    // Series Name is pinned to its own fixed footer slot -- always directly
+    // above Listening Credit, regardless of blockOrder or whether Listening
+    // Credit itself is present (see hasFooter/hasSeriesName below). Its
+    // marginTop is its own gap-above-itself control (effectiveSeriesName
+    // MarginTop), not blockOrder-relative like the reorderable stack's --
+    // since this div is the footer's first child, that marginTop only adds
+    // space ABOVE it (between the main content and its own text); Listening
+    // Credit's position stays pinned to the footer's fixed bottom offset
+    // either way, completely unaffected by this value.
+    const seriesNameNode = (data.showSeriesName && data.seriesName) ? (
+      <div style={{
+        fontSize: `${38 * scale}px`,
+        lineHeight: DEFAULT_STACK_LINE_HEIGHT,
+        fontFamily: THEINHARDT,
+        fontWeight: theinhardtWeight('heavy'),
+        color: data.seriesNameColor ?? data.textColor,
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
+        ...trimEdges,
+        marginTop: `${effectiveSeriesNameMarginTop(data) * scale}px`,
+      }}>
+        {data.seriesName}
+      </div>
+    ) : null
 
     const placeholderBox = (w: number, h: number) => (
       <div style={{
@@ -301,11 +309,17 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       return { images, widths, heights, lefts, tops, groupW, groupH }
     }
 
-    // Series Name moved into the reorderable text stack (renderBlock's
-    // 'seriesName' case) -- the fixed absolutely-positioned footer now only
-    // ever holds Listening Credit.
-    const hasFooter = data.showListeningCredit
-    const footerH = hasFooter ? 80 : 0
+    // The fixed absolutely-positioned footer holds Series Name (see
+    // seriesNameNode above) directly above Listening Credit -- present
+    // independently of each other, so hasFooter/footerH account for either
+    // or both. footerH is a rough reserved-space estimate (for the main
+    // content column's bottom padding, not the footer's own layout, which
+    // sizes itself); it grows when both are present since Series Name adds
+    // a genuine extra line above Listening Credit's fixed position.
+    const hasSeriesName = data.showSeriesName && !!data.seriesName
+    const hasListeningCredit = data.showListeningCredit && !!data.listeningCredit
+    const hasFooter = hasSeriesName || hasListeningCredit
+    const footerH = hasFooter ? (hasSeriesName && hasListeningCredit ? 120 : 80) : 0
 
     if (data.imageMode === 'none') {
       const maxTextW = dim.w * (orientation === 'landscape' ? 0.7 : 0.8)
@@ -349,9 +363,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )}
           </div>
 
-          {/* Fixed footer -- Listening Credit only now; Series Name moved
-              into the reorderable text stack above (see renderBlock's
-              'seriesName' case). */}
+          {/* Fixed footer -- Series Name (its own pinned slot, see
+              seriesNameNode above) directly above Listening Credit. */}
           {hasFooter && (
             <div style={{
               position: 'absolute',
@@ -364,6 +377,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               gap: `${6 * scale}px`,
               textAlign: 'center',
             }}>
+              {seriesNameNode}
               {data.showListeningCredit && data.listeningCredit && (
                 <div style={{
                   fontSize: `${23 * scale}px`,
@@ -490,8 +504,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               </div>
             )}
 
-            {/* Fixed footer -- Listening Credit only now; see the 'none'
-                branch's identical comment above. */}
+            {/* Fixed footer -- see the 'none' branch's identical comment
+                above. */}
             {hasFooter && (
               <div style={{
                 position: 'absolute',
@@ -502,6 +516,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 flexDirection: 'column',
                 gap: `${6 * scale}px`,
               }}>
+                {seriesNameNode}
                 {data.showListeningCredit && data.listeningCredit && (
                   <div style={{
                     fontSize: `${23 * scale}px`,
@@ -639,8 +654,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           <>{portraitImageSection}{portraitTextSection}</>
         )}
 
-        {/* Fixed footer -- Listening Credit only now; see the 'none'
-            branch's identical comment above. */}
+        {/* Fixed footer -- see the 'none' branch's identical comment
+            above. */}
         {hasFooter && (
           <div style={{
             position: 'absolute',
@@ -651,6 +666,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             flexDirection: 'column',
             gap: `${6 * scale}px`,
           }}>
+            {seriesNameNode}
             {data.showListeningCredit && data.listeningCredit && (
               <div style={{
                 fontSize: `${23 * scale}px`,

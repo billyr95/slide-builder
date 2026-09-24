@@ -79,7 +79,7 @@ describe('EditorPanel "Margin top" controls', () => {
   it('the automatic value shown follows blockOrder -- Program Title moved right after Title shows Title\'s own auto gap', () => {
     const overrides: Partial<SlideData> = {
       label: 'TONIGHT', title: 'A Talk', presenters: 'Jane Doe', programTitle: 'Some Work',
-      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2', 'seriesName'],
+      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2'],
     }
     const { data } = renderPanel(overrides)
     const autoProgramTitleGap = effectiveMarginTop(data, 'programTitle')

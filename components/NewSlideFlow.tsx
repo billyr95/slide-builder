@@ -12,6 +12,11 @@ import { ScreenType } from '@/lib/trainTypes'
 interface NewSlideFlowProps {
   initialScreenType: ScreenType
   onClose: () => void
+  // Which folder the new slide is created inside -- passed by the
+  // Dashboard as whatever folder is currently open. Omitted (the editor's
+  // own "+ New" button, which has no folder-browsing context) falls back
+  // server-side to the root "All Slides" folder.
+  folderId?: string
 }
 
 // Two steps, shared by the Dashboard's "+ New" and the editor's own: (1) the
@@ -19,7 +24,7 @@ interface NewSlideFlowProps {
 // row is created until a real name is given, so autosave never has
 // anything meaningless to attach to. Ends by navigating into the new
 // slide's real editor URL.
-export default function NewSlideFlow({ initialScreenType, onClose }: NewSlideFlowProps) {
+export default function NewSlideFlow({ initialScreenType, onClose, folderId }: NewSlideFlowProps) {
   const router = useRouter()
   const [step, setStep] = useState<'content' | 'name'>('content')
   const [pendingData, setPendingData] = useState<SlideData | null>(null)
@@ -44,7 +49,7 @@ export default function NewSlideFlow({ initialScreenType, onClose }: NewSlideFlo
       const res = await fetch('/api/slides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: name, data: pendingData }),
+        body: JSON.stringify({ title: name, data: pendingData, folderId }),
       })
       if (!res.ok) throw new Error(`Create failed (${res.status})`)
       const created = await res.json()

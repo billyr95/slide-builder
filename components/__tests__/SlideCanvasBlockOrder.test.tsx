@@ -35,7 +35,7 @@ describe('SlideCanvas blockOrder rendering', () => {
     const data: SlideData = {
       ...DEFAULT_SLIDE_DATA,
       label: 'TONIGHT', title: 'A Talk', presenters: 'Jane Doe', programTitle: 'Some Work',
-      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2', 'seriesName'],
+      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2'],
     }
     render(<SlideCanvas data={data} orientation="landscape" />)
 
@@ -48,7 +48,7 @@ describe('SlideCanvas blockOrder rendering', () => {
     const data: SlideData = {
       ...DEFAULT_SLIDE_DATA,
       label: '', title: 'A Talk', subtitle: '', subtitle2: '', presenters: 'Jane Doe', programTitle: 'Some Work',
-      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2', 'seriesName'],
+      blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2'],
     }
     const { container } = render(<SlideCanvas data={data} orientation="landscape" />)
     const text = container.textContent || ''

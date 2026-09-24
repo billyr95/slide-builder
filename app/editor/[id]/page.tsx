@@ -21,7 +21,12 @@ const PREVIEW_SCALES = {
   portrait: 0.28,
 }
 
-type SaveStatus = 'loading' | 'idle' | 'saving' | 'saved' | 'error' | 'forbidden' | 'not-found'
+type SaveStatus = 'loading' | 'idle' | 'saving' | 'saved' | 'error' | 'not-found'
+
+interface OtherEditor {
+  email: string
+  since: string
+}
 
 export default function EditorPage() {
   const params = useParams<{ id: string }>()
@@ -36,6 +41,8 @@ export default function EditorPage() {
   const [exporting, setExporting] = useState<Orientation | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [showNewFlow, setShowNewFlow] = useState(false)
+  const [ownerEmail, setOwnerEmail] = useState<string | null>(null)
+  const [otherEditor, setOtherEditor] = useState<OtherEditor | null>(null)
 
   const [screenType, setScreenType] = useState<ScreenType>('projector')
   const [loggingEnabled, setLoggingEnabled] = useState(true)
@@ -99,6 +106,21 @@ export default function EditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slideId])
 
+  // Pings the "someone has this open" heartbeat -- called once right after
+  // the slide finishes loading, then again every autosave tick. Distinct
+  // from the plain GET-slide fetch above (which SlideCard's thumbnail
+  // preview also uses and must NOT register as "now editing this").
+  const pingHeartbeat = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/slides/${slideId}/heartbeat`, { method: 'POST' })
+      if (!res.ok) return
+      const { otherEditor } = await res.json()
+      setOtherEditor(otherEditor ?? null)
+    } catch (e) {
+      console.warn('Failed to refresh active-editor heartbeat', e)
+    }
+  }, [slideId])
+
   // Initial load.
   useEffect(() => {
     let cancelled = false
@@ -106,19 +128,20 @@ export default function EditorPage() {
     fetch(`/api/slides/${slideId}`)
       .then(async res => {
         if (cancelled) return
-        if (res.status === 403) { setStatus('forbidden'); return }
         if (res.status === 404) { setStatus('not-found'); return }
         if (!res.ok) throw new Error(`Load failed (${res.status})`)
         const slide = await res.json()
         resetData(slide.data)
         setTitle(slide.title)
         setOrientation(slide.orientation)
+        setOwnerEmail(slide.ownerEmail ?? null)
         savedTitleRef.current = slide.title
         savedDataRef.current = slide.data
         savedOrientationRef.current = slide.orientation
         setLastSavedAt(new Date(slide.updatedAt))
         setSlideRevision(r => r + 1)
         setStatus('saved')
+        pingHeartbeat()
       })
       .catch(e => {
         console.error(e)
@@ -129,14 +152,17 @@ export default function EditorPage() {
   }, [slideId])
 
   // Periodic autosave -- fixed 60s cadence (not recreated on every edit),
-  // only actually saves if something changed since the last save.
+  // only actually saves if something changed since the last save. The
+  // active-editor heartbeat piggybacks on this same tick, unconditionally
+  // (unlike the save, it must refresh even when nothing's dirty).
   useEffect(() => {
     const interval = setInterval(() => {
       if (isDirty()) saveNow()
+      pingHeartbeat()
     }, AUTOSAVE_INTERVAL_MS)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saveNow])
+  }, [saveNow, pingHeartbeat])
 
   // Save on page unload if there's unsaved work (best-effort; browsers give
   // very little time here, so this is a courtesy, not a guarantee).
@@ -229,14 +255,6 @@ export default function EditorPage() {
   if (status === 'loading') {
     return <div className="h-screen flex items-center justify-center bg-zinc-950 text-zinc-500 text-sm">Loading…</div>
   }
-  if (status === 'forbidden') {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-zinc-950 text-white gap-3">
-        <p className="text-sm text-zinc-400">You don't have access to this slide.</p>
-        <Link href="/" className="text-sm text-white underline">Back to dashboard</Link>
-      </div>
-    )
-  }
   if (status === 'not-found') {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-zinc-950 text-white gap-3">
@@ -290,6 +308,11 @@ export default function EditorPage() {
               className="bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-400 px-1 py-1 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
               placeholder="Untitled"
             />
+            {ownerEmail && (
+              <span className="text-xs text-zinc-600 flex-shrink-0" title="Slides are shared -- everyone can view and edit this">
+                by {ownerEmail}
+              </span>
+            )}
           </div>
 
           <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg flex-shrink-0">
@@ -405,6 +428,15 @@ export default function EditorPage() {
           </button>
         </div>
       </header>
+
+      {/* Advisory-only collision warning -- both users can still edit and
+          save; this just makes the risk visible instead of resolving it. */}
+      {otherEditor && (
+        <div className="flex items-center gap-2 px-5 py-2 bg-amber-950/60 border-b border-amber-900 text-amber-300 text-xs flex-shrink-0">
+          <span>⚠</span>
+          <span><strong className="font-semibold">{otherEditor.email}</strong> is currently editing this slide — changes may conflict.</span>
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0">
 

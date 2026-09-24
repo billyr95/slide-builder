@@ -103,7 +103,7 @@ describe('SlideCanvas: Margin Top controls the gap above a block, and ONLY that'
 
   it('margin-top follows a field when blockOrder is reordered (evaluated from CURRENT position, not a hardcoded pair)', () => {
     // Program Title moved to directly follow Title, before Presenters.
-    const reordered = baseData({ blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2', 'seriesName'] })
+    const reordered = baseData({ blockOrder: ['label', 'title', 'programTitle', 'presenters', 'subtitle', 'subtitle2'] })
     render(<SlideCanvas data={reordered} orientation="landscape" />)
     // Program Title (now right after Title) and Presenters (now right
     // after Program Title) both get the same uniform automatic gap --

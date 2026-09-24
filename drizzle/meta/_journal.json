@@ -50,6 +50,20 @@
       "when": 1790116846155,
       "tag": "0006_milky_gertrude_yorkes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790250694501,
+      "tag": "0007_easy_titania",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790251325468,
+      "tag": "0008_thin_gateway",
+      "breakpoints": true
     }
   ]
 }

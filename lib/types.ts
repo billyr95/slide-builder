@@ -63,11 +63,13 @@ export function staggerCount(mode: ImageMode): number {
 
 // Every text block SlideCanvas can render in the main vertical stack, in
 // the user-controllable order EditorPanel's drag list edits (see
-// SlideData.blockOrder below). Series Name is included here (rather than
-// only ever pinned to the fixed footer) because it's explicitly one of the
-// blocks this ordering feature covers; Listening Credit stays footer-only
-// (a fixed legal/ADA notice, not part of the content stack).
-export const TEXT_BLOCK_KEYS = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle', 'seriesName'] as const
+// SlideData.blockOrder below). Series Name and Listening Credit are BOTH
+// excluded -- they're pinned to their own fixed footer slots (Series Name
+// directly above Listening Credit), never reorderable and never affected
+// by where the other blocks sit in blockOrder. See seriesNameMarginTop's
+// own comment below for how Series Name's gap control works now that it's
+// outside this system.
+export const TEXT_BLOCK_KEYS = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle'] as const
 export type TextBlockKey = typeof TEXT_BLOCK_KEYS[number]
 
 // Optional per-field MARGIN-TOP overrides -- the gap ABOVE that field,
@@ -189,17 +191,26 @@ export interface SlideData {
   logos: LogoItem[]
   logoSize: number
 
-  // Footer
+  // Footer -- Series Name and Listening Credit both live in their own
+  // fixed slot here, never in blockOrder: Series Name always renders
+  // directly above Listening Credit (whether or not Listening Credit is
+  // actually present on a given slide -- that's a structural position, not
+  // a dependency on Listening Credit existing).
   showSeriesName: boolean
   seriesName: string
   seriesNameColor?: string
+  // The gap ABOVE Series Name, i.e. how far above its fixed anchor point
+  // (directly above Listening Credit) its own text sits. Same auto-until-
+  // touched/manual-override pattern as every other field's margin-top
+  // control (lib/textStackGap.ts's effectiveSeriesNameMarginTop), just not
+  // blockOrder-relative like the reorderable stack's, since Series Name no
+  // longer participates in blockOrder at all.
   seriesNameMarginTop?: number
   showListeningCredit: boolean
   listeningCredit: string
   listeningCreditColor?: string
-  // Series Name is part of the reorderable stack (see seriesNameMarginTop
-  // above) and Listening Credit isn't -- see this interface's own top
-  // comment for why Listening Credit keeps a genuinely separate
-  // internal-line-height control instead of a margin-top one.
+  // Listening Credit keeps a genuinely separate internal-line-height
+  // control (rather than a margin-top one) for its own, often long,
+  // multi-line paragraph -- see this interface's own top comment.
   listeningCreditLineHeight?: number
 }
