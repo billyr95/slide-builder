@@ -288,7 +288,9 @@ export default function EditorPage() {
           </Link>
         </div>
 
-        {/* Center: Slide name input + status dot + orientation toggle */}
+        {/* Center: Slide name input + status dot. Orientation now lives only
+            in the Background section of the editor panel (this top bar used
+            to duplicate that toggle). */}
         <div className="flex items-center gap-4 flex-1 justify-center">
           <div className="flex items-center gap-2 max-w-xs">
             <span
@@ -313,20 +315,6 @@ export default function EditorPage() {
                 by {ownerEmail}
               </span>
             )}
-          </div>
-
-          <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg flex-shrink-0">
-            {(['landscape', 'portrait'] as Orientation[]).map(o => (
-              <button
-                key={o}
-                onClick={() => setOrientation(o)}
-                className={`text-xs px-4 py-1.5 rounded-md transition-colors font-medium ${
-                  orientation === o ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                {o === 'landscape' ? '⬛ 16:9' : '▬ 9:16'}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -364,67 +352,32 @@ export default function EditorPage() {
             <span>⤓</span> Save
           </button>
 
-          {/* Training-data logging -- lives right next to Export since
-              that's the action it actually hooks into. */}
-          <div className="flex items-center gap-1 mr-1">
-            <button
-              onClick={() => setLoggingEnabled(v => !v)}
-              title={loggingEnabled
-                ? 'Exports are logged as training data (click to turn off for a one-off export)'
-                : 'Exports are NOT logged as training data (click to turn back on)'}
-              className={`text-xs px-2 py-1.5 rounded-lg transition-colors flex items-center gap-1 ${
-                loggingEnabled ? 'bg-emerald-950 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
-              }`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${loggingEnabled ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
-              Log
-            </button>
-            {loggingEnabled && (
-              <div className="flex gap-0.5 bg-zinc-800 p-0.5 rounded-lg">
-                {(['projector', 'lobby'] as ScreenType[]).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setScreenType(t)}
-                    title={`Log future exports as "${t}" screen type`}
-                    className={`text-[11px] px-2 py-1 rounded-md transition-colors font-medium ${
-                      screenType === t ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    {t === 'projector' ? 'Proj' : 'Lobby'}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Training-data logging -- Proj/Lobby screen-type now lives in
+              the editor panel's Background section (still needed data for
+              every slide, just not cluttering this bar); Log itself stays
+              here since it's the export-time toggle. */}
+          <button
+            onClick={() => setLoggingEnabled(v => !v)}
+            title={loggingEnabled
+              ? 'Exports are logged as training data (click to turn off for a one-off export)'
+              : 'Exports are NOT logged as training data (click to turn back on)'}
+            className={`text-xs px-2 py-1.5 rounded-lg transition-colors flex items-center gap-1 mr-1 ${
+              loggingEnabled ? 'bg-emerald-950 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${loggingEnabled ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+            Log
+          </button>
 
-          <button
-            onClick={() => handleExport('landscape')}
-            disabled={!!exporting}
-            className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5"
-          >
-            {exporting === 'landscape' ? (
-              <><span className="animate-spin inline-block">⟳</span> Exporting…</>
-            ) : (
-              '↓ 1920×1080'
-            )}
-          </button>
-          <button
-            onClick={() => handleExport('portrait')}
-            disabled={!!exporting}
-            className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5"
-          >
-            {exporting === 'portrait' ? (
-              <><span className="animate-spin inline-block">⟳</span> Exporting…</>
-            ) : (
-              '↓ 1080×1920'
-            )}
-          </button>
+          {/* Single Export button -- exports at whatever dimensions match
+              the current orientation (set in the Background section), no
+              separate per-dimension buttons. */}
           <button
             onClick={() => handleExport(orientation)}
             disabled={!!exporting}
             className="text-sm bg-white hover:bg-zinc-200 text-black font-medium px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
           >
-            {exporting === orientation ? 'Exporting…' : `Export ${orientation === 'landscape' ? '16:9' : '9:16'}`}
+            {exporting === orientation ? 'Exporting…' : 'Export'}
           </button>
         </div>
       </header>
@@ -479,18 +432,22 @@ export default function EditorPage() {
         </main>
 
         {/* Icon rail -- picks which editor tab shows in the panel right
-            next to it, rather than sitting at the far edge of the app. */}
-        <nav className="w-14 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 flex flex-col items-center gap-1 py-4 overflow-y-auto custom-scrollbar">
+            next to it, rather than sitting at the far edge of the app. Each
+            button carries its own short text label under the icon (see
+            SECTION_META's `label`) so the rail reads as more than just
+            icons; `title` still gives the full name as a hover tooltip. */}
+        <nav className="w-16 flex-shrink-0 border-l border-zinc-800 bg-zinc-950 flex flex-col items-center gap-1 py-4 overflow-y-auto custom-scrollbar">
           {SECTION_ORDER.map(id => (
             <button
               key={id}
               onClick={() => setActiveSection(id)}
               title={SECTION_META[id].title}
-              className={`w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-lg transition-colors ${
+              className={`w-14 flex-shrink-0 flex flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-colors ${
                 activeSection === id ? 'bg-white text-black' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'
               }`}
             >
               {SECTION_META[id].glyph}
+              <span className="text-[9px] leading-none font-medium">{SECTION_META[id].label}</span>
             </button>
           ))}
         </nav>
@@ -501,6 +458,7 @@ export default function EditorPage() {
             data={data}
             onChange={setData}
             screenType={screenType}
+            onScreenTypeChange={setScreenType}
             slideRevision={slideRevision}
             orientation={orientation}
             onOrientationChange={setOrientation}

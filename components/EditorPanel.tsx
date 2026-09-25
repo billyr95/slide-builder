@@ -36,11 +36,12 @@ const CropModal = dynamic(() => import('./CropModal'), { ssr: false })
 interface EditorPanelProps {
   data: SlideData
   onChange: (data: SlideData) => void
-  // Read-only here -- used only to parameterize the heuristic auto-fill
-  // calls below. The control for setting it lives near the Export buttons
-  // in page.tsx now, since that's what it actually affects (training-data
-  // logging on export), not anything in this panel.
+  // Also parameterizes the heuristic auto-fill calls below. The control for
+  // setting it lives in this panel's Background section (moved out of the
+  // top bar to declutter it) -- still slide-level metadata needed for every
+  // slide regardless of whether live training-logging happens to be on.
   screenType: ScreenType
+  onScreenTypeChange: (t: ScreenType) => void
   // Bumped by the parent whenever a genuinely new slide/template is loaded
   // (not on ordinary field edits) — resets the heuristic "manually
   // overridden" flags below so a fresh slide gets auto-suggestions again.
@@ -112,12 +113,15 @@ function AccessibilityGlyph() {
   )
 }
 
-export const SECTION_META: Record<SectionId, { title: string; glyph: React.ReactNode }> = {
-  background: { title: 'Background', glyph: <BackgroundGlyph /> },
-  text: { title: 'Text', glyph: <TextGlyph className="text-[13px]">T</TextGlyph> },
-  image: { title: 'Image', glyph: <ImageGlyph /> },
-  layout: { title: 'Layout & Preview', glyph: <GridGlyph /> },
-  accessibility: { title: 'Accessibility', glyph: <AccessibilityGlyph /> },
+// `title` is the full name (used for the rail button's hover tooltip);
+// `label` is the short form that actually fits printed under the icon in
+// the rail itself without wrapping or widening it.
+export const SECTION_META: Record<SectionId, { title: string; label: string; glyph: React.ReactNode }> = {
+  background: { title: 'Background', label: 'Background', glyph: <BackgroundGlyph /> },
+  text: { title: 'Text', label: 'Text', glyph: <TextGlyph className="text-[13px]">T</TextGlyph> },
+  image: { title: 'Image', label: 'Image', glyph: <ImageGlyph /> },
+  layout: { title: 'Layout & Preview', label: 'Layout', glyph: <GridGlyph /> },
+  accessibility: { title: 'Accessibility', label: 'Access', glyph: <AccessibilityGlyph /> },
 }
 
 // One rail icon per input TYPE, not per field -- every typed field (Label,
@@ -563,7 +567,7 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
 }
 
 export default function EditorPanel({
-  data, onChange, screenType, slideRevision, orientation, onOrientationChange,
+  data, onChange, screenType, onScreenTypeChange, slideRevision, orientation, onOrientationChange,
   activeSection,
 }: EditorPanelProps) {
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -874,6 +878,22 @@ export default function EditorPanel({
                       }`}
                     >
                       {o === 'landscape' ? '16:9' : '9:16'}
+                    </button>
+                  ))}
+                </div>
+              </FieldCard>
+              <FieldCard>
+                <p className="text-xs text-zinc-500 mb-2">Screen type</p>
+                <p className="text-xs text-zinc-600 mb-2">Which kind of screen this slide is meant for -- recorded as training-data ground truth on export.</p>
+                <div className="flex gap-1 bg-zinc-800 p-1 rounded-lg">
+                  {(['projector', 'lobby'] as ScreenType[]).map(t => (
+                    <button key={t}
+                      onClick={() => onScreenTypeChange(t)}
+                      className={`flex-1 text-xs px-3 py-1.5 rounded-md transition-colors font-medium ${
+                        screenType === t ? 'bg-white text-black' : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {t === 'projector' ? 'Projector' : 'Lobby'}
                     </button>
                   ))}
                 </div>

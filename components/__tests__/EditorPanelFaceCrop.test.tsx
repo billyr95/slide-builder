@@ -42,7 +42,7 @@ function renderPanel(overrides: Partial<SlideData> = {}) {
   // lives in page.tsx, outside this component) -- render straight onto the
   // Image tab rather than clicking a rail button that isn't part of this
   // component anymore.
-  const utils = render(<EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} activeSection="image" onActiveSectionChange={vi.fn()} />)
+  const utils = render(<EditorPanel data={data} onChange={onChange} screenType="projector" onScreenTypeChange={vi.fn()} slideRevision={0} orientation="landscape" onOrientationChange={vi.fn()} activeSection="image" onActiveSectionChange={vi.fn()} />)
   return { onChange, ...utils }
 }
 

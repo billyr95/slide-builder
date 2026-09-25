@@ -498,7 +498,18 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 flexShrink: 0,
               }}>
                 {data.imageUrl
-                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${(data.imageSize || 100)}%`, maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }} />
+                  // No maxWidth/maxHeight cap here -- imageSize is allowed up
+                  // to 200%, and a percentage max-width/height would clamp
+                  // it right back down to the column's own box (bleeding
+                  // past the column is the intended effect of sizing above
+                  // 100%; the slide's own outer overflow:hidden still crops
+                  // it at the slide edge). flexShrink:0 is just as necessary
+                  // -- the column is a (default row-direction) flex
+                  // container, so without it the browser's own default
+                  // flex-shrink:1 silently squeezes the img back down to fit
+                  // the column's fixed 40% width, which is what was actually
+                  // capping growth past 100% even after the max-width fix.
+                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${(data.imageSize || 100)}%`, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
                   : placeholderBox(400 * scale, 400 * scale)
                 }
               </div>
@@ -610,7 +621,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             alignSelf: 'center',
           }}>
             {data.imageUrl
-              ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${(data.imageSize || 100)}%`, maxWidth: '100%', maxHeight: `${dim.h * 0.5 * scale}px`, objectFit: 'contain', display: 'block' }} />
+              // No maxWidth here, same reasoning as the landscape branch --
+              // maxHeight stays (a deliberate half-slide-height cap, not a
+              // container-relative percentage, so it doesn't fight imageSize
+              // the same way). flexShrink:0 for the same reason as landscape
+              // -- this container is a flex row too, so the browser's own
+              // default flex-shrink:1 would otherwise squeeze the img back
+              // down to fit the column's 66% width regardless of imageSize.
+              ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${(data.imageSize || 100)}%`, maxHeight: `${dim.h * 0.5 * scale}px`, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
               : placeholderBox(400 * scale, 400 * scale)
             }
           </div>

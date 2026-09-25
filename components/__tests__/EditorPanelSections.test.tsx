@@ -17,7 +17,7 @@ function renderPanel(activeSection: SectionId, overrides: Partial<SlideData> = {
   const data: SlideData = { ...DEFAULT_SLIDE_DATA, ...overrides }
   const onChange = vi.fn()
   const utils = render(
-    <EditorPanel data={data} onChange={onChange} screenType="projector" slideRevision={0}
+    <EditorPanel data={data} onChange={onChange} screenType="projector" onScreenTypeChange={vi.fn()} slideRevision={0}
       orientation="landscape" onOrientationChange={vi.fn()}
       activeSection={activeSection} onActiveSectionChange={vi.fn()} />
   )
