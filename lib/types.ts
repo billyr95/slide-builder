@@ -201,7 +201,21 @@ export interface SlideData {
   imageMode: ImageMode
   imageUrl: string       // single-image mode only
   imageAlt: string
+  // Single-image mode's size, in the unit imageSizeIsPixels says it's in --
+  // see lib/imageSizing.ts's effectiveImageSizePx, the single place that
+  // interprets this correctly for either vintage. Never read this directly
+  // for rendering/display; always go through that function.
   imageSize: number
+  // true once this slide has been through the percentage->pixel conversion
+  // (every slide created after that change, or an older one where the user
+  // has since touched the Image size slider). Undefined/false means
+  // `imageSize` is still a LEGACY percentage-of-its-column value (the
+  // control's original, confusingly-mislabeled-as-"px" unit) that needs
+  // converting against the actual canvas width before use -- never mutated
+  // outside of actually setting a new imageSize, so a slide's raw stored
+  // value only ever changes meaning when someone deliberately touches the
+  // control.
+  imageSizeIsPixels?: boolean
   // Single-image-mode counterpart of StaggerImage's face-crop fields --
   // see the comment there.
   imageFaceCropSuggested?: FaceCropBox

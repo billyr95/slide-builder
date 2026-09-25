@@ -2,6 +2,7 @@ import { SlideData, Orientation } from './types'
 import { TrainEntry, TrainImage, ScreenType } from './trainTypes'
 import { getImageDimensions, resizeImageDataUrl } from './resizeImage'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from './slideHeuristics'
+import { effectiveImageSizePx } from './imageSizing'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
@@ -42,11 +43,10 @@ function firstImageWidthRatio(data: SlideData, orientation: Orientation): number
 
   if (data.imageMode === 'single') {
     if (!data.imageUrl) return undefined
-    // imageSize is a %-of-container width control, not a %-of-full-slide
-    // one (the container itself is 40-66% of the slide depending on layout
-    // variant) -- treated as an approximate stand-in for width_ratio, same
-    // simplification used by the manual-upload heuristic auto-fill.
-    return Math.max(0, Math.min(1, (data.imageSize ?? 100) / 100))
+    // imageSize is a genuine absolute pixel width now (see
+    // lib/imageSizing.ts) -- this is an exact ratio, not the approximation
+    // it used to be back when imageSize was a %-of-container value.
+    return Math.max(0, Math.min(1, effectiveImageSizePx(data, orientation) / dims.w))
   }
 
   if (data.imageMode === 'none') return undefined
@@ -219,7 +219,11 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       programTitleSize: data.programTitleSize,
 
       imageMode: data.imageMode,
-      imageSize: data.imageSize,
+      // The effective (converted, if this slide predates the pixel-based
+      // control) pixel width -- never the possibly-legacy raw stored value,
+      // consistent with how stagger mode's own pixel-based `scale` is
+      // already captured here.
+      imageSize: data.imageMode === 'single' ? effectiveImageSizePx(data, orientation) : undefined,
       imageOverlap: data.imageOverlap,
       staggerSize: data.staggerSize,
 

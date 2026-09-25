@@ -116,8 +116,9 @@ export interface TrainEntry {
   subtitleFontSizeWasOverridden?: boolean
 
   // Approximate image_1 position, derived from the editor's actual size
-  // controls (imageSize % for single mode, scale px for stagger mode) and,
-  // for height, the image's own natural aspect ratio. Sent to the model as
+  // controls (imageSize px for single mode, scale px for stagger mode --
+  // both genuine pixel widths now) and, for height, the image's own
+  // natural aspect ratio. Sent to the model as
   // labeled ground-truth facts (trainExport.ts's buildConfirmPrompt), using
   // the same width_ratio/height_ratio names 'upload' entries get back from
   // the model's own estimate, so both sources are directly comparable.

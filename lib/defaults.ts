@@ -1,4 +1,5 @@
 import { SlideData, TextBlockKey } from './types'
+import { DEFAULT_IMAGE_SIZE_PX } from './imageSizing'
 
 // Text defaults to black on every field (per-field colors below) since the
 // slide background now defaults to periwinkle (from lib/palette.ts's fixed
@@ -69,7 +70,8 @@ export const DEFAULT_SLIDE_DATA: SlideData = {
   imageMode: 'single' as const,
   imageUrl: '',
   imageAlt: '',
-  imageSize: 100,
+  imageSize: DEFAULT_IMAGE_SIZE_PX,
+  imageSizeIsPixels: true,
   staggerImages: [],
   imageOverlap: 30,
   staggerSize: 250,

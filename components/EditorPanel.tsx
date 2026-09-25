@@ -10,6 +10,7 @@ import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } f
 import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
 import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
+import { effectiveImageSizePx, CANVAS_WIDTH, MIN_IMAGE_SIZE_PX, MAX_IMAGE_SIZE_PX } from '@/lib/imageSizing'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -793,7 +794,11 @@ export default function EditorPanel({
         imageFaceCropWasOverridden: false,
       }
       if (!imageSizeOverridden[-1]) {
-        patch.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
+        // suggestion.width is a ratio of the FULL slide width already, so
+        // this is a direct pixel conversion, not the old percent-of-column
+        // approximation.
+        patch.imageSize = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH[orientation])))
+        patch.imageSizeIsPixels = true
       }
       onChange({ ...data, ...patch })
     }
@@ -837,7 +842,8 @@ export default function EditorPanel({
       const patch: Partial<SlideData> = { imageUrl: croppedUrl, imageFaceCropFinal: cropBox }
       if (data.imageFaceCropSuggested) patch.imageFaceCropWasOverridden = true
       if (!imageSizeOverridden[-1]) {
-        patch.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
+        patch.imageSize = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH[orientation])))
+        patch.imageSizeIsPixels = true
       }
       onChange({ ...data, ...patch })
     }
@@ -1182,9 +1188,12 @@ export default function EditorPanel({
                   )}
                   {data.imageUrl && (
                     <div className="mt-2">
-                      <FontSizeSlider label="Image size" value={data.imageSize ?? 100}
-                        onChange={v => { setImageSizeOverridden(prev => ({ ...prev, [-1]: true })); set('imageSize', v) }}
-                        min={20} max={200} unit="%" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
+                      <FontSizeSlider label="Image size" value={effectiveImageSizePx(data, orientation)}
+                        onChange={v => {
+                          setImageSizeOverridden(prev => ({ ...prev, [-1]: true }))
+                          onChange({ ...data, imageSize: v, imageSizeIsPixels: true })
+                        }}
+                        min={MIN_IMAGE_SIZE_PX} max={MAX_IMAGE_SIZE_PX} unit="px" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
                     </div>
                   )}
                 </FieldCard>

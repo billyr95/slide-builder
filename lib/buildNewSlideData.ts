@@ -3,6 +3,7 @@ import { DEFAULT_SLIDE_DATA } from './defaults'
 import { ScreenType } from './trainTypes'
 import { BuildResult } from '@/components/NewSlideModal'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from './slideHeuristics'
+import { CANVAS_WIDTH, MIN_IMAGE_SIZE_PX, MAX_IMAGE_SIZE_PX } from './imageSizing'
 
 // Shared by the Dashboard and the editor's own "+ New" button -- both open
 // the same NewSlideModal and need the exact same content-to-SlideData
@@ -52,7 +53,12 @@ export function buildNewSlideData({ screenType, fields, images }: BuildResult): 
       const suggestion = suggestImagePosition('other', screenType)
       newData.imageUrl = images[0].url
       newData.imageAlt = images[0].name
-      newData.imageSize = Math.max(20, Math.min(200, Math.round(suggestion.width * 100)))
+      // suggestion.width is a ratio of the full slide width -- a direct
+      // pixel conversion. New slides are always created as landscape (see
+      // app/api/slides/route.ts's POST default), hence the fixed
+      // landscape canvas width here rather than a passed-in orientation.
+      newData.imageSize = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH.landscape)))
+      newData.imageSizeIsPixels = true
     } else {
       // No auto-sizing for stagger images (scale: 0 -> falls back to the
       // shared staggerSize default): the stagger layout's spacing in
