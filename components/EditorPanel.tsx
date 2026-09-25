@@ -9,6 +9,7 @@ import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
 import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
 import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
+import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -328,6 +329,16 @@ function MarginTopSlider({ label, value, onChange, badge }: {
   label: string; value: number; onChange: (v: number) => void; badge?: 'auto' | 'manual'
 }) {
   return <FontSizeSlider label={label} value={value} onChange={onChange} min={0} max={120} unit="px" badge={badge} numberInput />
+}
+
+// Shared by the Layout tab's "Image ↔ Text gap" and "Outer margin" controls
+// -- same slider+number-input+arrow-key pattern as font size/margin-top,
+// just a wider range (these span whole layout regions, not a single text
+// block's own spacing).
+function SpacingSlider({ label, value, onChange, badge }: {
+  label: string; value: number; onChange: (v: number) => void; badge?: 'auto' | 'manual'
+}) {
+  return <FontSizeSlider label={label} value={value} onChange={onChange} min={0} max={300} unit="px" badge={badge} numberInput />
 }
 
 // Listening Credit's own internal line-height (the gap between ITS OWN
@@ -1297,6 +1308,29 @@ export default function EditorPanel({
                     ? `Flip (image ${data.imageSide === 'right' ? 'bottom' : 'top'})`
                     : `Flip (image ${data.imageSide === 'right' ? 'right' : 'left'})`}
                 </button>
+              </FieldCard>
+
+              {data.imageMode !== 'none' && (
+                <FieldCard>
+                  <label className={labelCls}>Image ↔ Text gap</label>
+                  {orientation === 'landscape' ? (
+                    <SpacingSlider label="Gap" value={effectiveImageTextGapLandscape(data)}
+                      onChange={v => set('imageTextGapLandscape', v)}
+                      badge={data.imageTextGapLandscape !== undefined ? 'manual' : 'auto'} />
+                  ) : (
+                    <SpacingSlider label="Gap" value={effectiveImageTextGapPortrait(data)}
+                      onChange={v => set('imageTextGapPortrait', v)}
+                      badge={data.imageTextGapPortrait !== undefined ? 'manual' : 'auto'} />
+                  )}
+                </FieldCard>
+              )}
+
+              <FieldCard>
+                <label className={labelCls}>Outer margin</label>
+                <p className="text-xs text-zinc-500 mb-1">Space between the slide's edges and the image/text content, applied equally on all four sides.</p>
+                <SpacingSlider label="Margin" value={effectiveContentMargin(data, 80)}
+                  onChange={v => set('contentMargin', v)}
+                  badge={data.contentMargin !== undefined ? 'manual' : 'auto'} />
               </FieldCard>
 
               <FieldCard>

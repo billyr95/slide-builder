@@ -169,6 +169,34 @@ export interface SlideData {
   // blockVisible-style flags already get elsewhere in this codebase.
   blockOrder?: TextBlockKey[]
 
+  // The horizontal gap between the image block and the text block, in
+  // landscape mode (image and text sit side by side) vs. portrait mode
+  // (image sits above text, in flow) -- two separate fields because those
+  // two orientations use genuinely different layout structures in
+  // SlideCanvas.tsx (a flex row with per-column padding vs. a flex column
+  // where the gap is the text section's own top padding), not just two
+  // instances of the same knob. Undefined uses today's rendered default
+  // (see lib/layoutDefaults.ts's effectiveImageTextGapLandscape/Portrait);
+  // has no effect at all when imageMode is 'none' (no image to have a gap
+  // with). Flip-safe: applied as a real CSS gap between the two flex
+  // siblings in landscape (flexbox gap doesn't care about row vs.
+  // row-reverse), and portrait's image/text order doesn't change with Flip
+  // in the first place (Flip there swaps top/bottom, not the gap).
+  imageTextGapLandscape?: number
+  imageTextGapPortrait?: number
+  // Overall padding between the slide's own edges and where the image/text
+  // content begins. One shared field, not four: undefined lets each edge
+  // keep its own current context-dependent default (see
+  // lib/layoutDefaults.ts's effectiveContentMargin -- most are 80px, but a
+  // couple of spots genuinely differ today, e.g. portrait's bottom margin);
+  // once set, the SAME value applies to all four sides uniformly,
+  // overriding every one of those per-context defaults at once. Doesn't
+  // reach into the handful of paddings that serve a different, more
+  // specific purpose (the footer's own fixed offsets, stagger images' own
+  // tighter cluster inset) -- see that module's comments for the exact
+  // scope.
+  contentMargin?: number
+
   // Images
   imageMode: ImageMode
   imageUrl: string       // single-image mode only

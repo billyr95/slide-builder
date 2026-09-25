@@ -223,6 +223,14 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       imageOverlap: data.imageOverlap,
       staggerSize: data.staggerSize,
 
+      // Image<->text gap and outer content margin -- undefined for either
+      // means the slide is still on SlideCanvas's own computed default (see
+      // lib/layoutDefaults.ts); orientation-specific since landscape and
+      // portrait use structurally different layouts for this gap.
+      imageTextGapLandscape: data.imageTextGapLandscape,
+      imageTextGapPortrait: data.imageTextGapPortrait,
+      contentMargin: data.contentMargin,
+
       logoCount: (data.logos || []).length,
       logoSize: data.logoSize,
 

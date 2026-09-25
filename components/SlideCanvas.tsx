@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react'
 import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount, TextBlockKey } from '@/lib/types'
 import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
 import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
+import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -92,7 +93,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       ? {
           fontFamily: THEINHARDT,
           fontStyle: data.titleItalic ? 'italic' : 'normal',
-          letterSpacing: `${Math.max(-0.05, -20 / (data.titleSize * (1 / scale)))}em`,
+          // Numerator scaled down proportionally with the floor (20->8, same
+          // ratio) so the floor still governs across every realistic size
+          // this app allows (up to 250px) exactly like before -- the
+          // per-size taper below that floor only existed as a safety net for
+          // sizes this app doesn't actually produce.
+          letterSpacing: `${Math.max(-0.02, -8 / (data.titleSize * (1 / scale)))}em`,
           color: data.accentColor,
           overflowWrap: 'break-word' as const,
           wordBreak: 'break-word' as const,
@@ -109,7 +115,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         }
 
     function bodyStyle(weight: TheinhardtWeight, sizePx: number, color: string) {
-      const trackingEm = Math.max(-0.05, -20 / (sizePx * (1 / scale)))
+      // See titleStyle's identical comment on the 20->8 numerator scaling.
+      const trackingEm = Math.max(-0.02, -8 / (sizePx * (1 / scale)))
       return {
         fontFamily: THEINHARDT,
         fontWeight: theinhardtWeight(weight),
@@ -228,7 +235,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         fontFamily: THEINHARDT,
         fontWeight: theinhardtWeight('heavy'),
         color: data.seriesNameColor ?? data.textColor,
-        letterSpacing: '0.05em',
+        letterSpacing: '0.02em',
         textTransform: 'uppercase',
         ...trimEdges,
         marginTop: `${effectiveSeriesNameMarginTop(data) * scale}px`,
@@ -323,6 +330,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
     if (data.imageMode === 'none') {
       const maxTextW = dim.w * (orientation === 'landscape' ? 0.7 : 0.8)
+      const noImageMargin = effectiveContentMargin(data, 80) * scale
 
       return (
         <div
@@ -341,7 +349,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             position: 'relative',
             flexShrink: 0,
             textAlign,
-            padding: `${80 * scale}px`,
+            padding: `${noImageMargin}px`,
           }}
         >
           <div style={{
@@ -369,8 +377,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             <div style={{
               position: 'absolute',
               bottom: `${48 * scale}px`,
-              left: `${80 * scale}px`,
-              right: `${80 * scale}px`,
+              left: `${noImageMargin}px`,
+              right: `${noImageMargin}px`,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -397,14 +405,29 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     if (orientation === 'landscape') {
-      const bottomPad = hasFooter ? (footerH + 60) : 80
-      // The text column's own padding and its footer's offsets are
-      // deliberately asymmetric (a tight gap on the image-adjacent side, a
-      // full margin on the outer slide edge) -- when flipped, that
-      // asymmetry has to flip sides too, or the tight gap ends up on the
-      // slide's outer edge and the full margin ends up hugging the image.
-      const textPadLeft = imageOnRight ? 80 : 20
-      const textPadRight = imageOnRight ? 20 : 80
+      const margin = effectiveContentMargin(data, 80) * scale
+      const bottomPad = hasFooter ? (footerH + 60) : effectiveContentMargin(data, 80)
+      // The image column's own structural inset toward the text side is
+      // fixed by its layout (60px stagger cluster padding, or the
+      // single-image column's own `margin`) and can't be zeroed out the way
+      // a content-hugging box could, since the single-image column is a
+      // hardcoded 40%-of-slide-width box independent of its own padding --
+      // removing its padding wouldn't shrink the column, just leave dead
+      // space, so a plain flex `gap` here would double up with it instead of
+      // replacing it. Simplest correct fix: the image side keeps
+      // contributing its own fixed inset like before, and the TEXT side's
+      // facing padding makes up whatever's left of the requested total gap
+      // (floored at 0 -- a very small requested gap can't shrink below the
+      // image's own structural inset without restructuring that column,
+      // which is out of scope here).
+      const imageOwnInsetPx = (staggerCount(data.imageMode) > 0 ? 60 : effectiveContentMargin(data, 80)) * scale
+      const textFacingPx = Math.max(0, effectiveImageTextGapLandscape(data) * scale - imageOwnInsetPx)
+      const textPadLeft = imageOnRight ? margin : textFacingPx
+      const textPadRight = imageOnRight ? textFacingPx : margin
+      // The footer's own offsets are a distinct, already-asymmetric scheme
+      // (tighter on the image-adjacent side) predating this control --
+      // deliberately left as its own fixed numbers, out of scope for both
+      // contentMargin and imageTextGap.
       const footerLeft = imageOnRight ? 100 : 20
       const footerRight = imageOnRight ? 20 : 100
 
@@ -430,6 +453,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             const count = staggerCount(data.imageMode)
             if (count > 0) {
               const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data.imageMode)
+              // Stagger's own tighter cluster inset -- kept as its own fixed
+              // value (not tied to contentMargin) since it's really about
+              // breathing room around a variable-size image group, not a
+              // general slide-edge margin. Symmetric on both sides, same as
+              // before imageTextGap existed -- see imageOwnInsetPx above for
+              // how the text side's own padding accounts for this.
               const colPad = 60 * scale
               const colW = groupW + colPad * 2
               return (
@@ -456,7 +485,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 </div>
               )
             }
-            // Single image — fixed 40% column
+            // Single image — fixed 40% column, symmetric padding (its own
+            // structural inset -- see imageOwnInsetPx above).
             return (
               <div style={{
                 width: '40%',
@@ -464,7 +494,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: `${80 * scale}px`,
+                padding: `${margin}px`,
                 flexShrink: 0,
               }}>
                 {data.imageUrl
@@ -484,7 +514,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             flex: 1,
             minWidth: 0,
             height: '100%',
-            padding: `${80 * scale}px ${textPadRight * scale}px ${bottomPad * scale}px ${textPadLeft * scale}px`,
+            padding: `${margin}px ${textPadRight}px ${bottomPad * scale}px ${textPadLeft}px`,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -537,6 +567,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     // Portrait
+    const portraitMargin = effectiveContentMargin(data, 80) * scale
+    const portraitGapPx = effectiveImageTextGapPortrait(data) * scale
     // Label needs to behave differently from the rest of the text block:
     // when not flipped it stays inline as the text section's first child
     // (unchanged from before), but when flipped it must lead the WHOLE
@@ -595,7 +627,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const labelLeadsPortrait = imageOnRight && data.label && visibleBlocks[0] === 'label'
     const portraitLabelSection = labelLeadsPortrait ? (
       <div key="label" style={{
-        padding: `0 ${80 * scale}px ${40 * scale}px ${80 * scale}px`,
+        padding: `0 ${portraitMargin}px ${40 * scale}px ${portraitMargin}px`,
         textAlign,
       }}>
         <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
@@ -604,12 +636,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       </div>
     ) : null
 
+    // Image and text stack vertically here (unlike landscape's side-by-side
+    // row), so the gap between them is just the text section's own top
+    // padding -- Flip in portrait swaps top/bottom (via portraitLabelSection
+    // above), not this image/text order, so no imageOnRight-conditional
+    // logic is needed for the gap itself.
     const portraitTextSection = (
       <div key="text" style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: textAlignItems,
-        padding: `${60 * scale}px ${80 * scale}px`,
+        paddingTop: portraitGapPx,
+        paddingRight: portraitMargin,
+        paddingBottom: effectiveContentMargin(data, 60) * scale,
+        paddingLeft: portraitMargin,
         textAlign,
       }}>
         {visibleBlocks.filter(key => !(labelLeadsPortrait && key === 'label')).map(key => renderBlock(key))}
@@ -645,7 +685,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           // horizontal padding, the footer's left/right offsets) -- the top
           // of the slide reads consistently with those regardless of
           // whether the image or the text section (with label) sits first.
-          paddingTop: `${80 * scale}px`,
+          paddingTop: `${portraitMargin}px`,
         }}
       >
         {imageOnRight ? (
@@ -660,8 +700,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           <div style={{
             position: 'absolute',
             bottom: `${48 * scale}px`,
-            left: `${80 * scale}px`,
-            right: `${80 * scale}px`,
+            left: `${portraitMargin}px`,
+            right: `${portraitMargin}px`,
             display: 'flex',
             flexDirection: 'column',
             gap: `${6 * scale}px`,
