@@ -408,23 +408,40 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     if (orientation === 'landscape') {
       const margin = effectiveContentMargin(data, 80) * scale
       const bottomPad = hasFooter ? (footerH + 60) : effectiveContentMargin(data, 80)
-      // The image column's own structural inset toward the text side is
-      // fixed by its layout (60px stagger cluster padding, or the
-      // single-image column's own `margin`) and can't be zeroed out the way
-      // a content-hugging box could, since the single-image column is a
-      // hardcoded 40%-of-slide-width box independent of its own padding --
-      // removing its padding wouldn't shrink the column, just leave dead
-      // space, so a plain flex `gap` here would double up with it instead of
-      // replacing it. Simplest correct fix: the image side keeps
-      // contributing its own fixed inset like before, and the TEXT side's
-      // facing padding makes up whatever's left of the requested total gap
-      // (floored at 0 -- a very small requested gap can't shrink below the
-      // image's own structural inset without restructuring that column,
-      // which is out of scope here).
-      const imageOwnInsetPx = (staggerCount(data.imageMode) > 0 ? 60 : effectiveContentMargin(data, 80)) * scale
-      const textFacingPx = Math.max(0, effectiveImageTextGapLandscape(data) * scale - imageOwnInsetPx)
+      // The image column's own facing-side padding (toward the text side)
+      // used to be a fixed structural inset (60px stagger cluster padding,
+      // or the single-image column's own `margin`) that the gap control
+      // couldn't touch -- since the single-image column is a hardcoded
+      // 40%-of-slide-width box independent of its own padding, simply
+      // zeroing that padding and relying on a flex `gap` instead double-
+      // counted space rather than replacing it (a real bug caught earlier
+      // via real-Chromium rendering). Fixed here properly: the image's own
+      // facing padding is capped at its usual default but SHRINKS once the
+      // requested gap drops below that default, so the two sides' padding
+      // together can actually reach a genuine 0 gap (image and text
+      // touching) instead of floors bottoming out at 60-80px. At or above
+      // the default gap, imageFacingPx always equals the old fixed inset
+      // exactly -- so nothing shifts for any slide that hasn't touched this
+      // control below its own default.
+      const imageDefaultInsetPx = (staggerCount(data.imageMode) > 0 ? 60 : effectiveContentMargin(data, 80)) * scale
+      const requestedGapPx = effectiveImageTextGapLandscape(data) * scale
+      const imageFacingPx = Math.min(imageDefaultInsetPx, requestedGapPx)
+      const textFacingPx = Math.max(0, requestedGapPx - imageFacingPx)
       const textPadLeft = imageOnRight ? margin : textFacingPx
       const textPadRight = imageOnRight ? textFacingPx : margin
+      // KNOWN LIMITATION (verified via real-Chromium rendering, not fixed
+      // here -- it's a separate issue from the padding floor above, and
+      // fixing it risks breaking text wrapping for real content): with
+      // Flip active, the text column is on the visual LEFT but its facing
+      // (image-adjacent) side is its RIGHT edge. The text column is
+      // `flex:1` (wide, so long text has room to wrap) and text-align
+      // left/center only position the text CONTENT relative to its own
+      // box, not that box's far edge -- so short text simply doesn't reach
+      // the facing padding boundary regardless of how small textFacingPx
+      // is, and gap=0 won't visually look like touching in that specific
+      // configuration. Non-flip mode doesn't have this problem (the text's
+      // facing side there is its LEFT edge, which left-aligned content
+      // already starts flush against).
       // The footer's own offsets are a distinct, already-asymmetric scheme
       // (tighter on the image-adjacent side) predating this control --
       // deliberately left as its own fixed numbers, out of scope for both
@@ -455,13 +472,18 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             if (count > 0) {
               const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data.imageMode)
               // Stagger's own tighter cluster inset -- kept as its own fixed
-              // value (not tied to contentMargin) since it's really about
-              // breathing room around a variable-size image group, not a
-              // general slide-edge margin. Symmetric on both sides, same as
-              // before imageTextGap existed -- see imageOwnInsetPx above for
-              // how the text side's own padding accounts for this.
+              // value on the OUTER side (not tied to contentMargin) since
+              // it's really about breathing room around a variable-size
+              // image group, not a general slide-edge margin. The FACING
+              // side uses the same capped imageFacingPx as single-image
+              // mode (see above), and colW is fitted exactly to
+              // groupW + outer + facing (not a flat colPad*2) so the
+              // column's own width shrinks right along with a reduced
+              // gap -- keeping the visible image cluster's position stable
+              // as the gap changes, rather than letting it drift from
+              // being re-centered in a stale, too-wide column.
               const colPad = 60 * scale
-              const colW = groupW + colPad * 2
+              const colW = groupW + colPad + imageFacingPx
               return (
                 <div style={{
                   width: colW,
@@ -470,7 +492,10 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: `${colPad}px`,
+                  paddingTop: colPad,
+                  paddingBottom: colPad,
+                  paddingLeft: imageOnRight ? imageFacingPx : colPad,
+                  paddingRight: imageOnRight ? colPad : imageFacingPx,
                   overflow: 'visible',
                 }}>
                   <div style={{ position: 'relative', width: groupW, height: groupH, flexShrink: 0, isolation: 'isolate' }}>
@@ -486,8 +511,17 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 </div>
               )
             }
-            // Single image — fixed 40% column, symmetric padding (its own
-            // structural inset -- see imageOwnInsetPx above).
+            // Single image — fixed 40% column. Top/bottom/outer-side padding
+            // stay at the fixed `margin`; the FACING side uses the capped
+            // imageFacingPx (see above) so the gap can reach 0. Unlike
+            // stagger, this column's width can't be fitted to its content
+            // (40% is a hardcoded proportion of the slide, not
+            // content-hugging), so a reduced facing padding here does shift
+            // the image slightly toward the text side within that fixed
+            // box -- an accepted, deliberate consequence of the user
+            // actively pulling the gap below its default, not a default
+            // behavior change (at/above the default it's identical to the
+            // old symmetric padding).
             return (
               <div style={{
                 width: '40%',
@@ -495,7 +529,10 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: `${margin}px`,
+                paddingTop: margin,
+                paddingBottom: margin,
+                paddingLeft: imageOnRight ? imageFacingPx : margin,
+                paddingRight: imageOnRight ? margin : imageFacingPx,
                 flexShrink: 0,
               }}>
                 {data.imageUrl
