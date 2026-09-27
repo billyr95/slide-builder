@@ -216,6 +216,17 @@ export interface SlideData {
   // value only ever changes meaning when someone deliberately touches the
   // control.
   imageSizeIsPixels?: boolean
+  // The image cluster's (single image, or the whole stagger group treated
+  // as one unit) horizontal position, as an absolute slide-relative pixel
+  // X-coordinate -- see lib/imageClusterPosition.ts. Undefined uses
+  // whatever position the outer-margin/gap-driven layout would place it at
+  // (matching today's centered-in-its-column look exactly); once set, it's
+  // a direct override independent of margin and gap entirely, and can push
+  // the cluster past where either would otherwise have constrained it.
+  // Applies to both orientations uniformly (same pattern as
+  // contentMargin), works with Flip (the "natural" default itself already
+  // accounts for which side the image is on).
+  imageClusterX?: number
   // Single-image-mode counterpart of StaggerImage's face-crop fields --
   // see the comment there.
   imageFaceCropSuggested?: FaceCropBox

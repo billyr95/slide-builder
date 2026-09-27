@@ -1,9 +1,11 @@
 import React, { forwardRef } from 'react'
-import { SlideData, Orientation, ImageMode, StaggerImage, staggerCount, TextBlockKey } from '@/lib/types'
+import { SlideData, Orientation, staggerCount, TextBlockKey } from '@/lib/types'
+import { computeStaggerLayout } from '@/lib/staggerLayout'
 import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
 import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx } from '@/lib/imageSizing'
+import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX } from '@/lib/imageClusterPosition'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -262,18 +264,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       </div>
     )
 
-    // Lays out a mode's images in one of three arrangements:
-    //  - cascade (two/three/four-stagger): each subsequent image steps right and down from the previous one
-    //  - triangle (three-triangle): two images side by side on top, one centered below overlapping both
-    //  - squared (four-squared): a 2x2 grid, each quadrant nudged toward its neighbors
-    // Callers render this result's `images` array with `zIndex: img?.zIndex
-    // ?? (i + 1)` per slot -- stacking depth is an explicit, user-set value
-    // per image (a "layer" slider in EditorPanel writes StaggerImage.zIndex
-    // directly), not something inferred from array/DOM order. The `i + 1`
-    // fallback only covers images that predate this field or haven't been
-    // touched yet, so slides still look reasonable before manual adjustment.
-    // The group's own wrapper also needs `isolation: 'isolate'` (see both
-    // call sites) -- position:relative alone does NOT create a stacking
+    // Stagger's own zIndex fallback (`?? (i + 1)`) matters at every call
+    // site that renders this layout's `images` array -- stacking depth is
+    // an explicit, user-set value per image (a "layer" slider in
+    // EditorPanel writes StaggerImage.zIndex directly), not something
+    // inferred from array/DOM order; the `i + 1` fallback only covers
+    // images that predate this field or haven't been touched yet. The
+    // group's own wrapper also needs `isolation: 'isolate'` (see every call
+    // site below) -- position:relative alone does NOT create a stacking
     // context, so without it these positive z-indexes escape upward and
     // compare directly against the footer/text (which sit at the default
     // z-index:auto layer). Per the CSS stacking spec, ANY positive z-index
@@ -283,39 +281,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // layer value ever pushed it into that space. Isolating contains the
     // ordering to *within* this group, so from the outside the whole group
     // is back to being one plain DOM-ordered box relative to its siblings.
-    function computeStaggerLayout(mode: ImageMode) {
-      const count = staggerCount(mode)
-      const overlapPct = (data.imageOverlap ?? 30) / 100
-      const baseSize = data.staggerSize ?? 250
-      const offsetX = baseSize * (1 - overlapPct) * scale
-      const shiftStep = baseSize * 0.12 * scale
-
-      const images: (StaggerImage | undefined)[] = Array.from({ length: count }, (_, i) => data.staggerImages?.[i])
-      const widths = images.map(img => ((img?.scale || baseSize)) * scale)
-      const heights = widths.map(w => w * 1.35) // fallback box estimate; actual <img> keeps its natural aspect ratio
-      const rowH = heights[0] ?? baseSize * 1.35 * scale
-      const rowDrop = rowH * (1 - overlapPct)
-
-      let baseLefts: number[]
-      let baseTops: number[]
-      if (mode === 'three-triangle') {
-        baseLefts = [0, offsetX, offsetX / 2]
-        baseTops = [0, shiftStep, rowDrop + shiftStep]
-      } else if (mode === 'four-squared') {
-        baseLefts = [0, offsetX, shiftStep, offsetX + shiftStep]
-        baseTops = [0, shiftStep, rowDrop, rowDrop + shiftStep]
-      } else {
-        baseLefts = widths.map((_, i) => i * offsetX)
-        baseTops = widths.map((_, i) => i * shiftStep)
-      }
-      const lefts = baseLefts.map((l, i) => l + (images[i]?.x ?? 0) * scale)
-      const tops = baseTops.map((t, i) => t + (images[i]?.y ?? 0) * scale)
-
-      const groupW = Math.max(...lefts.map((l, i) => l + widths[i]))
-      const groupH = Math.max(...tops.map((t, i) => t + heights[i]))
-
-      return { images, widths, heights, lefts, tops, groupW, groupH }
-    }
+    // (The layout math itself now lives in lib/staggerLayout.ts, shared
+    // with EditorPanel.tsx's image-cluster-X default calculation.)
 
     // The fixed absolutely-positioned footer holds Series Name (see
     // seriesNameNode above) directly above Listening Credit -- present
@@ -470,20 +437,32 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           {(() => {
             const count = staggerCount(data.imageMode)
             if (count > 0) {
-              const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data.imageMode)
+              const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data, data.imageMode, scale)
               // Stagger's own tighter cluster inset -- kept as its own fixed
               // value on the OUTER side (not tied to contentMargin) since
               // it's really about breathing room around a variable-size
-              // image group, not a general slide-edge margin. The FACING
-              // side uses the same capped imageFacingPx as single-image
-              // mode (see above), and colW is fitted exactly to
-              // groupW + outer + facing (not a flat colPad*2) so the
-              // column's own width shrinks right along with a reduced
-              // gap -- keeping the visible image cluster's position stable
-              // as the gap changes, rather than letting it drift from
-              // being re-centered in a stale, too-wide column.
+              // image group, not a general slide-edge margin. colW is
+              // fitted exactly to groupW + outer + facing (not a flat
+              // colPad*2) so the column's own width shrinks right along
+              // with a reduced gap.
               const colPad = 60 * scale
               const colW = groupW + colPad + imageFacingPx
+              const leftPadPx = imageOnRight ? imageFacingPx : colPad
+              const rightPadPx = imageOnRight ? colPad : imageFacingPx
+              // Explicit X position (see lib/imageClusterPosition.ts) --
+              // replaces justifyContent:'center' entirely, since a
+              // group smaller than its column used to sit centered with
+              // slack split evenly on both sides regardless of margin/gap,
+              // which is what made growing the image LOOK like it wasn't
+              // fully taking effect. naturalXPx reproduces exactly where
+              // centering would have placed it by default (0 slack here
+              // in practice, since colW is already fitted to content, but
+              // computed the same general way as single-image mode below
+              // for consistency and to support a future non-fitted case).
+              const columnLeftXPx = imageOnRight ? dim.w * scale - colW : 0
+              const naturalXPx = naturalLandscapeClusterX(dim.w * scale, colW, leftPadPx, rightPadPx, groupW, imageOnRight)
+              const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
+              const groupMarginLeftPx = clusterXPx - columnLeftXPx
               return (
                 <div style={{
                   width: colW,
@@ -491,14 +470,12 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                   height: '100%',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  justifyContent: 'flex-start',
                   paddingTop: colPad,
                   paddingBottom: colPad,
-                  paddingLeft: imageOnRight ? imageFacingPx : colPad,
-                  paddingRight: imageOnRight ? colPad : imageFacingPx,
                   overflow: 'visible',
                 }}>
-                  <div style={{ position: 'relative', width: groupW, height: groupH, flexShrink: 0, isolation: 'isolate' }}>
+                  <div style={{ position: 'relative', width: groupW, height: groupH, marginLeft: groupMarginLeftPx, flexShrink: 0, isolation: 'isolate' }}>
                     {images.map((img, i) => (
                       <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: img?.zIndex ?? (i + 1) }}>
                         {img?.url
@@ -511,43 +488,52 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 </div>
               )
             }
-            // Single image — fixed 40% column. Top/bottom/outer-side padding
-            // stay at the fixed `margin`; the FACING side uses the capped
-            // imageFacingPx (see above) so the gap can reach 0. Unlike
-            // stagger, this column's width can't be fitted to its content
-            // (40% is a hardcoded proportion of the slide, not
-            // content-hugging), so a reduced facing padding here does shift
-            // the image slightly toward the text side within that fixed
-            // box -- an accepted, deliberate consequence of the user
-            // actively pulling the gap below its default, not a default
-            // behavior change (at/above the default it's identical to the
-            // old symmetric padding).
+            // Single image — fixed 40% column. Top/bottom padding stay at
+            // the fixed `margin`; horizontal position is now fully explicit
+            // (see above) rather than justifyContent:'center' + padding,
+            // which is what silently split any size increase's visible
+            // effect 50/50 between the (visible) facing side and the
+            // (invisible, bled-off-canvas) outer side. No maxWidth/maxHeight
+            // cap on the image itself either way -- overflow past the
+            // column (and even past the slide, cropped only by its own
+            // outer overflow:hidden) is the intended, expected result of a
+            // large size and/or an aggressive X position, not a bug to
+            // guard against. flexShrink:0 is still necessary -- the column
+            // is a flex container, so without it the browser's own default
+            // flex-shrink:1 would silently squeeze the img back down to fit
+            // the column's fixed 40% width regardless of the requested
+            // size.
+            const imgWpx = effectiveImageSizePx(data, orientation) * scale
+            const colWpx = 0.4 * dim.w * scale
+            const leftPadPx = imageOnRight ? imageFacingPx : margin
+            const rightPadPx = imageOnRight ? margin : imageFacingPx
+            const columnLeftXPx = imageOnRight ? dim.w * scale - colWpx : 0
+            const naturalXPx = naturalLandscapeClusterX(dim.w * scale, colWpx, leftPadPx, rightPadPx, imgWpx, imageOnRight)
+            const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
+            const imgMarginLeftPx = clusterXPx - columnLeftXPx
             return (
               <div style={{
-                width: '40%',
+                width: colWpx,
                 height: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
+                // The placeholder ("no image uploaded yet") keeps the old
+                // simple centered look -- imageClusterX/imageSize are both
+                // about real content, and don't affect this indicator,
+                // same as imageSize already didn't.
+                justifyContent: data.imageUrl ? 'flex-start' : 'center',
                 paddingTop: margin,
                 paddingBottom: margin,
-                paddingLeft: imageOnRight ? imageFacingPx : margin,
-                paddingRight: imageOnRight ? margin : imageFacingPx,
+                // Same "placeholder keeps the untouched old look" carve-out
+                // as justifyContent above -- horizontal padding (the old
+                // centering mechanism) only goes away once there's a real
+                // image to position explicitly via marginLeft instead.
+                paddingLeft: data.imageUrl ? undefined : leftPadPx,
+                paddingRight: data.imageUrl ? undefined : rightPadPx,
                 flexShrink: 0,
               }}>
                 {data.imageUrl
-                  // A genuine absolute pixel width now (see
-                  // lib/imageSizing.ts) -- no maxWidth/maxHeight cap, since
-                  // a percentage one would clamp it right back down to the
-                  // column's own box (bleeding past the column at large
-                  // sizes is intended; the slide's own outer overflow:hidden
-                  // still crops it at the slide edge). flexShrink:0 is just
-                  // as necessary -- the column is a (default row-direction)
-                  // flex container, so without it the browser's own default
-                  // flex-shrink:1 would silently squeeze the img back down
-                  // to fit the column's fixed 40% width regardless of the
-                  // requested size.
-                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${effectiveImageSizePx(data, orientation) * scale}px`, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
+                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${imgWpx}px`, marginLeft: imgMarginLeftPx, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
                   : placeholderBox(400 * scale, 400 * scale)
                 }
               </div>
@@ -629,13 +615,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       <React.Fragment key="image">
         {staggerCount(data.imageMode) > 0 ? (
           (() => {
-            const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data.imageMode)
+            const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data, data.imageMode, scale)
+            // Explicit X position (see lib/imageClusterPosition.ts),
+            // replacing alignSelf:'center' -- portrait has no left/right
+            // column split (Flip here only swaps top/bottom), so the
+            // natural default is simple full-width centering.
+            const naturalXPx = naturalPortraitClusterX(dim.w * scale, groupW)
+            const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
             return (
               <div style={{
                 position: 'relative',
                 width: groupW,
                 height: groupH,
-                alignSelf: 'center',
+                alignSelf: 'flex-start',
+                marginLeft: clusterXPx,
                 flexShrink: 0,
                 isolation: 'isolate',
               }}>
@@ -651,26 +644,38 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             )
           })()
         ) : (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '66%',
-            alignSelf: 'center',
-          }}>
-            {data.imageUrl
-              // A genuine absolute pixel width now (see lib/imageSizing.ts)
-              // -- no maxWidth here, same reasoning as the landscape branch.
-              // maxHeight stays (a deliberate half-slide-height cap, not a
-              // container-relative percentage, so it doesn't fight imageSize
-              // the same way). flexShrink:0 for the same reason as landscape
-              // -- this container is a flex row too, so the browser's own
-              // default flex-shrink:1 would otherwise squeeze the img back
-              // down to fit the column's 66% width regardless of imageSize.
-              ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${effectiveImageSizePx(data, orientation) * scale}px`, maxHeight: `${dim.h * 0.5 * scale}px`, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
-              : placeholderBox(400 * scale, 400 * scale)
-            }
-          </div>
+          (() => {
+            // A genuine absolute pixel width now (see lib/imageSizing.ts) --
+            // no maxWidth, same reasoning as the landscape branch. maxHeight
+            // stays (a deliberate half-slide-height cap, unrelated to
+            // horizontal sizing/position). Horizontal position is now fully
+            // explicit (see lib/imageClusterPosition.ts) rather than the old
+            // compound alignSelf:'center' (on a fixed 66%-wide wrapper) +
+            // inner justifyContent:'center' -- mathematically equivalent to
+            // simple full-slide centering for the default case, but now a
+            // real, independent, overridable number. The placeholder ("no
+            // image uploaded yet") keeps the old simple centered look,
+            // same as landscape.
+            const imgWpx = effectiveImageSizePx(data, orientation) * scale
+            const naturalXPx = naturalPortraitClusterX(dim.w * scale, imgWpx)
+            const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
+            return (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: data.imageUrl ? 'flex-start' : 'center',
+                width: data.imageUrl ? imgWpx : '66%',
+                alignSelf: data.imageUrl ? 'flex-start' : 'center',
+                marginLeft: data.imageUrl ? clusterXPx : undefined,
+                flexShrink: 0,
+              }}>
+                {data.imageUrl
+                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${imgWpx}px`, maxHeight: `${dim.h * 0.5 * scale}px`, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
+                  : placeholderBox(400 * scale, 400 * scale)
+                }
+              </div>
+            )
+          })()
         )}
       </React.Fragment>
     )

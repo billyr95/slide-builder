@@ -40,6 +40,29 @@ function imageColumnStyle(): CSSStyleDeclaration {
   return (canvas.children[0] as HTMLElement).style
 }
 
+// Stagger mode's horizontal position (both the column's own width, which is
+// fitted exactly to its content, and the group's marginLeft within it) is no
+// longer expressed as column padding -- see lib/imageClusterPosition.ts. This
+// reads the inner position:relative wrapper (canvas.children[0].children[0])
+// that now carries the explicit marginLeft.
+function staggerGroupStyle(): CSSStyleDeclaration {
+  const canvas = document.querySelector('#slide-canvas')!
+  return (canvas.children[0].children[0] as HTMLElement).style
+}
+
+// The gap between the stagger group's own right (facing) edge and its
+// column's right edge -- the modern equivalent of the old
+// `imageColumnStyle().paddingRight` for stagger mode, now computed from the
+// column's fitted width and the group's marginLeft/width instead of a
+// padding value that no longer exists for this mode.
+function staggerFacingGap(): number {
+  const colWidth = parseFloat(imageColumnStyle().width)
+  const groupStyle = staggerGroupStyle()
+  const marginLeft = parseFloat(groupStyle.marginLeft)
+  const groupW = parseFloat(groupStyle.width)
+  return colWidth - (marginLeft + groupW)
+}
+
 describe('Image <-> text gap and outer content margin: defaults reproduce prior rendering', () => {
   it('landscape single-image mode: text\'s facing-side padding defaults to 20px (100 total gap minus the image column\'s own 80px inset), image side stays at its full 80px default', () => {
     renderAt(baseData(), 'landscape')
@@ -50,7 +73,7 @@ describe('Image <-> text gap and outer content margin: defaults reproduce prior 
   it('landscape stagger mode: text\'s facing-side padding defaults to 20px (80 total gap minus the image column\'s own 60px inset), image side stays at its full 60px default', () => {
     renderAt(baseData({ imageMode: 'three-stagger' }), 'landscape')
     expect(elementOf('TONIGHT').parentElement!.style.paddingLeft).toBe('20px')
-    expect(imageColumnStyle().paddingRight).toBe('60px')
+    expect(staggerFacingGap()).toBeCloseTo(60)
   })
 
   it('portrait mode: text section\'s own top padding defaults to 60px', () => {
@@ -98,7 +121,7 @@ describe('imageTextGap overrides', () => {
 
   it('the same 0-gap touching behavior holds in stagger mode too, whose default inset (60px) is smaller than single-image\'s (80px)', () => {
     renderAt(baseData({ imageMode: 'three-stagger', imageTextGapLandscape: 0 }), 'landscape')
-    expect(imageColumnStyle().paddingRight).toBe('0px')
+    expect(staggerFacingGap()).toBeCloseTo(0)
     expect(elementOf('TONIGHT').parentElement!.style.paddingLeft).toBe('0px')
   })
 

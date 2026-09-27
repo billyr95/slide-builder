@@ -25,7 +25,7 @@ const LEGACY_COLUMN_WIDTH_FRACTION: Record<Orientation, number> = { landscape: 0
 export const DEFAULT_IMAGE_SIZE_PX = 768
 
 export const MIN_IMAGE_SIZE_PX = 20
-export const MAX_IMAGE_SIZE_PX = 800
+export const MAX_IMAGE_SIZE_PX = 1000
 
 // The single-image control used to be a percentage of its own column's
 // width (and confusingly labeled "px" despite that) -- it's now a genuine
