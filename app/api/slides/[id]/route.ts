@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { slides, users } from '@/lib/db/schema'
+import { slides, users, folders } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 
 // Slides are shared/org-wide -- any authenticated user can view, edit, or
@@ -36,11 +36,22 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (body.orientation === 'landscape' || body.orientation === 'portrait') patch.orientation = body.orientation
   if (body.data !== undefined) patch.data = body.data
   // "Move to..." -- any authenticated user can move any slide into any
-  // folder, consistent with the shared-edit model.
-  if (typeof body.folderId === 'string' && body.folderId) patch.folderId = body.folderId
+  // folder, consistent with the shared-edit model. Verified to still exist
+  // first (same reasoning as POST /api/slides): a stale/deleted folderId
+  // would otherwise fail the update's FK constraint and surface as an
+  // opaque 500, silently breaking autosave for the rest of this patch too.
+  if (typeof body.folderId === 'string' && body.folderId) {
+    const [match] = await db.select({ id: folders.id }).from(folders).where(eq(folders.id, body.folderId)).limit(1)
+    if (match) patch.folderId = match.id
+  }
 
-  const [updated] = await db.update(slides).set(patch).where(eq(slides.id, params.id)).returning()
-  return NextResponse.json(updated)
+  try {
+    const [updated] = await db.update(slides).set(patch).where(eq(slides.id, params.id)).returning()
+    return NextResponse.json(updated)
+  } catch (err) {
+    console.error('PUT /api/slides/[id] failed', err)
+    return NextResponse.json({ error: 'Failed to save slide' }, { status: 500 })
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
