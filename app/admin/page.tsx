@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useSession } from 'next-auth/react'
+import { useSession, signOut } from 'next-auth/react'
 import SlideCard from '@/components/SlideCard'
 import { Orientation } from '@/lib/types'
 
@@ -27,8 +27,17 @@ export default function AdminPage() {
     // includes everyone's, same data the main dashboard shows. This page
     // is just a convenience view with owner-email search built in.
     fetch('/api/slides')
-      .then(res => res.json())
-      .then(setSlides)
+      .then(async res => {
+        // See the matching comment in app/page.tsx -- a 401 here means the
+        // server rejected this session (stale sign-in), which useSession()
+        // doesn't know about yet; without this check the error body (not
+        // an array) would get set as state and crash setSlides' consumers.
+        if (res.status === 401) {
+          await signOut({ callbackUrl: '/login' })
+          return
+        }
+        setSlides(await res.json())
+      })
       .finally(() => setLoading(false))
   }, [])
 

@@ -24,10 +24,24 @@ export default function Dashboard() {
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      fetch('/api/folders').then(res => res.json()),
-      fetch('/api/slides').then(res => res.json()),
+      fetch('/api/folders'),
+      fetch('/api/slides'),
     ])
-      .then(([f, s]) => { setFolders(f); setSlides(s) })
+      .then(async ([folderRes, slideRes]) => {
+        // A 401 here means the server rejected this session (e.g. a stale
+        // sign-in whose user row no longer exists -- see lib/session.ts) --
+        // next-auth's own client-side useSession() doesn't know that yet,
+        // so without this check the error body (not an array) would get
+        // set as state and crash the folders/slides .find()/.filter() calls
+        // below instead of just sending them back to a fresh sign-in.
+        if (folderRes.status === 401 || slideRes.status === 401) {
+          await signOut({ callbackUrl: '/login' })
+          return
+        }
+        const [f, s] = await Promise.all([folderRes.json(), slideRes.json()])
+        setFolders(f)
+        setSlides(s)
+      })
       .finally(() => setLoading(false))
   }, [])
 
