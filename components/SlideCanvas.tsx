@@ -579,7 +579,9 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 right: `${footerRight * scale}px`,
                 display: 'flex',
                 flexDirection: 'column',
+                alignItems: textAlignItems,
                 gap: `${6 * scale}px`,
+                textAlign,
               }}>
                 {seriesNameNode}
                 {data.showListeningCredit && data.listeningCredit && (
@@ -766,7 +768,9 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             right: `${portraitMargin}px`,
             display: 'flex',
             flexDirection: 'column',
+            alignItems: textAlignItems,
             gap: `${6 * scale}px`,
+            textAlign,
           }}>
             {seriesNameNode}
             {data.showListeningCredit && data.listeningCredit && (
