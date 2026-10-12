@@ -135,6 +135,25 @@ export interface SlideData {
   programTitleMarginTop?: number
   programTitleMatchTitleSize: boolean
 
+  // Rare per-run italic override, one per text field -- lib/richText.ts is
+  // the single source of truth for both producing and rendering these.
+  // Undefined (the overwhelming majority of slides/fields) renders the
+  // plain field exactly as before; once set, it's minimal sanitized HTML
+  // (bare <i>/</i> only, nothing else ever allowed through) laid over that
+  // SAME text, letting just part of a field be italicized without making
+  // italics a field-wide toggle. The plain field alongside it always stays
+  // the full, correct text (so search/heuristics/training-data reads of it
+  // are unaffected) -- EditorPanel.tsx's rich-text editor keeps the two in
+  // sync on every save, and clears this override if the plain field is
+  // ever edited directly afterward (since the stored markup's positions
+  // would no longer necessarily line up with the new text).
+  labelRichText?: string
+  titleRichText?: string
+  subtitleRichText?: string
+  subtitle2RichText?: string
+  presentersRichText?: string
+  programTitleRichText?: string
+
   // Style
   backgroundColor: string
   // Legacy single "all text" color -- superseded by the per-field *Color
@@ -252,6 +271,9 @@ export interface SlideData {
   showSeriesName: boolean
   seriesName: string
   seriesNameColor?: string
+  // Rare per-run italic override -- see the identical *RichText comment
+  // near the top of this interface.
+  seriesNameRichText?: string
   // The gap ABOVE Series Name, i.e. how far above its fixed anchor point
   // (directly above Listening Credit) its own text sits. Same auto-until-
   // touched/manual-override pattern as every other field's margin-top
@@ -266,4 +288,12 @@ export interface SlideData {
   // control (rather than a margin-top one) for its own, often long,
   // multi-line paragraph -- see this interface's own top comment.
   listeningCreditLineHeight?: number
+  // Its own font size, same auto-until-touched/manual-override pattern as
+  // every other sizable field -- mainly useful for shrinking it a notch so
+  // a borderline-long credit doesn't spill its last word or two onto an
+  // awkward third line.
+  listeningCreditSize?: number
+  // Rare per-run italic override -- see the identical *RichText comment
+  // near the top of this interface.
+  listeningCreditRichText?: string
 }

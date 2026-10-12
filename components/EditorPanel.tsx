@@ -7,10 +7,11 @@ import dynamic from 'next/dynamic'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
-import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
+import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } from '@/lib/defaults'
 import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx, CANVAS_WIDTH, MIN_IMAGE_SIZE_PX, MAX_IMAGE_SIZE_PX } from '@/lib/imageSizing'
+import { plainTextToEditableHtml, processEditedHtml } from '@/lib/richText'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -316,6 +317,145 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
   )
 }
 
+// Deliberately tucked away rather than a normal visible control -- this is
+// a rare, "last resort" escape hatch for the one case none of the per-field
+// style controls cover (italicizing only PART of a field's text), not a
+// feature most slides should ever touch. A plain, tiny, low-contrast text
+// link rather than a button with an icon keeps it from reading as a
+// first-class option sitting next to Color/Size/etc. Hidden entirely when
+// the field is empty -- nothing to partially italicize yet.
+function ItalicOverrideLink({ fieldLabel, plainValue, richValue, onApply }: {
+  fieldLabel: string
+  plainValue: string
+  richValue: string | undefined
+  onApply: (plain: string, rich: string | undefined) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (!plainValue.trim()) return null
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-1 text-[10px] text-zinc-700 hover:text-zinc-500 transition-colors"
+      >
+        italicize part of this…
+      </button>
+      {open && (
+        <ItalicEditorModal
+          fieldLabel={fieldLabel}
+          plainValue={plainValue}
+          richValue={richValue}
+          onCancel={() => setOpen(false)}
+          onSave={(plain, rich) => { onApply(plain, rich); setOpen(false) }}
+        />
+      )}
+    </>
+  )
+}
+
+// A deliberately minimal contentEditable editor -- its only supported
+// formatting is italic (via the browser's own execCommand('italic'), still
+// functional everywhere despite being long-deprecated, which is exactly
+// enough for this rare case without maintaining a real rich-text engine).
+// Uncontrolled by design: React never re-renders the div's own content
+// while it's open (that would fight the browser's own cursor/selection
+// state), it's seeded once on mount and read back only on Save.
+function ItalicEditorModal({ fieldLabel, plainValue, richValue, onCancel, onSave }: {
+  fieldLabel: string
+  plainValue: string
+  richValue: string | undefined
+  onCancel: () => void
+  onSave: (plain: string, rich: string | undefined) => void
+}) {
+  const editableRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = editableRef.current
+    if (!el) return
+    el.innerHTML = richValue ?? plainTextToEditableHtml(plainValue)
+    el.focus()
+    try {
+      // Makes Enter insert <br> instead of browser-dependent <div>-wrapped
+      // paragraphs -- both are handled on save either way (see
+      // lib/richText.ts's normalizeBreaksToNewlines), this just keeps the
+      // editor's own on-screen behavior predictable while typing.
+      document.execCommand('defaultParagraphSeparator', false, 'br')
+    } catch {}
+    // Only ever seed once, on open -- not a controlled input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function italicizeSelection() {
+    editableRef.current?.focus()
+    try { document.execCommand('italic') } catch {}
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'i') {
+      e.preventDefault()
+      italicizeSelection()
+    }
+  }
+
+  function handleSave() {
+    const raw = editableRef.current?.innerHTML ?? ''
+    const { plainText, richHtml } = processEditedHtml(raw)
+    onSave(plainText, richHtml)
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-2xl w-full max-w-md p-5 flex flex-col gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-white">Italicize part of {fieldLabel}</h3>
+          <p className="text-xs text-zinc-500 mt-1">
+            Select text, then click Italicize (or press ⌘I / Ctrl+I). This is meant for rare one-off
+            cases -- most slides don't need it.
+          </p>
+        </div>
+
+        <div
+          ref={editableRef}
+          contentEditable
+          suppressContentEditableWarning
+          onKeyDown={handleKeyDown}
+          className="min-h-[80px] max-h-[240px] overflow-auto bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 whitespace-pre-wrap"
+        />
+
+        <div className="flex items-center justify-between gap-2">
+          <button
+            onMouseDown={e => e.preventDefault()}
+            onClick={italicizeSelection}
+            className="text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-white italic py-1.5 px-3 rounded-lg transition-colors"
+          >
+            Italicize
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onSave(plainValue, undefined)}
+              className="text-xs text-zinc-500 hover:text-white transition-colors py-1.5 px-2"
+            >
+              Remove italics
+            </button>
+            <button
+              onClick={onCancel}
+              className="text-xs text-zinc-400 hover:text-white transition-colors py-1.5 px-3"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="text-xs font-medium bg-white text-black hover:bg-zinc-200 py-1.5 px-3 rounded-lg transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // The gap ABOVE a text block (in the reorderable stack -- Label, Title,
 // Subtitle, Subtitle2, Presenters, Program Title, Series Name), relative to
 // whichever block currently precedes it in blockOrder. `value` is that
@@ -594,6 +734,16 @@ export default function EditorPanel({
     onChange({ ...data, [key]: value })
   }
 
+  // Same as set(), but also clears a field's rich-text italic override
+  // (lib/types.ts's *RichText) -- used by every plain text field that has
+  // one, since editing the plain text directly makes any previously-saved
+  // markup's positions no longer reliably line up with the new text. Only
+  // ItalicEditorModal's own Save/Remove path (which always sets the plain
+  // field and its override together, kept in sync) is exempt from this.
+  function setText<K extends keyof SlideData>(key: K, richKey: keyof SlideData, value: SlideData[K]) {
+    onChange({ ...data, [key]: value, [richKey]: undefined })
+  }
+
   // Title/subtitle text and their auto-suggested font size must land in the
   // same onChange call — two sequential `set()` calls here would each
   // spread the same stale `data` closure and the second call would clobber
@@ -625,7 +775,9 @@ export default function EditorPanel({
   }
 
   function handleTitleChange(value: string) {
-    const patch: Partial<SlideData> = { title: value }
+    // A direct edit invalidates any rich-text italic override's positions
+    // -- see setText's comment.
+    const patch: Partial<SlideData> = { title: value, titleRichText: undefined }
     if (!titleSizeOverridden) {
       const lineCount = Math.max(1, value.split('\n').length)
       applyTitleSize(patch, suggestTitleFontSize(value.length, lineCount, screenType, !!data.subtitle))
@@ -634,7 +786,7 @@ export default function EditorPanel({
   }
 
   function handleSubtitleChange(value: string) {
-    const patch: Partial<SlideData> = { subtitle: value }
+    const patch: Partial<SlideData> = { subtitle: value, subtitleRichText: undefined }
     if (!subtitleSizeOverridden) {
       patch.subtitleSize = suggestSubtitleFontSize(value.length)
     }
@@ -911,7 +1063,9 @@ export default function EditorPanel({
             <Section id="text">
               <FieldCard>
                 <label className={labelCls}>Label (e.g. TONIGHT)</label>
-                <input className={inputCls} value={data.label} onChange={e => set('label', e.target.value)} placeholder="TONIGHT" />
+                <input className={inputCls} value={data.label} onChange={e => setText('label', 'labelRichText', e.target.value)} placeholder="TONIGHT" />
+                <ItalicOverrideLink fieldLabel="Label" plainValue={data.label} richValue={data.labelRichText}
+                  onApply={(plain, rich) => onChange({ ...data, label: plain, labelRichText: rich })} />
                 <div className="mt-1.5"><WeightPicker value={data.labelWeight} onChange={v => set('labelWeight', v)} /></div>
                 <div className="mt-1.5 flex items-center gap-2">
                   <span className="text-xs text-zinc-500">Color</span>
@@ -924,6 +1078,8 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Title</label>
                 <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
+                <ItalicOverrideLink fieldLabel="Title" plainValue={data.title} richValue={data.titleRichText}
+                  onApply={(plain, rich) => onChange({ ...data, title: plain, titleRichText: rich })} />
                 <div className="mt-1.5 flex gap-1.5">
                   {(['92NY Text', 'Theinhardt Heavy'] as const).map(font => (
                     <button key={font}
@@ -982,6 +1138,8 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Subtitle</label>
                 <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
+                <ItalicOverrideLink fieldLabel="Subtitle" plainValue={data.subtitle} richValue={data.subtitleRichText}
+                  onApply={(plain, rich) => onChange({ ...data, subtitle: plain, subtitleRichText: rich })} />
                 <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
                 <div className="mt-1.5 flex items-center gap-2">
                   <span className="text-xs text-zinc-500">Color</span>
@@ -1002,7 +1160,9 @@ export default function EditorPanel({
 
               <FieldCard>
                 <label className={labelCls}>Subtitle 2</label>
-                <input className={inputCls} value={data.subtitle2} onChange={e => set('subtitle2', e.target.value)} placeholder="Optional second line" />
+                <input className={inputCls} value={data.subtitle2} onChange={e => setText('subtitle2', 'subtitle2RichText', e.target.value)} placeholder="Optional second line" />
+                <ItalicOverrideLink fieldLabel="Subtitle 2" plainValue={data.subtitle2} richValue={data.subtitle2RichText}
+                  onApply={(plain, rich) => onChange({ ...data, subtitle2: plain, subtitle2RichText: rich })} />
                 <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
                 <div className="mt-1.5 flex items-center gap-2">
                   <span className="text-xs text-zinc-500">Color</span>
@@ -1016,7 +1176,9 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Presenters (one per line)</label>
                 <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
-                  onChange={e => set('presenters', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+                  onChange={e => setText('presenters', 'presentersRichText', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
+                <ItalicOverrideLink fieldLabel="Presenters" plainValue={data.presenters} richValue={data.presentersRichText}
+                  onApply={(plain, rich) => onChange({ ...data, presenters: plain, presentersRichText: rich })} />
                 <div className="mt-1.5 flex gap-1.5">
                   {(['Theinhardt', '92NY Text'] as const).map(font => (
                     <button key={font}
@@ -1051,7 +1213,9 @@ export default function EditorPanel({
 
               <FieldCard>
                 <label className={labelCls}>Program / Work Title</label>
-                <input className={inputCls} value={data.programTitle} onChange={e => set('programTitle', e.target.value)} placeholder='e.g. "American Caprices"' />
+                <input className={inputCls} value={data.programTitle} onChange={e => setText('programTitle', 'programTitleRichText', e.target.value)} placeholder='e.g. "American Caprices"' />
+                <ItalicOverrideLink fieldLabel="Program / Work Title" plainValue={data.programTitle} richValue={data.programTitleRichText}
+                  onApply={(plain, rich) => onChange({ ...data, programTitle: plain, programTitleRichText: rich })} />
                 <div className="mt-1.5 flex gap-1.5">
                   {(['Theinhardt', '92NY Text'] as const).map(font => (
                     <button key={font}
@@ -1093,8 +1257,10 @@ export default function EditorPanel({
                 {data.showSeriesName && (
                   <>
                     <input className={inputCls} value={data.seriesName}
-                      onChange={e => set('seriesName', e.target.value)}
+                      onChange={e => setText('seriesName', 'seriesNameRichText', e.target.value)}
                       placeholder="RECANATI-KAPLAN TALKS" />
+                    <ItalicOverrideLink fieldLabel="Series name" plainValue={data.seriesName} richValue={data.seriesNameRichText}
+                      onApply={(plain, rich) => onChange({ ...data, seriesName: plain, seriesNameRichText: rich })} />
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs text-zinc-500">Color</span>
                       <ColorPalette value={data.seriesNameColor ?? data.textColor} onChange={v => set('seriesNameColor', v)} />
@@ -1115,12 +1281,17 @@ export default function EditorPanel({
                   <>
                     <textarea className={inputCls + ' resize-none'} rows={4}
                       value={data.listeningCredit}
-                      onChange={e => set('listeningCredit', e.target.value)}
+                      onChange={e => setText('listeningCredit', 'listeningCreditRichText', e.target.value)}
                       placeholder="Assistive listening devices..." />
+                    <ItalicOverrideLink fieldLabel="Listening credit" plainValue={data.listeningCredit} richValue={data.listeningCreditRichText}
+                      onApply={(plain, rich) => onChange({ ...data, listeningCredit: plain, listeningCreditRichText: rich })} />
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs text-zinc-500">Color</span>
                       <ColorPalette value={data.listeningCreditColor ?? data.textColor} onChange={v => set('listeningCreditColor', v)} />
                     </div>
+                    <FontSizeSlider label="Size" value={data.listeningCreditSize ?? DEFAULT_LISTENING_CREDIT_SIZE}
+                      onChange={v => set('listeningCreditSize', v)} min={12} max={40}
+                      badge={data.listeningCreditSize !== undefined ? 'manual' : 'auto'} numberInput />
                     <LineHeightSlider label="Line height" value={data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT}
                       onChange={v => set('listeningCreditLineHeight', v)} badge={data.listeningCreditLineHeight !== undefined ? 'manual' : 'auto'} />
                   </>

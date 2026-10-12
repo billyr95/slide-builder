@@ -1,11 +1,12 @@
 import React, { forwardRef } from 'react'
 import { SlideData, Orientation, staggerCount, TextBlockKey } from '@/lib/types'
 import { computeStaggerLayout } from '@/lib/staggerLayout'
-import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT } from '@/lib/defaults'
+import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } from '@/lib/defaults'
 import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx } from '@/lib/imageSizing'
 import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX } from '@/lib/imageClusterPosition'
+import { sanitizeItalicHtml } from '@/lib/richText'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -58,6 +59,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // listeningCreditLineHeight override instead, for its own (often long)
     // paragraph's internal wrapped-line spacing.
     const listeningCreditLineHeight = data.listeningCreditLineHeight ?? DEFAULT_LISTENING_CREDIT_LINE_HEIGHT
+    const listeningCreditSize = data.listeningCreditSize ?? DEFAULT_LISTENING_CREDIT_SIZE
 
     // `text-box-trim` + `text-box-edge` (Baseline-supported in current
     // Chromium/Safari; unsupported browsers just ignore these two
@@ -158,6 +160,16 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx, data.programTitleColor ?? data.textColor)
     }
 
+    // Renders a field's rich-text italic override (see lib/types.ts's
+    // *RichText comment) when present, else its plain text exactly as
+    // before. Re-sanitizes at render time too (not just on save in
+    // EditorPanel.tsx) so even a hand-edited or otherwise-corrupted stored
+    // value can never carry anything beyond <i>/</i>.
+    function richOrPlain(plain: string, rich: string | undefined): React.ReactNode {
+      if (!rich) return plain
+      return <span dangerouslySetInnerHTML={{ __html: sanitizeItalicHtml(rich) }} />
+    }
+
     // Renders whichever single block `key` refers to -- called identically
     // from all three layout branches below (imageMode 'none', landscape,
     // portrait) so blockOrder only has to be resolved once and each block's
@@ -167,28 +179,28 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         case 'label':
           return data.label ? (
             <div key="label" style={{ fontSize: `${labelSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginBefore('label') }}>
-              {data.label}
+              {richOrPlain(data.label, data.labelRichText)}
             </div>
           ) : null
 
         case 'title':
           return (
             <div key="title" style={{ fontSize: `${titleSize * scale}px`, fontWeight: titleWeight, lineHeight: DEFAULT_STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...titleStyle, ...trimEdges, ...marginBefore('title') }}>
-              {data.title}
+              {richOrPlain(data.title, data.titleRichText)}
             </div>
           )
 
         case 'subtitle':
           return (data.subtitle && !data.subtitleInline) ? (
             <div key="subtitle" style={{ fontSize: `${data.subtitleSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.subtitleWeight, data.subtitleSize, data.subtitleColor ?? data.textColor), ...trimEdges, ...marginBefore('subtitle') }}>
-              {data.subtitle}
+              {richOrPlain(data.subtitle, data.subtitleRichText)}
             </div>
           ) : null
 
         case 'subtitle2':
           return data.subtitle2 ? (
             <div key="subtitle2" style={{ fontSize: `${data.subtitle2Size * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.subtitle2Weight, data.subtitle2Size, data.subtitle2Color ?? data.textColor), ...trimEdges, ...marginBefore('subtitle2') }}>
-              {data.subtitle2}
+              {richOrPlain(data.subtitle2, data.subtitle2RichText)}
             </div>
           ) : null
 
@@ -208,7 +220,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                       </>
                     )
                   })()
-                : data.presenters
+                : richOrPlain(data.presenters, data.presentersRichText)
               }
             </div>
           ) : null
@@ -216,7 +228,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         case 'programTitle':
           return data.programTitle ? (
             <div key="programTitle" style={{ fontSize: `${data.programTitleSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, whiteSpace: 'pre-line', ...programTitleStyle(data.programTitleWeight, data.programTitleSize), ...trimEdges, ...marginBefore('programTitle') }}>
-              {data.programTitle}
+              {richOrPlain(data.programTitle, data.programTitleRichText)}
             </div>
           ) : null
       }
@@ -243,7 +255,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         ...trimEdges,
         marginTop: `${effectiveSeriesNameMarginTop(data) * scale}px`,
       }}>
-        {data.seriesName}
+        {richOrPlain(data.seriesName, data.seriesNameRichText)}
       </div>
     ) : null
 
@@ -356,14 +368,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               {seriesNameNode}
               {data.showListeningCredit && data.listeningCredit && (
                 <div style={{
-                  fontSize: `${23 * scale}px`,
+                  fontSize: `${listeningCreditSize * scale}px`,
                   lineHeight: listeningCreditLineHeight,
                   fontFamily: THEINHARDT,
                   fontWeight: 400,
                   color: data.listeningCreditColor ?? data.textColor,
                   opacity: 0.65,
                 }}>
-                  {data.listeningCredit}
+                  {richOrPlain(data.listeningCredit, data.listeningCreditRichText)}
                 </div>
               )}
             </div>
@@ -586,14 +598,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 {seriesNameNode}
                 {data.showListeningCredit && data.listeningCredit && (
                   <div style={{
-                    fontSize: `${23 * scale}px`,
+                    fontSize: `${listeningCreditSize * scale}px`,
                     lineHeight: listeningCreditLineHeight,
                     fontFamily: THEINHARDT,
                     fontWeight: 400,
                     color: data.listeningCreditColor ?? data.textColor,
                     opacity: 0.65,
                   }}>
-                    {data.listeningCredit}
+                    {richOrPlain(data.listeningCredit, data.listeningCreditRichText)}
                   </div>
                 )}
               </div>
@@ -775,14 +787,14 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             {seriesNameNode}
             {data.showListeningCredit && data.listeningCredit && (
               <div style={{
-                fontSize: `${23 * scale}px`,
+                fontSize: `${listeningCreditSize * scale}px`,
                 lineHeight: listeningCreditLineHeight,
                 fontFamily: THEINHARDT,
                 fontWeight: 400,
                 color: data.listeningCreditColor ?? data.textColor,
                 opacity: 0.65,
               }}>
-                {data.listeningCredit}
+                {richOrPlain(data.listeningCredit, data.listeningCreditRichText)}
               </div>
             )}
           </div>

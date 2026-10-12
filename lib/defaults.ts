@@ -30,6 +30,7 @@ export const DEFAULT_BLOCK_ORDER: TextBlockKey[] = ['label', 'title', 'subtitle'
 // paragraph.
 export const DEFAULT_STACK_LINE_HEIGHT = 0.88
 export const DEFAULT_LISTENING_CREDIT_LINE_HEIGHT = 1.4
+export const DEFAULT_LISTENING_CREDIT_SIZE = 23
 
 export const DEFAULT_SLIDE_DATA: SlideData = {
   label: 'TONIGHT',

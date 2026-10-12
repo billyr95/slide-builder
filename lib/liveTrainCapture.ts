@@ -253,8 +253,9 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       programTitleMarginTop: data.programTitleMarginTop,
       seriesNameMarginTop: data.seriesNameMarginTop,
       // Listening Credit isn't part of blockOrder (fixed footer), so it
-      // keeps a genuinely separate internal-line-height override instead.
+      // keeps genuinely separate size/internal-line-height overrides instead.
       listeningCreditLineHeight: data.listeningCreditLineHeight,
+      listeningCreditSize: data.listeningCreditSize,
     },
   }
 }
