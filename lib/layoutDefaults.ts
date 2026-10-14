@@ -34,3 +34,28 @@ export function effectiveImageTextGapPortrait(data: SlideData): number {
 export function effectiveContentMargin(data: SlideData, fallback: number): number {
   return data.contentMargin ?? fallback
 }
+
+const SIDE_FIELD = {
+  top: 'contentMarginTop',
+  right: 'contentMarginRight',
+  bottom: 'contentMarginBottom',
+  left: 'contentMarginLeft',
+} as const
+
+export type MarginSide = keyof typeof SIDE_FIELD
+
+// The side-aware version of effectiveContentMargin above: a side's own
+// per-side override (set once a user touches that specific control, or all
+// four at once via the linked control) wins first, then the legacy single
+// `contentMargin` value (an old slide that predates the four-sided
+// controls), then that side's own context-dependent fallback -- same
+// precedence/fallback shape used everywhere else in this app ("own override
+// -> legacy/shared value -> contextual default"). contentMarginLinked is
+// deliberately NOT consulted here: it only tells EditorPanel.tsx whether to
+// show one control or four, never how rendering interprets the stored
+// values, so toggling it can't retroactively change what's on screen.
+export function effectiveContentMarginSide(data: SlideData, side: MarginSide, fallback: number): number {
+  const sideValue = data[SIDE_FIELD[side]]
+  if (sideValue !== undefined) return sideValue
+  return data.contentMargin ?? fallback
+}

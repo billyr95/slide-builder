@@ -233,7 +233,20 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       // portrait use structurally different layouts for this gap.
       imageTextGapLandscape: data.imageTextGapLandscape,
       imageTextGapPortrait: data.imageTextGapPortrait,
+      // contentMargin is the legacy single-value field, kept for any slide
+      // that predates the four-sided controls; the per-side fields below
+      // take precedence once a slide's margin is touched again (see
+      // lib/layoutDefaults.ts's effectiveContentMarginSide).
       contentMargin: data.contentMargin,
+      contentMarginTop: data.contentMarginTop,
+      contentMarginRight: data.contentMarginRight,
+      contentMarginBottom: data.contentMarginBottom,
+      contentMarginLeft: data.contentMarginLeft,
+      contentMarginLinked: data.contentMarginLinked,
+      // The image cluster's (single image, or the whole stagger group) own
+      // horizontal position override -- undefined means it's still at
+      // lib/imageClusterPosition.ts's computed natural default.
+      imageClusterX: data.imageClusterX,
 
       logoCount: (data.logos || []).length,
       logoSize: data.logoSize,

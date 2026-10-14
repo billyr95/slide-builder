@@ -3,9 +3,9 @@ import { SlideData, Orientation, staggerCount, TextBlockKey } from '@/lib/types'
 import { computeStaggerLayout } from '@/lib/staggerLayout'
 import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } from '@/lib/defaults'
 import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
-import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
+import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMarginSide } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx } from '@/lib/imageSizing'
-import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX } from '@/lib/imageClusterPosition'
+import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX, imageFacingInset } from '@/lib/imageClusterPosition'
 import { sanitizeItalicHtml } from '@/lib/richText'
 
 interface SlideCanvasProps {
@@ -310,7 +310,10 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
     if (data.imageMode === 'none') {
       const maxTextW = dim.w * (orientation === 'landscape' ? 0.7 : 0.8)
-      const noImageMargin = effectiveContentMargin(data, 80) * scale
+      const noImageMarginTop = effectiveContentMarginSide(data, 'top', 80) * scale
+      const noImageMarginRight = effectiveContentMarginSide(data, 'right', 80) * scale
+      const noImageMarginBottom = effectiveContentMarginSide(data, 'bottom', 80) * scale
+      const noImageMarginLeft = effectiveContentMarginSide(data, 'left', 80) * scale
 
       return (
         <div
@@ -329,7 +332,10 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             position: 'relative',
             flexShrink: 0,
             textAlign,
-            padding: `${noImageMargin}px`,
+            paddingTop: `${noImageMarginTop}px`,
+            paddingRight: `${noImageMarginRight}px`,
+            paddingBottom: `${noImageMarginBottom}px`,
+            paddingLeft: `${noImageMarginLeft}px`,
           }}
         >
           <div style={{
@@ -357,8 +363,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             <div style={{
               position: 'absolute',
               bottom: `${48 * scale}px`,
-              left: `${noImageMargin}px`,
-              right: `${noImageMargin}px`,
+              left: `${noImageMarginLeft}px`,
+              right: `${noImageMarginRight}px`,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -385,11 +391,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     if (orientation === 'landscape') {
-      const margin = effectiveContentMargin(data, 80) * scale
-      const bottomPad = hasFooter ? (footerH + 60) : effectiveContentMargin(data, 80)
+      // Four independent physical sides now (see lib/types.ts's
+      // contentMarginTop/Right/Bottom/Left) -- "outer" margin below means
+      // whichever of left/right ISN'T facing the other column, resolved per
+      // column since Flip can put either one on either physical side.
+      const marginTopPx = effectiveContentMarginSide(data, 'top', 80) * scale
+      const marginRightPx = effectiveContentMarginSide(data, 'right', 80) * scale
+      const marginBottomPx = effectiveContentMarginSide(data, 'bottom', 80) * scale
+      const marginLeftPx = effectiveContentMarginSide(data, 'left', 80) * scale
+      const imageOuterMarginPx = imageOnRight ? marginRightPx : marginLeftPx
+      const textOuterMarginPx = imageOnRight ? marginLeftPx : marginRightPx
+      const bottomPad = hasFooter ? (footerH + 60) : marginBottomPx / scale
       // The image column's own facing-side padding (toward the text side)
       // used to be a fixed structural inset (60px stagger cluster padding,
-      // or the single-image column's own `margin`) that the gap control
+      // or the single-image column's own outer margin) that the gap control
       // couldn't touch -- since the single-image column is a hardcoded
       // 40%-of-slide-width box independent of its own padding, simply
       // zeroing that padding and relying on a flex `gap` instead double-
@@ -402,12 +417,11 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       // the default gap, imageFacingPx always equals the old fixed inset
       // exactly -- so nothing shifts for any slide that hasn't touched this
       // control below its own default.
-      const imageDefaultInsetPx = (staggerCount(data.imageMode) > 0 ? 60 : effectiveContentMargin(data, 80)) * scale
+      const imageDefaultInsetPx = staggerCount(data.imageMode) > 0 ? 60 * scale : imageOuterMarginPx
       const requestedGapPx = effectiveImageTextGapLandscape(data) * scale
-      const imageFacingPx = Math.min(imageDefaultInsetPx, requestedGapPx)
-      const textFacingPx = Math.max(0, requestedGapPx - imageFacingPx)
-      const textPadLeft = imageOnRight ? margin : textFacingPx
-      const textPadRight = imageOnRight ? textFacingPx : margin
+      const { imageFacingPx, textFacingPx } = imageFacingInset(imageDefaultInsetPx, requestedGapPx)
+      const textPadLeft = imageOnRight ? textOuterMarginPx : textFacingPx
+      const textPadRight = imageOnRight ? textFacingPx : textOuterMarginPx
       // KNOWN LIMITATION (verified via real-Chromium rendering, not fixed
       // here -- it's a separate issue from the padding floor above, and
       // fixing it risks breaking text wrapping for real content): with
@@ -517,8 +531,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             // size.
             const imgWpx = effectiveImageSizePx(data, orientation) * scale
             const colWpx = 0.4 * dim.w * scale
-            const leftPadPx = imageOnRight ? imageFacingPx : margin
-            const rightPadPx = imageOnRight ? margin : imageFacingPx
+            const leftPadPx = imageOnRight ? imageFacingPx : imageOuterMarginPx
+            const rightPadPx = imageOnRight ? imageOuterMarginPx : imageFacingPx
             const columnLeftXPx = imageOnRight ? dim.w * scale - colWpx : 0
             const naturalXPx = naturalLandscapeClusterX(dim.w * scale, colWpx, leftPadPx, rightPadPx, imgWpx, imageOnRight)
             const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
@@ -534,8 +548,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 // about real content, and don't affect this indicator,
                 // same as imageSize already didn't.
                 justifyContent: data.imageUrl ? 'flex-start' : 'center',
-                paddingTop: margin,
-                paddingBottom: margin,
+                paddingTop: marginTopPx,
+                paddingBottom: marginBottomPx,
                 // Same "placeholder keeps the untouched old look" carve-out
                 // as justifyContent above -- horizontal padding (the old
                 // centering mechanism) only goes away once there's a real
@@ -561,7 +575,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             flex: 1,
             minWidth: 0,
             height: '100%',
-            padding: `${margin}px ${textPadRight}px ${bottomPad * scale}px ${textPadLeft}px`,
+            padding: `${marginTopPx}px ${textPadRight}px ${bottomPad * scale}px ${textPadLeft}px`,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -616,7 +630,10 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     }
 
     // Portrait
-    const portraitMargin = effectiveContentMargin(data, 80) * scale
+    const portraitMarginTop = effectiveContentMarginSide(data, 'top', 80) * scale
+    const portraitMarginRight = effectiveContentMarginSide(data, 'right', 80) * scale
+    const portraitMarginBottom = effectiveContentMarginSide(data, 'bottom', 60) * scale
+    const portraitMarginLeft = effectiveContentMarginSide(data, 'left', 80) * scale
     const portraitGapPx = effectiveImageTextGapPortrait(data) * scale
     // Label needs to behave differently from the rest of the text block:
     // when not flipped it stays inline as the text section's first child
@@ -703,7 +720,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     const labelLeadsPortrait = imageOnRight && data.label && visibleBlocks[0] === 'label'
     const portraitLabelSection = labelLeadsPortrait ? (
       <div key="label" style={{
-        padding: `0 ${portraitMargin}px ${40 * scale}px ${portraitMargin}px`,
+        padding: `0 ${portraitMarginRight}px ${40 * scale}px ${portraitMarginLeft}px`,
         textAlign,
       }}>
         <div style={{ fontSize: `${labelSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges }}>
@@ -723,9 +740,9 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
         flexDirection: 'column',
         alignItems: textAlignItems,
         paddingTop: portraitGapPx,
-        paddingRight: portraitMargin,
-        paddingBottom: effectiveContentMargin(data, 60) * scale,
-        paddingLeft: portraitMargin,
+        paddingRight: portraitMarginRight,
+        paddingBottom: portraitMarginBottom,
+        paddingLeft: portraitMarginLeft,
         textAlign,
       }}>
         {visibleBlocks.filter(key => !(labelLeadsPortrait && key === 'label')).map(key => renderBlock(key))}
@@ -761,7 +778,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           // horizontal padding, the footer's left/right offsets) -- the top
           // of the slide reads consistently with those regardless of
           // whether the image or the text section (with label) sits first.
-          paddingTop: `${portraitMargin}px`,
+          paddingTop: `${portraitMarginTop}px`,
         }}
       >
         {imageOnRight ? (
@@ -776,8 +793,8 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           <div style={{
             position: 'absolute',
             bottom: `${48 * scale}px`,
-            left: `${portraitMargin}px`,
-            right: `${portraitMargin}px`,
+            left: `${portraitMarginLeft}px`,
+            right: `${portraitMarginRight}px`,
             display: 'flex',
             flexDirection: 'column',
             alignItems: textAlignItems,

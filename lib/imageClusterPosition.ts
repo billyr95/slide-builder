@@ -17,7 +17,10 @@
 // (this module) removes that ambiguity entirely: the cluster's position is
 // now a real, independent number, defaulting to wherever centering used to
 // place it so nothing shifts until a user actually sets it.
-import { SlideData } from './types'
+import { SlideData, Orientation, staggerCount } from './types'
+import { CANVAS_WIDTH, effectiveImageSizePx } from './imageSizing'
+import { effectiveContentMarginSide, effectiveImageTextGapLandscape } from './layoutDefaults'
+import { computeStaggerLayout } from './staggerLayout'
 
 // data.imageClusterX overrides BOTH orientations uniformly once set (same
 // "one field, per-context auto default, uniform override" pattern as
@@ -52,4 +55,65 @@ export function naturalLandscapeClusterX(
 // and Flip there only swaps top/bottom order, never horizontal position).
 export function naturalPortraitClusterX(canvasWidth: number, contentWidth: number): number {
   return (canvasWidth - contentWidth) / 2
+}
+
+// The image column's own facing-side (toward the text) padding caps at its
+// usual default but SHRINKS once the requested image<->text gap asks for
+// less, so the two sides' padding together can actually reach a genuine 0
+// gap instead of floors bottoming out at the default -- see
+// SlideCanvas.tsx's identical comment for the full reasoning. Shared by
+// SlideCanvas.tsx's own rendering and naturalImageClusterX below so this
+// cap-and-shrink rule can't drift between what renders and what the X
+// control shows as its default.
+export function imageFacingInset(defaultInsetPx: number, requestedGapPx: number): { imageFacingPx: number; textFacingPx: number } {
+  const imageFacingPx = Math.min(defaultInsetPx, requestedGapPx)
+  const textFacingPx = Math.max(0, requestedGapPx - imageFacingPx)
+  return { imageFacingPx, textFacingPx }
+}
+
+// Full "where would the image cluster sit if imageClusterX were never
+// touched" calculation, at scale=1 (full slide resolution) -- the single
+// source of truth EditorPanel.tsx's X position control reads to show/seed
+// its AUTO value. SlideCanvas.tsx computes this same position at whatever
+// render scale it's using via the lower-level pieces above (imageFacingInset
+// + naturalLandscapeClusterX/naturalPortraitClusterX) rather than calling
+// this directly, since it already needs several of those intermediate
+// values (colW, leftPad/rightPad) for actual layout, not just position --
+// but the FORMULA itself (stagger's fixed 60px cluster inset vs
+// single-image's margin-derived one, the 40%-of-canvas column width, the
+// facing-inset cap-and-shrink rule) only lives here and in
+// lib/staggerLayout.ts, never restated a third time.
+export function naturalImageClusterX(data: SlideData, orientation: Orientation): number {
+  const canvasWidth = CANVAS_WIDTH[orientation]
+  const imageOnRight = data.imageSide === 'right'
+  const isStagger = staggerCount(data.imageMode) > 0
+
+  if (orientation === 'portrait') {
+    const contentWidth = isStagger
+      ? computeStaggerLayout(data, data.imageMode, 1).groupW
+      : effectiveImageSizePx(data, orientation)
+    return naturalPortraitClusterX(canvasWidth, contentWidth)
+  }
+
+  const requestedGap = effectiveImageTextGapLandscape(data)
+
+  if (isStagger) {
+    const { groupW } = computeStaggerLayout(data, data.imageMode, 1)
+    const colPad = 60
+    const { imageFacingPx } = imageFacingInset(colPad, requestedGap)
+    const colW = groupW + colPad + imageFacingPx
+    const leftPad = imageOnRight ? imageFacingPx : colPad
+    const rightPad = imageOnRight ? colPad : imageFacingPx
+    return naturalLandscapeClusterX(canvasWidth, colW, leftPad, rightPad, groupW, imageOnRight)
+  }
+
+  const marginLeft = effectiveContentMarginSide(data, 'left', 80)
+  const marginRight = effectiveContentMarginSide(data, 'right', 80)
+  const outerMargin = imageOnRight ? marginRight : marginLeft
+  const { imageFacingPx } = imageFacingInset(outerMargin, requestedGap)
+  const imgW = effectiveImageSizePx(data, orientation)
+  const colW = 0.4 * canvasWidth
+  const leftPad = imageOnRight ? imageFacingPx : outerMargin
+  const rightPad = imageOnRight ? outerMargin : imageFacingPx
+  return naturalLandscapeClusterX(canvasWidth, colW, leftPad, rightPad, imgW, imageOnRight)
 }

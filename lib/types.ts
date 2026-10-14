@@ -203,18 +203,32 @@ export interface SlideData {
   // in the first place (Flip there swaps top/bottom, not the gap).
   imageTextGapLandscape?: number
   imageTextGapPortrait?: number
-  // Overall padding between the slide's own edges and where the image/text
-  // content begins. One shared field, not four: undefined lets each edge
-  // keep its own current context-dependent default (see
-  // lib/layoutDefaults.ts's effectiveContentMargin -- most are 80px, but a
-  // couple of spots genuinely differ today, e.g. portrait's bottom margin);
-  // once set, the SAME value applies to all four sides uniformly,
-  // overriding every one of those per-context defaults at once. Doesn't
-  // reach into the handful of paddings that serve a different, more
-  // specific purpose (the footer's own fixed offsets, stagger images' own
-  // tighter cluster inset) -- see that module's comments for the exact
-  // scope.
+  // Legacy single-value override, kept only as a fallback for a slide saved
+  // before the four-sided controls below existed -- see
+  // lib/layoutDefaults.ts's effectiveContentMarginSide, the one place that
+  // resolves either format correctly. Never read directly for rendering;
+  // once a slide's margin is touched again (even to re-link it), the new
+  // per-side fields take over and this stops being read at all.
   contentMargin?: number
+  // Four independent per-side overrides (px), each falling back to
+  // `contentMargin` (if set) and then to that side's own context-dependent
+  // default (lib/layoutDefaults.ts's effectiveContentMarginSide -- most are
+  // 80px, but a couple of spots genuinely differ today, e.g. portrait's
+  // bottom margin). contentMarginLinked is purely a UI affordance (does
+  // EditorPanel's one slider write all four at once, or does each have its
+  // own): true/undefined shows one linked control and keeps all four equal
+  // whenever any of them changes; false reveals four independent controls.
+  // Rendering itself never looks at the linked flag -- each side's value is
+  // read independently either way, so flipping the flag back and forth
+  // can't by itself change what's on screen. Doesn't reach into the handful
+  // of paddings that serve a different, more specific purpose (the
+  // footer's own fixed offsets, stagger images' own tighter cluster inset)
+  // -- see lib/layoutDefaults.ts's comments for the exact scope.
+  contentMarginTop?: number
+  contentMarginRight?: number
+  contentMarginBottom?: number
+  contentMarginLeft?: number
+  contentMarginLinked?: boolean
 
   // Images
   imageMode: ImageMode

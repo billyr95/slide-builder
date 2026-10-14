@@ -9,9 +9,10 @@ import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
 import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } from '@/lib/defaults'
 import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
-import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMargin } from '@/lib/layoutDefaults'
+import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMarginSide, MarginSide } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx, CANVAS_WIDTH, MIN_IMAGE_SIZE_PX, MAX_IMAGE_SIZE_PX } from '@/lib/imageSizing'
 import { plainTextToEditableHtml, processEditedHtml } from '@/lib/richText'
+import { effectiveImageClusterX, naturalImageClusterX } from '@/lib/imageClusterPosition'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -230,11 +231,14 @@ function SliderNumberInput({ value, onChange, min, max, disabled, step = 1, deci
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
       // Step immediately on each press (not on blur) -- each arrow press is
       // a complete, atomic change, unlike free typing which should only
-      // commit once the user is done.
+      // commit once the user is done. Shift steps 10x -- a coarser nudge
+      // for controls with a wide range (image placement's px controls in
+      // particular), same modifier convention as most design tools.
       e.preventDefault()
+      const stepAmount = e.shiftKey ? step * 10 : step
       const current = round(Number(text))
       const base = Number.isFinite(current) ? current : value
-      const next = round(Math.max(min, Math.min(max, base + (e.key === 'ArrowUp' ? step : -step))))
+      const next = round(Math.max(min, Math.min(max, base + (e.key === 'ArrowUp' ? stepAmount : -stepAmount))))
       setText(next.toFixed(decimals))
       if (next !== base) onChange(next)
     } else if (e.key === 'Enter') {
@@ -253,12 +257,12 @@ function SliderNumberInput({ value, onChange, min, max, disabled, step = 1, deci
       onChange={e => setText(e.target.value.replace(decimals > 0 ? /[^0-9.-]/g : /[^0-9-]/g, ''))}
       onKeyDown={handleKeyDown}
       onBlur={() => { setFocused(false); commit(text) }}
-      className="w-12 text-xs font-mono text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-right focus:outline-none focus:border-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
+      className="w-14 text-xs font-mono text-zinc-300 bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 text-right focus:outline-none focus:border-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed"
     />
   )
 }
 
-function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge, disabled, numberInput, step = 1, decimals = 0 }: {
+function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'px', badge, disabled, numberInput, step = 1, decimals = 0, onReset }: {
   label: string; value: number; onChange: (v: number) => void; min?: number; max?: number
   // Displayed after the value (e.g. "px" for a real pixel size, "%" for a
   // percentage-based control like single-image mode's size) — defaults to
@@ -283,7 +287,46 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
   // Decimal places shown in the plain (non-numberInput) readout -- defaults
   // to 0 (existing integer callers); line-height sliders pass 2.
   decimals?: number
+  // Small "reset to auto" action shown next to the badge, only once it
+  // reads "manual" (nothing to reset back to otherwise) -- clears the
+  // field's own override so it goes back to tracking its computed default
+  // and the badge flips back to "auto". Omit for callers with no
+  // auto/manual distinction at all (e.g. stagger image X/Y, which have no
+  // "auto" state to return to).
+  onReset?: () => void
 }) {
+  const raf = useRef<number | null>(null)
+  const pending = useRef<number | null>(null)
+
+  // Range-drag updates are throttled to once per animation frame -- the
+  // native input's own thumb still tracks the pointer immediately regardless
+  // (that's the browser's own rendering, not React's), so this doesn't cost
+  // any visual responsiveness; it just stops a rapid flurry of drag events
+  // from each separately triggering this control's (possibly expensive,
+  // e.g. recomputing a whole stagger layout) parent re-render.
+  function scheduleChange(v: number) {
+    pending.current = v
+    if (raf.current !== null) return
+    raf.current = requestAnimationFrame(() => {
+      raf.current = null
+      if (pending.current !== null) onChange(pending.current)
+    })
+  }
+
+  // Flushes immediately on release, rather than possibly waiting one more
+  // frame for the trailing scheduleChange to fire -- the committed value on
+  // pointer-up should never lag behind where the thumb visually stopped.
+  function flushChange() {
+    if (raf.current !== null) {
+      cancelAnimationFrame(raf.current)
+      raf.current = null
+    }
+    if (pending.current !== null) {
+      onChange(pending.current)
+      pending.current = null
+    }
+  }
+
   return (
     <div className="mt-1.5">
       <div className="flex justify-between items-center mb-1">
@@ -299,6 +342,15 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
               {badge}
             </span>
           )}
+          {badge === 'manual' && onReset && (
+            <button
+              onClick={onReset}
+              title="Reset to auto"
+              className="text-[9px] text-zinc-600 hover:text-zinc-300 transition-colors underline decoration-dotted"
+            >
+              reset
+            </button>
+          )}
         </span>
         {numberInput ? (
           <span className="flex items-center gap-1">
@@ -311,7 +363,9 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
       </div>
       <input type="range" min={min} max={max} step={step} value={value}
         disabled={disabled}
-        onChange={e => onChange(Number(e.target.value))}
+        onChange={e => scheduleChange(Number(e.target.value))}
+        onPointerUp={flushChange}
+        onKeyUp={flushChange}
         className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-white disabled:opacity-40 disabled:cursor-not-allowed" />
     </div>
   )
@@ -476,15 +530,6 @@ function MarginTopSlider({ label, value, onChange, badge }: {
   return <FontSizeSlider label={label} value={value} onChange={onChange} min={0} max={120} unit="px" badge={badge} numberInput />
 }
 
-// Shared by the Layout tab's "Image ↔ Text gap" and "Outer margin" controls
-// -- same slider+number-input+arrow-key pattern as font size/margin-top,
-// just a wider range (these span whole layout regions, not a single text
-// block's own spacing).
-function SpacingSlider({ label, value, onChange, badge }: {
-  label: string; value: number; onChange: (v: number) => void; badge?: 'auto' | 'manual'
-}) {
-  return <FontSizeSlider label={label} value={value} onChange={onChange} min={0} max={300} unit="px" badge={badge} numberInput />
-}
 
 // Listening Credit's own internal line-height (the gap between ITS OWN
 // wrapped lines -- it's often a long paragraph). Distinct from Margin Top
@@ -742,6 +787,68 @@ export default function EditorPanel({
   // field and its override together, kept in sync) is exempt from this.
   function setText<K extends keyof SlideData>(key: K, richKey: keyof SlideData, value: SlideData[K]) {
     onChange({ ...data, [key]: value, [richKey]: undefined })
+  }
+
+  // Outer margin's four physical sides (lib/types.ts's contentMarginTop/
+  // Right/Bottom/Left) -- contentMarginLinked is purely a UI affordance
+  // (see that field's own comment): rendering never reads it, it only
+  // decides whether the Layout tab shows one shared control or four
+  // independent ones, and how writes from that control fan out.
+  const MARGIN_SIDE_FIELD = {
+    top: 'contentMarginTop', right: 'contentMarginRight', bottom: 'contentMarginBottom', left: 'contentMarginLeft',
+  } as const
+
+  function marginSideFallback(side: MarginSide): number {
+    // Matches SlideCanvas.tsx's own per-side defaults -- portrait's bottom
+    // is the one spot that's genuinely always narrower than the other
+    // three, independent of footer presence. (Landscape's bottom can ALSO
+    // grow wider than 80 when a footer is present, but that's a dynamic
+    // render-time reservation, not a stored default worth mirroring here --
+    // the actual applied margin still overrides correctly regardless of
+    // what this shows as the AUTO placeholder.)
+    return side === 'bottom' && orientation === 'portrait' ? 60 : 80
+  }
+
+  // Writes the SAME value to all four sides (the linked control) --
+  // contentMargin also kept in sync as the legacy fallback field stays
+  // meaningful for any code path that still reads it directly.
+  function setMarginLinked(value: number) {
+    onChange({
+      ...data,
+      contentMargin: value,
+      contentMarginTop: value, contentMarginRight: value, contentMarginBottom: value, contentMarginLeft: value,
+      contentMarginLinked: true,
+    })
+  }
+
+  function setMarginSide(side: MarginSide, value: number) {
+    onChange({ ...data, [MARGIN_SIDE_FIELD[side]]: value, contentMarginLinked: false })
+  }
+
+  function resetMarginSide(side: MarginSide) {
+    onChange({ ...data, [MARGIN_SIDE_FIELD[side]]: undefined })
+  }
+
+  function resetMarginLinked() {
+    onChange({
+      ...data,
+      contentMargin: undefined,
+      contentMarginTop: undefined, contentMarginRight: undefined, contentMarginBottom: undefined, contentMarginLeft: undefined,
+      contentMarginLinked: undefined,
+    })
+  }
+
+  // Switching TO linked snaps all four sides to the current effective top
+  // value (so the single control that appears has one coherent number to
+  // show) rather than silently picking one of up to four different stored
+  // values -- switching TO unlinked just reveals the four controls without
+  // touching any stored value.
+  function toggleMarginLinked() {
+    if (data.contentMarginLinked === false) {
+      setMarginLinked(effectiveContentMarginSide(data, 'top', marginSideFallback('top')))
+    } else {
+      onChange({ ...data, contentMarginLinked: false })
+    }
   }
 
   // Title/subtitle text and their auto-suggested font size must land in the
@@ -1357,16 +1464,9 @@ export default function EditorPanel({
                       </div>
                     </div>
                   )}
-                  {data.imageUrl && (
-                    <div className="mt-2">
-                      <FontSizeSlider label="Image size" value={effectiveImageSizePx(data, orientation)}
-                        onChange={v => {
-                          setImageSizeOverridden(prev => ({ ...prev, [-1]: true }))
-                          onChange({ ...data, imageSize: v, imageSizeIsPixels: true })
-                        }}
-                        min={MIN_IMAGE_SIZE_PX} max={MAX_IMAGE_SIZE_PX} unit="px" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
-                    </div>
-                  )}
+                  {/* Size/X position/Gap/Margin all live together in the
+                      Layout tab's "Image placement" group now, not here --
+                      see that section. */}
                 </FieldCard>
               )}
 
@@ -1510,27 +1610,83 @@ export default function EditorPanel({
                 </button>
               </FieldCard>
 
-              {data.imageMode !== 'none' && (
-                <FieldCard>
-                  <label className={labelCls}>Image ↔ Text gap</label>
-                  {orientation === 'landscape' ? (
-                    <SpacingSlider label="Gap" value={effectiveImageTextGapLandscape(data)}
-                      onChange={v => set('imageTextGapLandscape', v)}
-                      badge={data.imageTextGapLandscape !== undefined ? 'manual' : 'auto'} />
-                  ) : (
-                    <SpacingSlider label="Gap" value={effectiveImageTextGapPortrait(data)}
-                      onChange={v => set('imageTextGapPortrait', v)}
-                      badge={data.imageTextGapPortrait !== undefined ? 'manual' : 'auto'} />
-                  )}
-                </FieldCard>
-              )}
-
               <FieldCard>
-                <label className={labelCls}>Outer margin</label>
-                <p className="text-xs text-zinc-500 mb-1">Space between the slide's edges and the image/text content, applied equally on all four sides.</p>
-                <SpacingSlider label="Margin" value={effectiveContentMargin(data, 80)}
-                  onChange={v => set('contentMargin', v)}
-                  badge={data.contentMargin !== undefined ? 'manual' : 'auto'} />
+                <label className={labelCls}>Image placement</label>
+                <p className="text-xs text-zinc-500 mb-1">Size, position, and spacing for the image relative to the text and the slide's edges.</p>
+
+                {data.imageMode === 'single' && data.imageUrl && (
+                  <FontSizeSlider label="Size" value={effectiveImageSizePx(data, orientation)}
+                    onChange={v => {
+                      setImageSizeOverridden(prev => ({ ...prev, [-1]: true }))
+                      onChange({ ...data, imageSize: v, imageSizeIsPixels: true })
+                    }}
+                    onReset={() => {
+                      setImageSizeOverridden(prev => ({ ...prev, [-1]: false }))
+                      // imageSize/imageSizeIsPixels are typed as always-present
+                      // (every slide created through this app sets them), but
+                      // "no override" is genuinely an absent-field state here --
+                      // same as a slide saved before either field existed.
+                      const resetPatch = { imageSize: undefined, imageSizeIsPixels: undefined } as unknown as Partial<SlideData>
+                      onChange({ ...data, ...resetPatch })
+                    }}
+                    min={MIN_IMAGE_SIZE_PX} max={MAX_IMAGE_SIZE_PX} unit="px" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
+                )}
+
+                {data.imageMode !== 'none' && (
+                  <FontSizeSlider label="X position" value={effectiveImageClusterX(data, naturalImageClusterX(data, orientation))}
+                    onChange={v => set('imageClusterX', v)}
+                    onReset={() => set('imageClusterX', undefined)}
+                    // Overflow (position past where margin/size would
+                    // otherwise constrain it) is intended, not guarded
+                    // against -- see lib/imageClusterPosition.ts -- so this
+                    // range extends well past both canvas edges in either
+                    // direction rather than clamping to [0, canvas width].
+                    min={-1000} max={CANVAS_WIDTH[orientation] + 1000} unit="px"
+                    badge={data.imageClusterX !== undefined ? 'manual' : 'auto'} numberInput />
+                )}
+
+                {data.imageMode !== 'none' && (
+                  orientation === 'landscape' ? (
+                    <FontSizeSlider label="Gap" value={effectiveImageTextGapLandscape(data)}
+                      onChange={v => set('imageTextGapLandscape', v)}
+                      onReset={() => set('imageTextGapLandscape', undefined)}
+                      min={0} max={400} unit="px" badge={data.imageTextGapLandscape !== undefined ? 'manual' : 'auto'} numberInput />
+                  ) : (
+                    <FontSizeSlider label="Gap" value={effectiveImageTextGapPortrait(data)}
+                      onChange={v => set('imageTextGapPortrait', v)}
+                      onReset={() => set('imageTextGapPortrait', undefined)}
+                      min={0} max={400} unit="px" badge={data.imageTextGapPortrait !== undefined ? 'manual' : 'auto'} numberInput />
+                  )
+                )}
+
+                <div className="mt-3 pt-3 border-t border-zinc-800">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-zinc-500">Outer margin</span>
+                    <button onClick={toggleMarginLinked}
+                      className="text-[10px] text-zinc-500 hover:text-white underline decoration-dotted transition-colors">
+                      {data.contentMarginLinked === false ? 'Link sides' : 'Unlink sides'}
+                    </button>
+                  </div>
+                  {data.contentMarginLinked === false ? (
+                    <>
+                      {(['top', 'right', 'bottom', 'left'] as const).map(side => (
+                        <FontSizeSlider key={side}
+                          label={side[0].toUpperCase() + side.slice(1)}
+                          value={effectiveContentMarginSide(data, side, marginSideFallback(side))}
+                          onChange={v => setMarginSide(side, v)}
+                          onReset={() => resetMarginSide(side)}
+                          min={0} max={400} unit="px"
+                          badge={data[MARGIN_SIDE_FIELD[side]] !== undefined ? 'manual' : 'auto'} numberInput />
+                      ))}
+                    </>
+                  ) : (
+                    <FontSizeSlider label="Margin" value={effectiveContentMarginSide(data, 'top', marginSideFallback('top'))}
+                      onChange={v => setMarginLinked(v)}
+                      onReset={resetMarginLinked}
+                      min={0} max={400} unit="px"
+                      badge={(data.contentMarginTop !== undefined || data.contentMargin !== undefined) ? 'manual' : 'auto'} numberInput />
+                  )}
+                </div>
               </FieldCard>
 
               <FieldCard>

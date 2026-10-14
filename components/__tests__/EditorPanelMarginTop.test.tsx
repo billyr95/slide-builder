@@ -49,7 +49,12 @@ describe('EditorPanel "Margin top" controls', () => {
     const { onChange } = renderPanel()
     const titleLabel = screen.getAllByText('Margin top')[1] // Label's card is first, Title's second
     const slider = titleLabel.closest('.mt-1\\.5')!.querySelector('input[type="range"]') as HTMLInputElement
+    // Range drags are throttled to one requestAnimationFrame (see
+    // FontSizeSlider's own comment) so a flurry of drag ticks doesn't each
+    // trigger a full re-render -- pointerUp flushes immediately on release,
+    // same as an actual drag-then-release gesture.
     fireEvent.change(slider, { target: { value: '50' } })
+    fireEvent.pointerUp(slider)
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ titleMarginTop: 50 }))
   })
 
