@@ -22,13 +22,18 @@ import { CANVAS_WIDTH, effectiveImageSizePx } from './imageSizing'
 import { effectiveContentMarginSide, effectiveImageTextGapLandscape } from './layoutDefaults'
 import { computeStaggerLayout } from './staggerLayout'
 
-// data.imageClusterX overrides BOTH orientations uniformly once set (same
-// "one field, per-context auto default, uniform override" pattern as
-// contentMargin) -- undefined means "wherever the old centering logic
-// would have placed it," computed by the two functions below from values
-// the caller already has on hand (column width/padding for landscape,
-// nothing extra needed for portrait's simple full-width centering).
-export function effectiveImageClusterX(data: SlideData, naturalDefaultX: number): number {
+// Orientation-specific overrides (imageClusterXLandscape/Portrait) are
+// checked first and are fully independent of each other -- switching
+// orientation in the editor shows/edits only the matching one. Undefined
+// for the current orientation falls back to the legacy shared
+// `imageClusterX` (so a slide that hasn't touched X position since this
+// split shipped doesn't move), then to `naturalDefaultX`, computed by the
+// two functions below from values the caller already has on hand (column
+// width/padding for landscape, nothing extra needed for portrait's simple
+// full-width centering).
+export function effectiveImageClusterX(data: SlideData, orientation: Orientation, naturalDefaultX: number): number {
+  const override = orientation === 'landscape' ? data.imageClusterXLandscape : data.imageClusterXPortrait
+  if (override !== undefined) return override
   return data.imageClusterX ?? naturalDefaultX
 }
 
@@ -90,7 +95,7 @@ export function naturalImageClusterX(data: SlideData, orientation: Orientation):
 
   if (orientation === 'portrait') {
     const contentWidth = isStagger
-      ? computeStaggerLayout(data, data.imageMode, 1).groupW
+      ? computeStaggerLayout(data, data.imageMode, 1, orientation).groupW
       : effectiveImageSizePx(data, orientation)
     return naturalPortraitClusterX(canvasWidth, contentWidth)
   }
@@ -98,7 +103,7 @@ export function naturalImageClusterX(data: SlideData, orientation: Orientation):
   const requestedGap = effectiveImageTextGapLandscape(data)
 
   if (isStagger) {
-    const { groupW } = computeStaggerLayout(data, data.imageMode, 1)
+    const { groupW } = computeStaggerLayout(data, data.imageMode, 1, orientation)
     const colPad = 60
     const { imageFacingPx } = imageFacingInset(colPad, requestedGap)
     const colW = groupW + colPad + imageFacingPx

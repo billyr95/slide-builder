@@ -33,9 +33,23 @@ export interface StaggerImage {
   id: string
   url: string
   alt: string
-  x?: number     // horizontal offset (px); undefined/0 = algorithmic default
-  y: number      // vertical offset (px)
-  scale: number  // width override (px); 0 means use staggerSize
+  x?: number     // horizontal offset (px); undefined/0 = algorithmic default -- LEGACY/fallback, see xLandscape/xPortrait
+  y: number      // vertical offset (px) -- LEGACY/fallback, see yLandscape/yPortrait
+  scale: number  // width override (px); 0 means use staggerSize -- LEGACY/fallback, see scaleLandscape/scalePortrait
+  // Orientation-specific layout overrides -- the image's own identity
+  // (id/url/alt) and stacking depth (zIndex) stay shared across both
+  // orientations (it's the same uploaded image either way), but its
+  // position/size within the cluster is independent per orientation, same
+  // reasoning as imageSizeLandscape/Portrait on SlideData. Each falls back
+  // to its legacy field above (x/y/scale) when unset, then to the
+  // algorithmic default -- see lib/staggerLayout.ts's effectiveStagger*
+  // functions, the only place these should be read.
+  xLandscape?: number
+  xPortrait?: number
+  yLandscape?: number
+  yPortrait?: number
+  scaleLandscape?: number
+  scalePortrait?: number
   // Explicit stacking depth, user-controlled via a per-image slider in
   // EditorPanel -- replaces relying on array order/DOM paint order to infer
   // front/back. Undefined (e.g. a slide saved before this field existed)
@@ -237,7 +251,10 @@ export interface SlideData {
   // Single-image mode's size, in the unit imageSizeIsPixels says it's in --
   // see lib/imageSizing.ts's effectiveImageSizePx, the single place that
   // interprets this correctly for either vintage. Never read this directly
-  // for rendering/display; always go through that function.
+  // for rendering/display; always go through that function. LEGACY/fallback
+  // only now -- see imageSizeLandscape/imageSizePortrait below, which take
+  // precedence once a slide's size has been touched since orientation-
+  // specific sizing shipped.
   imageSize: number
   // true once this slide has been through the percentage->pixel conversion
   // (every slide created after that change, or an older one where the user
@@ -249,6 +266,16 @@ export interface SlideData {
   // value only ever changes meaning when someone deliberately touches the
   // control.
   imageSizeIsPixels?: boolean
+  // Orientation-specific size overrides (always pixels -- these are new
+  // fields with no legacy percentage format to worry about, unlike
+  // `imageSize` above). Undefined falls back to the legacy shared
+  // `imageSize`/`imageSizeIsPixels` pair (so nothing shifts for a slide
+  // that hasn't touched Size since this split shipped), then to
+  // DEFAULT_IMAGE_SIZE_PX. Switching orientation in the editor shows and
+  // edits only the matching one of these two -- changing one never touches
+  // the other. See lib/imageSizing.ts's effectiveImageSizePx.
+  imageSizeLandscape?: number
+  imageSizePortrait?: number
   // The image cluster's (single image, or the whole stagger group treated
   // as one unit) horizontal position, as an absolute slide-relative pixel
   // X-coordinate -- see lib/imageClusterPosition.ts. Undefined uses
@@ -256,10 +283,17 @@ export interface SlideData {
   // (matching today's centered-in-its-column look exactly); once set, it's
   // a direct override independent of margin and gap entirely, and can push
   // the cluster past where either would otherwise have constrained it.
-  // Applies to both orientations uniformly (same pattern as
-  // contentMargin), works with Flip (the "natural" default itself already
-  // accounts for which side the image is on).
+  // Works with Flip (the "natural" default itself already accounts for
+  // which side the image is on). LEGACY/fallback only now -- see
+  // imageClusterXLandscape/imageClusterXPortrait below.
   imageClusterX?: number
+  // Orientation-specific X overrides, same fallback shape as
+  // imageSizeLandscape/Portrait above: undefined falls back to the legacy
+  // shared `imageClusterX`, then to each orientation's own computed
+  // natural default (lib/imageClusterPosition.ts's naturalImageClusterX,
+  // which already varies by orientation on its own).
+  imageClusterXLandscape?: number
+  imageClusterXPortrait?: number
   // Single-image-mode counterpart of StaggerImage's face-crop fields --
   // see the comment there.
   imageFaceCropSuggested?: FaceCropBox
@@ -267,7 +301,11 @@ export interface SlideData {
   imageFaceCropWasOverridden?: boolean
   staggerImages: StaggerImage[]  // used by all multi-image modes (stagger, triangle, squared)
   imageOverlap: number  // 0–60, percentage overlap between consecutive stagger images
-  staggerSize: number   // pixels, default width of each image in stagger layout
+  staggerSize: number   // pixels, default width of each image in stagger layout -- LEGACY/fallback, see staggerSizeLandscape/Portrait
+  // Orientation-specific default stagger image width -- same fallback shape
+  // as every other orientation-split field above.
+  staggerSizeLandscape?: number
+  staggerSizePortrait?: number
   // When true, Image 1 and Image 2's size sliders stay in sync -- adjusting
   // either one applies the same scale to both. Starts scoped to just the
   // first two slots (see EditorPanel's updateStaggerScale).

@@ -1,73 +1,100 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeItalicHtml, plainTextToEditableHtml, processEditedHtml } from '@/lib/richText'
+import { sanitizeFormattingHtml, fieldHtmlForEditing, processFieldHtml } from '@/lib/richText'
 
-describe('sanitizeItalicHtml: allowlists only bare <i>/</i>', () => {
-  it('keeps plain <i>/</i> tags as-is', () => {
-    expect(sanitizeItalicHtml('Hello <i>World</i>!')).toBe('Hello <i>World</i>!')
+describe('sanitizeFormattingHtml: allowlists only em/i/strong/b/br', () => {
+  it('keeps allowed tags as-is', () => {
+    expect(sanitizeFormattingHtml('Hello <i>World</i> and <strong>Bold</strong>!', true))
+      .toEqual({ html: 'Hello <i>World</i> and <strong>Bold</strong>!', stripped: false })
+    expect(sanitizeFormattingHtml('<em>a</em><b>c</b><br>', true))
+      .toEqual({ html: '<em>a</em><b>c</b><br>', stripped: false })
   })
 
   it('normalizes case to lowercase', () => {
-    expect(sanitizeItalicHtml('<I>Hello</I>')).toBe('<i>Hello</i>')
+    expect(sanitizeFormattingHtml('<I>Hello</I><STRONG>x</STRONG>', true))
+      .toEqual({ html: '<i>Hello</i><strong>x</strong>', stripped: false })
   })
 
-  it('strips any other tag, escaping it to plain text', () => {
-    expect(sanitizeItalicHtml('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;')
+  it('drops disallowed tags entirely (keeping their inner content as plain text), and reports stripped', () => {
+    expect(sanitizeFormattingHtml('<script>alert(1)</script>', true))
+      .toEqual({ html: 'alert(1)', stripped: true })
   })
 
-  it('strips attributes smuggled onto an i tag (e.g. onmouseover)', () => {
-    // <i onmouseover=...> isn't a bare `<i>` token, so it's treated as an
-    // ordinary disallowed tag and escaped, not passed through.
-    expect(sanitizeItalicHtml('<i onmouseover="evil()">x</i>')).toBe('&lt;i onmouseover="evil()"&gt;x</i>')
+  it('strips attributes smuggled onto an allowed tag (e.g. onmouseover)', () => {
+    const result = sanitizeFormattingHtml('<i onmouseover="evil()">x</i>', true)
+    expect(result.html).toBe('&lt;i onmouseover="evil()"&gt;x</i>')
+    expect(result.stripped).toBe(true)
+  })
+
+  it('strips strong/b (but keeps em/i) when allowBold is false, and reports stripped', () => {
+    const result = sanitizeFormattingHtml('<em>keep</em> <strong>drop</strong>', false)
+    expect(result.html).toBe('<em>keep</em> drop')
+    expect(result.stripped).toBe(true)
   })
 
   it('escapes stray &, <, > in plain text', () => {
-    expect(sanitizeItalicHtml('Smith & Jones < 5 > 3')).toBe('Smith &amp; Jones &lt; 5 &gt; 3')
+    expect(sanitizeFormattingHtml('Smith & Jones < 5 > 3', true))
+      .toEqual({ html: 'Smith &amp; Jones &lt; 5 &gt; 3', stripped: false })
   })
 
   it('leaves embedded newlines untouched', () => {
-    expect(sanitizeItalicHtml('line one\n<i>line two</i>')).toBe('line one\n<i>line two</i>')
+    expect(sanitizeFormattingHtml('line one\n<i>line two</i>', true))
+      .toEqual({ html: 'line one\n<i>line two</i>', stripped: false })
   })
 })
 
-describe('plainTextToEditableHtml', () => {
-  it('escapes HTML-significant characters so plain text never looks like markup', () => {
-    expect(plainTextToEditableHtml('Tom & Jerry <3')).toBe('Tom &amp; Jerry &lt;3')
+describe('fieldHtmlForEditing', () => {
+  it('escapes plain text when there is no existing rich override', () => {
+    expect(fieldHtmlForEditing('Tom & Jerry <3', undefined)).toBe('Tom &amp; Jerry &lt;3')
+  })
+
+  it('uses the existing rich override verbatim when present', () => {
+    expect(fieldHtmlForEditing('Tom and Jerry', 'Tom and <i>Jerry</i>')).toBe('Tom and <i>Jerry</i>')
   })
 })
 
-describe('processEditedHtml: round-trips a contentEditable div\'s innerHTML', () => {
-  it('returns the plain text and no rich override when there are no italics', () => {
-    const result = processEditedHtml('Hello World')
+describe('processFieldHtml: the Edit HTML modal\'s Save path', () => {
+  it('returns the plain text and no rich override when there is no formatting', () => {
+    const result = processFieldHtml('Hello World', true)
     expect(result.plainText).toBe('Hello World')
+    expect(result.richHtml).toBeUndefined()
+    expect(result.stripped).toBe(false)
+  })
+
+  it('returns a rich override when formatting is present, plain text with tags stripped', () => {
+    const result = processFieldHtml('Hello <i>World</i> and <strong>Jane</strong>', true)
+    expect(result.plainText).toBe('Hello World and Jane')
+    expect(result.richHtml).toBe('Hello <i>World</i> and <strong>Jane</strong>')
+    expect(result.stripped).toBe(false)
+  })
+
+  it('converts <br> tags into plain newlines', () => {
+    const result = processFieldHtml('line one<br>line <i>two</i>', true)
+    expect(result.plainText).toBe('line one\nline two')
+    expect(result.richHtml).toBe('line one<br>line <i>two</i>')
+  })
+
+  it('keeps literal newlines as newlines (Presenters\' one-per-line behavior)', () => {
+    const result = processFieldHtml('Name One\nName Two', true)
+    expect(result.plainText).toBe('Name One\nName Two')
     expect(result.richHtml).toBeUndefined()
   })
 
-  it('returns a rich override when italics are present, plain text with tags stripped', () => {
-    const result = processEditedHtml('Hello <i>World</i>')
-    expect(result.plainText).toBe('Hello World')
-    expect(result.richHtml).toBe('Hello <i>World</i>')
+  it('strips bold when allowBold is false and reports it', () => {
+    const result = processFieldHtml('<strong>Bold</strong> text', false)
+    expect(result.plainText).toBe('Bold text')
+    expect(result.richHtml).toBeUndefined()
+    expect(result.stripped).toBe(true)
   })
 
-  it('converts <div>-wrapped lines (Chrome\'s contentEditable Enter behavior) into plain newlines', () => {
-    const result = processEditedHtml('<div>line one</div><div>line <i>two</i></div>')
-    expect(result.plainText).toBe('line one\nline two')
-    expect(result.richHtml).toBe('line one\nline <i>two</i>')
-  })
-
-  it('converts <br> line breaks into plain newlines', () => {
-    const result = processEditedHtml('line one<br>line <i>two</i>')
-    expect(result.plainText).toBe('line one\nline two')
-    expect(result.richHtml).toBe('line one\nline <i>two</i>')
-  })
-
-  it('strips any injected tag/attribute down to plain escaped text, even amid real italics', () => {
-    const result = processEditedHtml('<i>safe</i><img src=x onerror=alert(1)>')
+  it('strips any injected tag/attribute down to plain escaped text, even amid real formatting', () => {
+    const result = processFieldHtml('<i>safe</i><img src=x onerror=alert(1)>', true)
     expect(result.richHtml).toBe('<i>safe</i>&lt;img src=x onerror=alert(1)&gt;')
     expect(result.plainText).toBe('safe<img src=x onerror=alert(1)>')
+    expect(result.stripped).toBe(true)
   })
 
   it('round-trips an ampersand correctly through sanitize + unescape', () => {
-    const result = processEditedHtml('Smith & Jones')
+    const result = processFieldHtml('Smith & Jones', true)
     expect(result.plainText).toBe('Smith & Jones')
     expect(result.richHtml).toBeUndefined()
   })

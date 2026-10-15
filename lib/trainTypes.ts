@@ -40,6 +40,10 @@ export interface TrainEntry {
   programTitle: string
   programTitleFont: PresentersFont
   programTitleItalic: boolean
+  // True when any text field carries a rich-text italic/bold override (see
+  // SlideData's *RichText fields) -- distinct from the three field-wide
+  // italic booleans above.
+  hasInlineFormatting: boolean
 
   // Which side the image sits on vs. the text block -- a real layout
   // decision, not just a style tweak, so it's worth its own training signal.
@@ -199,6 +203,7 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     programTitle: '',
     programTitleFont: 'Theinhardt',
     programTitleItalic: true,
+    hasInlineFormatting: false,
     imageSide: 'left',
     seriesName: '',
     listeningCredit: '',

@@ -3,6 +3,7 @@ import { TrainEntry, TrainImage, ScreenType } from './trainTypes'
 import { getImageDimensions, resizeImageDataUrl } from './resizeImage'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from './slideHeuristics'
 import { effectiveImageSizePx } from './imageSizing'
+import { effectiveStaggerScale, effectiveStaggerSize } from './staggerLayout'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
@@ -36,6 +37,16 @@ async function toCompressedTrainImage(raw: { url: string; name: string }): Promi
   }
 }
 
+// True when any of the 8 text fields carries a rich-text italic/bold
+// override (lib/types.ts's *RichText fields) -- lets formatted slides be
+// told apart in the training dataset (TrainEntry.hasInlineFormatting).
+function hasInlineFormatting(data: SlideData): boolean {
+  return !!(
+    data.labelRichText || data.titleRichText || data.subtitleRichText || data.subtitle2RichText ||
+    data.presentersRichText || data.programTitleRichText || data.seriesNameRichText || data.listeningCreditRichText
+  )
+}
+
 // The approximate width ratio (0-1 of full slide width) implied by the
 // first placed image's current size control.
 function firstImageWidthRatio(data: SlideData, orientation: Orientation): number | undefined {
@@ -53,7 +64,7 @@ function firstImageWidthRatio(data: SlideData, orientation: Orientation): number
 
   const first = (data.staggerImages || []).find(img => img.url)
   if (!first) return undefined
-  const scalePx = first.scale || data.staggerSize || 250
+  const scalePx = effectiveStaggerScale(first, orientation) || effectiveStaggerSize(data, orientation)
   return Math.max(0, Math.min(1, scalePx / dims.w))
 }
 
@@ -156,6 +167,7 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     programTitle: data.programTitle,
     programTitleFont: data.programTitleFont,
     programTitleItalic: data.programTitleItalic,
+    hasInlineFormatting: hasInlineFormatting(data),
     imageSide: data.imageSide,
     textAlign,
     imagesLinkedSize: data.imagesLinkedSize,
@@ -219,13 +231,22 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       programTitleSize: data.programTitleSize,
 
       imageMode: data.imageMode,
-      // The effective (converted, if this slide predates the pixel-based
-      // control) pixel width -- never the possibly-legacy raw stored value,
-      // consistent with how stagger mode's own pixel-based `scale` is
-      // already captured here.
+      // The effective (converted/orientation-resolved) pixel width for
+      // THIS entry's own orientation -- never the possibly-legacy raw
+      // stored value, consistent with how stagger mode's own pixel-based
+      // `scale` is already captured here.
       imageSize: data.imageMode === 'single' ? effectiveImageSizePx(data, orientation) : undefined,
       imageOverlap: data.imageOverlap,
-      staggerSize: data.staggerSize,
+      staggerSize: effectiveStaggerSize(data, orientation),
+      // Raw orientation-specific overrides (undefined means that
+      // orientation is still on its own computed default) -- captured
+      // alongside the resolved values above so training data can tell a
+      // genuinely-set override apart from a slide that just happens to
+      // render at its default size in this orientation.
+      imageSizeLandscape: data.imageSizeLandscape,
+      imageSizePortrait: data.imageSizePortrait,
+      staggerSizeLandscape: data.staggerSizeLandscape,
+      staggerSizePortrait: data.staggerSizePortrait,
 
       // Image<->text gap and outer content margin -- undefined for either
       // means the slide is still on SlideCanvas's own computed default (see
@@ -245,8 +266,12 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
       contentMarginLinked: data.contentMarginLinked,
       // The image cluster's (single image, or the whole stagger group) own
       // horizontal position override -- undefined means it's still at
-      // lib/imageClusterPosition.ts's computed natural default.
+      // lib/imageClusterPosition.ts's computed natural default. The legacy
+      // shared field plus both orientation-specific ones, same reasoning as
+      // imageSize/staggerSize above.
       imageClusterX: data.imageClusterX,
+      imageClusterXLandscape: data.imageClusterXLandscape,
+      imageClusterXPortrait: data.imageClusterXPortrait,
 
       logoCount: (data.logos || []).length,
       logoSize: data.logoSize,

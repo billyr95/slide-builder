@@ -1,0 +1,1 @@
+ALTER TABLE "training_entries" ADD COLUMN "has_inline_formatting" boolean DEFAULT false NOT NULL;

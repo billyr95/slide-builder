@@ -6,7 +6,7 @@ import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop } f
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMarginSide } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx } from '@/lib/imageSizing'
 import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX, imageFacingInset } from '@/lib/imageClusterPosition'
-import { sanitizeItalicHtml } from '@/lib/richText'
+import { sanitizeFormattingHtml } from '@/lib/richText'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -160,14 +160,19 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       return fontSwitchableStyle(data.programTitleFont ?? 'Theinhardt', data.programTitleItalic, weight, sizePx, data.programTitleColor ?? data.textColor)
     }
 
-    // Renders a field's rich-text italic override (see lib/types.ts's
+    // Renders a field's rich-text italic/bold override (see lib/types.ts's
     // *RichText comment) when present, else its plain text exactly as
     // before. Re-sanitizes at render time too (not just on save in
-    // EditorPanel.tsx) so even a hand-edited or otherwise-corrupted stored
-    // value can never carry anything beyond <i>/</i>.
+    // EditorPanel.tsx/NewSlideModal.tsx) so even a hand-edited or
+    // otherwise-corrupted stored value can never carry anything beyond
+    // em/i/strong/b/br -- bold is always allowed here regardless of the
+    // field's current font; a field whose font has no bold face (92NY
+    // Text) never gets strong/b saved into it in the first place (see
+    // EditHtmlModal), so there's nothing to re-strip for that case at
+    // render time.
     function richOrPlain(plain: string, rich: string | undefined): React.ReactNode {
       if (!rich) return plain
-      return <span dangerouslySetInnerHTML={{ __html: sanitizeItalicHtml(rich) }} />
+      return <span dangerouslySetInnerHTML={{ __html: sanitizeFormattingHtml(rich, true).html }} />
     }
 
     // Renders whichever single block `key` refers to -- called identically
@@ -463,7 +468,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
           {(() => {
             const count = staggerCount(data.imageMode)
             if (count > 0) {
-              const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data, data.imageMode, scale)
+              const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data, data.imageMode, scale, orientation)
               // Stagger's own tighter cluster inset -- kept as its own fixed
               // value on the OUTER side (not tied to contentMargin) since
               // it's really about breathing room around a variable-size
@@ -487,7 +492,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               // for consistency and to support a future non-fitted case).
               const columnLeftXPx = imageOnRight ? dim.w * scale - colW : 0
               const naturalXPx = naturalLandscapeClusterX(dim.w * scale, colW, leftPadPx, rightPadPx, groupW, imageOnRight)
-              const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
+              const clusterXPx = effectiveImageClusterX(data, orientation, naturalXPx / scale) * scale
               const groupMarginLeftPx = clusterXPx - columnLeftXPx
               return (
                 <div style={{
@@ -535,7 +540,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             const rightPadPx = imageOnRight ? imageOuterMarginPx : imageFacingPx
             const columnLeftXPx = imageOnRight ? dim.w * scale - colWpx : 0
             const naturalXPx = naturalLandscapeClusterX(dim.w * scale, colWpx, leftPadPx, rightPadPx, imgWpx, imageOnRight)
-            const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
+            const clusterXPx = effectiveImageClusterX(data, orientation, naturalXPx / scale) * scale
             const imgMarginLeftPx = clusterXPx - columnLeftXPx
             return (
               <div style={{
@@ -646,13 +651,13 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       <React.Fragment key="image">
         {staggerCount(data.imageMode) > 0 ? (
           (() => {
-            const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data, data.imageMode, scale)
+            const { images, widths, lefts, tops, groupW, groupH } = computeStaggerLayout(data, data.imageMode, scale, orientation)
             // Explicit X position (see lib/imageClusterPosition.ts),
             // replacing alignSelf:'center' -- portrait has no left/right
             // column split (Flip here only swaps top/bottom), so the
             // natural default is simple full-width centering.
             const naturalXPx = naturalPortraitClusterX(dim.w * scale, groupW)
-            const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
+            const clusterXPx = effectiveImageClusterX(data, orientation, naturalXPx / scale) * scale
             return (
               <div style={{
                 position: 'relative',
@@ -689,7 +694,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
             // same as landscape.
             const imgWpx = effectiveImageSizePx(data, orientation) * scale
             const naturalXPx = naturalPortraitClusterX(dim.w * scale, imgWpx)
-            const clusterXPx = effectiveImageClusterX(data, naturalXPx / scale) * scale
+            const clusterXPx = effectiveImageClusterX(data, orientation, naturalXPx / scale) * scale
             return (
               <div style={{
                 display: 'flex',

@@ -13,6 +13,7 @@ import { PresentersFont, TheinhardtWeight } from '@/lib/types'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import ColorPalette from '@/components/ColorPalette'
+import EditHtmlLink from '@/components/EditHtmlField'
 
 const MAX_IMAGE_DIM = 1600
 
@@ -33,24 +34,31 @@ export interface SlideFieldsInput {
   backgroundColor: string
   label: string
   labelColor: string
+  labelRichText?: string
   title: string
   titleColor: string // maps to SlideData.accentColor -- see buildNewSlideData.ts
+  titleRichText?: string
   subtitle: string
   subtitleColor: string
+  subtitleRichText?: string
   subtitle2: string
   subtitle2Color: string
+  subtitle2RichText?: string
   presenters: string // newline-joined, one per line -- matches SlideData.presenters' own format
   presentersFont: PresentersFont
   presentersWeight: TheinhardtWeight
   presentersItalic: boolean
   presentersColor: string
+  presentersRichText?: string
   programTitle: string
   programTitleFont: PresentersFont
   programTitleWeight: TheinhardtWeight
   programTitleItalic: boolean
   programTitleColor: string
+  programTitleRichText?: string
   seriesName: string
   seriesNameColor: string
+  seriesNameRichText?: string
   textAlign: 'left' | 'center'
 }
 
@@ -131,24 +139,31 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
   const [backgroundColor, setBackgroundColor] = useState(DEFAULT_SLIDE_DATA.backgroundColor)
   const [label, setLabel] = useState('')
   const [labelColor, setLabelColor] = useState(DEFAULT_SLIDE_DATA.labelColor ?? DEFAULT_SLIDE_DATA.textColor)
+  const [labelRichText, setLabelRichText] = useState<string | undefined>(undefined)
   const [title, setTitle] = useState('')
   const [titleColor, setTitleColor] = useState(DEFAULT_SLIDE_DATA.accentColor)
+  const [titleRichText, setTitleRichText] = useState<string | undefined>(undefined)
   const [subtitle, setSubtitle] = useState('')
   const [subtitleColor, setSubtitleColor] = useState(DEFAULT_SLIDE_DATA.subtitleColor ?? DEFAULT_SLIDE_DATA.textColor)
+  const [subtitleRichText, setSubtitleRichText] = useState<string | undefined>(undefined)
   const [subtitle2, setSubtitle2] = useState('')
   const [subtitle2Color, setSubtitle2Color] = useState(DEFAULT_SLIDE_DATA.subtitle2Color ?? DEFAULT_SLIDE_DATA.textColor)
+  const [subtitle2RichText, setSubtitle2RichText] = useState<string | undefined>(undefined)
   const [presenters, setPresenters] = useState('')
   const [presentersFont, setPresentersFont] = useState<PresentersFont>('Theinhardt')
   const [presentersWeight, setPresentersWeight] = useState<TheinhardtWeight>('regular')
   const [presentersItalic, setPresentersItalic] = useState(false)
   const [presentersColor, setPresentersColor] = useState(DEFAULT_SLIDE_DATA.presentersColor ?? DEFAULT_SLIDE_DATA.textColor)
+  const [presentersRichText, setPresentersRichText] = useState<string | undefined>(undefined)
   const [programTitle, setProgramTitle] = useState('')
   const [programTitleFont, setProgramTitleFont] = useState<PresentersFont>('Theinhardt')
   const [programTitleWeight, setProgramTitleWeight] = useState<TheinhardtWeight>('regular')
   const [programTitleItalic, setProgramTitleItalic] = useState(true)
   const [programTitleColor, setProgramTitleColor] = useState(DEFAULT_SLIDE_DATA.programTitleColor ?? DEFAULT_SLIDE_DATA.textColor)
+  const [programTitleRichText, setProgramTitleRichText] = useState<string | undefined>(undefined)
   const [seriesName, setSeriesName] = useState('')
   const [seriesNameColor, setSeriesNameColor] = useState(DEFAULT_SLIDE_DATA.seriesNameColor ?? DEFAULT_SLIDE_DATA.textColor)
+  const [seriesNameRichText, setSeriesNameRichText] = useState<string | undefined>(undefined)
   const [textAlign, setTextAlign] = useState<'left' | 'center'>('left')
   const [images, setImages] = useState<DroppedImage[]>([])
   const [dragActive, setDragActive] = useState(false)
@@ -237,24 +252,34 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           backgroundColor,
           label,
           labelColor,
+          labelRichText,
           title,
           titleColor,
+          titleRichText,
           subtitle,
           subtitleColor,
+          subtitleRichText,
           subtitle2,
           subtitle2Color,
+          subtitle2RichText,
           presenters: normalizePresenters(presenters),
           presentersFont,
           presentersWeight,
           presentersItalic,
           presentersColor,
+          // normalizePresenters can reshape the text (splitting on ';',
+          // trimming, dropping empties) -- a rich override's markup
+          // positions only still make sense if normalizing was a no-op.
+          presentersRichText: normalizePresenters(presenters) === presenters ? presentersRichText : undefined,
           programTitle,
           programTitleFont,
           programTitleWeight,
           programTitleItalic,
           programTitleColor,
+          programTitleRichText,
           seriesName,
           seriesNameColor,
+          seriesNameRichText,
           textAlign,
         },
         images: builtImages,
@@ -296,7 +321,9 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
 
           <div>
             <label className={fieldLabelCls}>Label</label>
-            <input className={inputCls} value={label} onChange={e => setLabel(e.target.value)} placeholder="TONIGHT" />
+            <input className={inputCls} value={label} onChange={e => { setLabel(e.target.value); setLabelRichText(undefined) }} placeholder="TONIGHT" />
+            <EditHtmlLink fieldLabel="Label" plainValue={label} richValue={labelRichText} allowBold
+              onApply={(plain, rich) => { setLabel(plain); setLabelRichText(rich) }} />
             <div className="mt-1.5 flex items-center gap-2">
               <span className="text-xs text-zinc-500">Color</span>
               <ColorPalette value={labelColor} onChange={setLabelColor} />
@@ -306,7 +333,13 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           <div>
             <label className={fieldLabelCls}>Title (required)</label>
             <textarea className={inputCls + ' resize-none'} rows={3} value={title}
-              onChange={e => setTitle(e.target.value)} placeholder="Event title" />
+              onChange={e => { setTitle(e.target.value); setTitleRichText(undefined) }} placeholder="Event title" />
+            {/* Title's font isn't pickable here (always starts as
+                DEFAULT_SLIDE_DATA.titleFont, '92NY Text', which has no bold
+                face) -- bold becomes available once the user changes it in
+                the main editor afterward. */}
+            <EditHtmlLink fieldLabel="Title" plainValue={title} richValue={titleRichText} allowBold={false}
+              onApply={(plain, rich) => { setTitle(plain); setTitleRichText(rich) }} />
             <div className="mt-1.5 flex items-center gap-2">
               <span className="text-xs text-zinc-500">Color</span>
               <ColorPalette value={titleColor} onChange={setTitleColor} />
@@ -315,7 +348,9 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
 
           <div>
             <label className={fieldLabelCls}>Subtitle</label>
-            <input className={inputCls} value={subtitle} onChange={e => setSubtitle(e.target.value)} placeholder='e.g. "with"' />
+            <input className={inputCls} value={subtitle} onChange={e => { setSubtitle(e.target.value); setSubtitleRichText(undefined) }} placeholder='e.g. "with"' />
+            <EditHtmlLink fieldLabel="Subtitle" plainValue={subtitle} richValue={subtitleRichText} allowBold
+              onApply={(plain, rich) => { setSubtitle(plain); setSubtitleRichText(rich) }} />
             <div className="mt-1.5 flex items-center gap-2">
               <span className="text-xs text-zinc-500">Color</span>
               <ColorPalette value={subtitleColor} onChange={setSubtitleColor} />
@@ -324,7 +359,9 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
 
           <div>
             <label className={fieldLabelCls}>Subtitle 2</label>
-            <input className={inputCls} value={subtitle2} onChange={e => setSubtitle2(e.target.value)} placeholder="Optional second line" />
+            <input className={inputCls} value={subtitle2} onChange={e => { setSubtitle2(e.target.value); setSubtitle2RichText(undefined) }} placeholder="Optional second line" />
+            <EditHtmlLink fieldLabel="Subtitle 2" plainValue={subtitle2} richValue={subtitle2RichText} allowBold
+              onApply={(plain, rich) => { setSubtitle2(plain); setSubtitle2RichText(rich) }} />
             <div className="mt-1.5 flex items-center gap-2">
               <span className="text-xs text-zinc-500">Color</span>
               <ColorPalette value={subtitle2Color} onChange={setSubtitle2Color} />
@@ -334,7 +371,9 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           <div>
             <label className={fieldLabelCls}>Presenters (one per line, or semicolon-separated)</label>
             <textarea className={inputCls + ' resize-none font-mono'} rows={3} value={presenters}
-              onChange={e => setPresenters(e.target.value)} placeholder={'Name One,\nName Two\n& Name Three'} />
+              onChange={e => { setPresenters(e.target.value); setPresentersRichText(undefined) }} placeholder={'Name One,\nName Two\n& Name Three'} />
+            <EditHtmlLink fieldLabel="Presenters" plainValue={presenters} richValue={presentersRichText} allowBold={presentersFont !== '92NY Text'}
+              onApply={(plain, rich) => { setPresenters(plain); setPresentersRichText(rich) }} />
             <div className="mt-1.5">
               <FontPicker value={presentersFont} onChange={f => selectFontWithWeightReset(f, presentersWeight, setPresentersFont, setPresentersWeight)} />
             </div>
@@ -354,7 +393,9 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
 
           <div>
             <label className={fieldLabelCls}>Program / Work Title</label>
-            <input className={inputCls} value={programTitle} onChange={e => setProgramTitle(e.target.value)} placeholder='e.g. "American Caprices"' />
+            <input className={inputCls} value={programTitle} onChange={e => { setProgramTitle(e.target.value); setProgramTitleRichText(undefined) }} placeholder='e.g. "American Caprices"' />
+            <EditHtmlLink fieldLabel="Program / Work Title" plainValue={programTitle} richValue={programTitleRichText} allowBold={programTitleFont !== '92NY Text'}
+              onApply={(plain, rich) => { setProgramTitle(plain); setProgramTitleRichText(rich) }} />
             <div className="mt-1.5">
               <FontPicker value={programTitleFont} onChange={f => selectFontWithWeightReset(f, programTitleWeight, setProgramTitleFont, setProgramTitleWeight)} />
             </div>
@@ -374,7 +415,9 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
 
           <div>
             <label className={fieldLabelCls}>Series name</label>
-            <input className={inputCls} value={seriesName} onChange={e => setSeriesName(e.target.value)} placeholder="RECANATI-KAPLAN TALKS" />
+            <input className={inputCls} value={seriesName} onChange={e => { setSeriesName(e.target.value); setSeriesNameRichText(undefined) }} placeholder="RECANATI-KAPLAN TALKS" />
+            <EditHtmlLink fieldLabel="Series name" plainValue={seriesName} richValue={seriesNameRichText} allowBold
+              onApply={(plain, rich) => { setSeriesName(plain); setSeriesNameRichText(rich) }} />
             <div className="mt-1.5 flex items-center gap-2">
               <span className="text-xs text-zinc-500">Color</span>
               <ColorPalette value={seriesNameColor} onChange={setSeriesNameColor} />

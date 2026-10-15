@@ -11,8 +11,9 @@ import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } f
 import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMarginSide, MarginSide } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx, CANVAS_WIDTH, MIN_IMAGE_SIZE_PX, MAX_IMAGE_SIZE_PX } from '@/lib/imageSizing'
-import { plainTextToEditableHtml, processEditedHtml } from '@/lib/richText'
+import EditHtmlLink from './EditHtmlField'
 import { effectiveImageClusterX, naturalImageClusterX } from '@/lib/imageClusterPosition'
+import { effectiveStaggerScale, effectiveStaggerX, effectiveStaggerY, effectiveStaggerSize } from '@/lib/staggerLayout'
 
 const TEXT_BLOCK_LABELS: Record<TextBlockKey, string> = {
   label: 'Label',
@@ -371,144 +372,6 @@ function FontSizeSlider({ label, value, onChange, min = 24, max = 160, unit = 'p
   )
 }
 
-// Deliberately tucked away rather than a normal visible control -- this is
-// a rare, "last resort" escape hatch for the one case none of the per-field
-// style controls cover (italicizing only PART of a field's text), not a
-// feature most slides should ever touch. A plain, tiny, low-contrast text
-// link rather than a button with an icon keeps it from reading as a
-// first-class option sitting next to Color/Size/etc. Hidden entirely when
-// the field is empty -- nothing to partially italicize yet.
-function ItalicOverrideLink({ fieldLabel, plainValue, richValue, onApply }: {
-  fieldLabel: string
-  plainValue: string
-  richValue: string | undefined
-  onApply: (plain: string, rich: string | undefined) => void
-}) {
-  const [open, setOpen] = useState(false)
-  if (!plainValue.trim()) return null
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="mt-1 text-[10px] text-zinc-700 hover:text-zinc-500 transition-colors"
-      >
-        italicize part of this…
-      </button>
-      {open && (
-        <ItalicEditorModal
-          fieldLabel={fieldLabel}
-          plainValue={plainValue}
-          richValue={richValue}
-          onCancel={() => setOpen(false)}
-          onSave={(plain, rich) => { onApply(plain, rich); setOpen(false) }}
-        />
-      )}
-    </>
-  )
-}
-
-// A deliberately minimal contentEditable editor -- its only supported
-// formatting is italic (via the browser's own execCommand('italic'), still
-// functional everywhere despite being long-deprecated, which is exactly
-// enough for this rare case without maintaining a real rich-text engine).
-// Uncontrolled by design: React never re-renders the div's own content
-// while it's open (that would fight the browser's own cursor/selection
-// state), it's seeded once on mount and read back only on Save.
-function ItalicEditorModal({ fieldLabel, plainValue, richValue, onCancel, onSave }: {
-  fieldLabel: string
-  plainValue: string
-  richValue: string | undefined
-  onCancel: () => void
-  onSave: (plain: string, rich: string | undefined) => void
-}) {
-  const editableRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = editableRef.current
-    if (!el) return
-    el.innerHTML = richValue ?? plainTextToEditableHtml(plainValue)
-    el.focus()
-    try {
-      // Makes Enter insert <br> instead of browser-dependent <div>-wrapped
-      // paragraphs -- both are handled on save either way (see
-      // lib/richText.ts's normalizeBreaksToNewlines), this just keeps the
-      // editor's own on-screen behavior predictable while typing.
-      document.execCommand('defaultParagraphSeparator', false, 'br')
-    } catch {}
-    // Only ever seed once, on open -- not a controlled input.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  function italicizeSelection() {
-    editableRef.current?.focus()
-    try { document.execCommand('italic') } catch {}
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'i') {
-      e.preventDefault()
-      italicizeSelection()
-    }
-  }
-
-  function handleSave() {
-    const raw = editableRef.current?.innerHTML ?? ''
-    const { plainText, richHtml } = processEditedHtml(raw)
-    onSave(plainText, richHtml)
-  }
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-zinc-900 rounded-2xl border border-zinc-700 shadow-2xl w-full max-w-md p-5 flex flex-col gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-white">Italicize part of {fieldLabel}</h3>
-          <p className="text-xs text-zinc-500 mt-1">
-            Select text, then click Italicize (or press ⌘I / Ctrl+I). This is meant for rare one-off
-            cases -- most slides don't need it.
-          </p>
-        </div>
-
-        <div
-          ref={editableRef}
-          contentEditable
-          suppressContentEditableWarning
-          onKeyDown={handleKeyDown}
-          className="min-h-[80px] max-h-[240px] overflow-auto bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-500 whitespace-pre-wrap"
-        />
-
-        <div className="flex items-center justify-between gap-2">
-          <button
-            onMouseDown={e => e.preventDefault()}
-            onClick={italicizeSelection}
-            className="text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-white italic py-1.5 px-3 rounded-lg transition-colors"
-          >
-            Italicize
-          </button>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onSave(plainValue, undefined)}
-              className="text-xs text-zinc-500 hover:text-white transition-colors py-1.5 px-2"
-            >
-              Remove italics
-            </button>
-            <button
-              onClick={onCancel}
-              className="text-xs text-zinc-400 hover:text-white transition-colors py-1.5 px-3"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="text-xs font-medium bg-white text-black hover:bg-zinc-200 py-1.5 px-3 rounded-lg transition-colors"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // The gap ABOVE a text block (in the reorderable stack -- Label, Title,
 // Subtitle, Subtitle2, Presenters, Program Title, Series Name), relative to
@@ -767,13 +630,26 @@ export default function EditorPanel({
   // = stagger index).
   const [titleSizeOverridden, setTitleSizeOverridden] = useState(false)
   const [subtitleSizeOverridden, setSubtitleSizeOverridden] = useState(false)
-  const [imageSizeOverridden, setImageSizeOverridden] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     setTitleSizeOverridden(false)
     setSubtitleSizeOverridden(false)
-    setImageSizeOverridden({})
   }, [slideRevision])
+
+  // Single-image mode's size and X position are now orientation-specific
+  // (imageSizeLandscape/Portrait, imageClusterXLandscape/Portrait) -- "has
+  // this orientation's value been manually touched" is just whether its own
+  // field is set, same as every other per-orientation override, no separate
+  // session-state flag needed the way the legacy shared fields used to
+  // require.
+  const imageSizeKey: 'imageSizeLandscape' | 'imageSizePortrait' = orientation === 'landscape' ? 'imageSizeLandscape' : 'imageSizePortrait'
+  const imageClusterXKey: 'imageClusterXLandscape' | 'imageClusterXPortrait' = orientation === 'landscape' ? 'imageClusterXLandscape' : 'imageClusterXPortrait'
+  // Same pattern for stagger mode's per-image scale/x/y and the shared
+  // default stagger width -- see lib/types.ts's StaggerImage comment.
+  const staggerScaleKey: 'scaleLandscape' | 'scalePortrait' = orientation === 'landscape' ? 'scaleLandscape' : 'scalePortrait'
+  const staggerXKey: 'xLandscape' | 'xPortrait' = orientation === 'landscape' ? 'xLandscape' : 'xPortrait'
+  const staggerYKey: 'yLandscape' | 'yPortrait' = orientation === 'landscape' ? 'yLandscape' : 'yPortrait'
+  const staggerSizeKey: 'staggerSizeLandscape' | 'staggerSizePortrait' = orientation === 'landscape' ? 'staggerSizeLandscape' : 'staggerSizePortrait'
 
   function set<K extends keyof SlideData>(key: K, value: SlideData[K]) {
     onChange({ ...data, [key]: value })
@@ -943,11 +819,21 @@ export default function EditorPanel({
         alt: existing?.alt ?? `Image ${i + 1}`,
         x: existing?.x ?? 0,
         y: existing?.y ?? 0,
-        scale: value,
+        scale: existing?.scale ?? 0,
         zIndex: existing?.zIndex ?? (i + 1),
         faceCropSuggested: existing?.faceCropSuggested,
         faceCropFinal: existing?.faceCropFinal,
         faceCropWasOverridden: existing?.faceCropWasOverridden,
+        xLandscape: existing?.xLandscape,
+        xPortrait: existing?.xPortrait,
+        yLandscape: existing?.yLandscape,
+        yPortrait: existing?.yPortrait,
+        scaleLandscape: existing?.scaleLandscape,
+        scalePortrait: existing?.scalePortrait,
+        // Written to the CURRENT orientation's own scale field only -- the
+        // other orientation's scale (manually set or still on its own
+        // auto/linked default) is untouched.
+        [staggerScaleKey]: value,
       }
     }
     set('staggerImages', images)
@@ -1052,20 +938,25 @@ export default function EditorPanel({
         imageFaceCropFinal: cropBox,
         imageFaceCropWasOverridden: false,
       }
-      if (!imageSizeOverridden[-1]) {
+      if (data[imageSizeKey] === undefined) {
         // suggestion.width is a ratio of the FULL slide width already, so
         // this is a direct pixel conversion, not the old percent-of-column
-        // approximation.
-        patch.imageSize = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH[orientation])))
-        patch.imageSizeIsPixels = true
+        // approximation. Written to the CURRENT orientation's own size
+        // field only -- the other orientation's size (manually set or
+        // still on its own auto default) is untouched.
+        patch[imageSizeKey] = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH[orientation])))
       }
       onChange({ ...data, ...patch })
     }
   }
 
   function clearImage() {
-    set('imageUrl', '')
-    setImageSizeOverridden(prev => ({ ...prev, [-1]: false }))
+    // Clears both orientations' size overrides too -- a fresh image
+    // uploaded afterward should get its own fresh auto-suggestion rather
+    // than silently inheriting the REMOVED image's size (matches this
+    // function's pre-orientation-split behavior, which reset the same
+    // "has been overridden" tracking unconditionally on clear).
+    onChange({ ...data, imageUrl: '', imageSizeLandscape: undefined, imageSizePortrait: undefined })
     if (imageInputRef.current) imageInputRef.current.value = ''
   }
 
@@ -1100,9 +991,8 @@ export default function EditorPanel({
       const suggestion = suggestImagePosition('other', screenType)
       const patch: Partial<SlideData> = { imageUrl: croppedUrl, imageFaceCropFinal: cropBox }
       if (data.imageFaceCropSuggested) patch.imageFaceCropWasOverridden = true
-      if (!imageSizeOverridden[-1]) {
-        patch.imageSize = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH[orientation])))
-        patch.imageSizeIsPixels = true
+      if (data[imageSizeKey] === undefined) {
+        patch[imageSizeKey] = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH[orientation])))
       }
       onChange({ ...data, ...patch })
     }
@@ -1171,7 +1061,7 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Label (e.g. TONIGHT)</label>
                 <input className={inputCls} value={data.label} onChange={e => setText('label', 'labelRichText', e.target.value)} placeholder="TONIGHT" />
-                <ItalicOverrideLink fieldLabel="Label" plainValue={data.label} richValue={data.labelRichText}
+                <EditHtmlLink fieldLabel="Label" plainValue={data.label} richValue={data.labelRichText} allowBold
                   onApply={(plain, rich) => onChange({ ...data, label: plain, labelRichText: rich })} />
                 <div className="mt-1.5"><WeightPicker value={data.labelWeight} onChange={v => set('labelWeight', v)} /></div>
                 <div className="mt-1.5 flex items-center gap-2">
@@ -1185,7 +1075,7 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Title</label>
                 <textarea className={inputCls + ' resize-none'} rows={4} value={data.title} onChange={e => handleTitleChange(e.target.value)} placeholder="Event title" />
-                <ItalicOverrideLink fieldLabel="Title" plainValue={data.title} richValue={data.titleRichText}
+                <EditHtmlLink fieldLabel="Title" plainValue={data.title} richValue={data.titleRichText} allowBold={(data.titleFont ?? '92NY Text') !== '92NY Text'}
                   onApply={(plain, rich) => onChange({ ...data, title: plain, titleRichText: rich })} />
                 <div className="mt-1.5 flex gap-1.5">
                   {(['92NY Text', 'Theinhardt Heavy'] as const).map(font => (
@@ -1245,7 +1135,7 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Subtitle</label>
                 <input className={inputCls} value={data.subtitle} onChange={e => handleSubtitleChange(e.target.value)} placeholder='e.g. "with"' />
-                <ItalicOverrideLink fieldLabel="Subtitle" plainValue={data.subtitle} richValue={data.subtitleRichText}
+                <EditHtmlLink fieldLabel="Subtitle" plainValue={data.subtitle} richValue={data.subtitleRichText} allowBold
                   onApply={(plain, rich) => onChange({ ...data, subtitle: plain, subtitleRichText: rich })} />
                 <div className="mt-1.5"><WeightPicker value={data.subtitleWeight} onChange={v => set('subtitleWeight', v)} /></div>
                 <div className="mt-1.5 flex items-center gap-2">
@@ -1268,7 +1158,7 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Subtitle 2</label>
                 <input className={inputCls} value={data.subtitle2} onChange={e => setText('subtitle2', 'subtitle2RichText', e.target.value)} placeholder="Optional second line" />
-                <ItalicOverrideLink fieldLabel="Subtitle 2" plainValue={data.subtitle2} richValue={data.subtitle2RichText}
+                <EditHtmlLink fieldLabel="Subtitle 2" plainValue={data.subtitle2} richValue={data.subtitle2RichText} allowBold
                   onApply={(plain, rich) => onChange({ ...data, subtitle2: plain, subtitle2RichText: rich })} />
                 <div className="mt-1.5"><WeightPicker value={data.subtitle2Weight} onChange={v => set('subtitle2Weight', v)} /></div>
                 <div className="mt-1.5 flex items-center gap-2">
@@ -1284,7 +1174,7 @@ export default function EditorPanel({
                 <label className={labelCls}>Presenters (one per line)</label>
                 <textarea className={inputCls + ' resize-none font-mono'} rows={4} value={data.presenters}
                   onChange={e => setText('presenters', 'presentersRichText', e.target.value)} placeholder={"Name One,\nName Two\n& Name Three"} />
-                <ItalicOverrideLink fieldLabel="Presenters" plainValue={data.presenters} richValue={data.presentersRichText}
+                <EditHtmlLink fieldLabel="Presenters" plainValue={data.presenters} richValue={data.presentersRichText} allowBold={(data.presentersFont ?? 'Theinhardt') !== '92NY Text'}
                   onApply={(plain, rich) => onChange({ ...data, presenters: plain, presentersRichText: rich })} />
                 <div className="mt-1.5 flex gap-1.5">
                   {(['Theinhardt', '92NY Text'] as const).map(font => (
@@ -1321,7 +1211,7 @@ export default function EditorPanel({
               <FieldCard>
                 <label className={labelCls}>Program / Work Title</label>
                 <input className={inputCls} value={data.programTitle} onChange={e => setText('programTitle', 'programTitleRichText', e.target.value)} placeholder='e.g. "American Caprices"' />
-                <ItalicOverrideLink fieldLabel="Program / Work Title" plainValue={data.programTitle} richValue={data.programTitleRichText}
+                <EditHtmlLink fieldLabel="Program / Work Title" plainValue={data.programTitle} richValue={data.programTitleRichText} allowBold={(data.programTitleFont ?? 'Theinhardt') !== '92NY Text'}
                   onApply={(plain, rich) => onChange({ ...data, programTitle: plain, programTitleRichText: rich })} />
                 <div className="mt-1.5 flex gap-1.5">
                   {(['Theinhardt', '92NY Text'] as const).map(font => (
@@ -1366,7 +1256,7 @@ export default function EditorPanel({
                     <input className={inputCls} value={data.seriesName}
                       onChange={e => setText('seriesName', 'seriesNameRichText', e.target.value)}
                       placeholder="RECANATI-KAPLAN TALKS" />
-                    <ItalicOverrideLink fieldLabel="Series name" plainValue={data.seriesName} richValue={data.seriesNameRichText}
+                    <EditHtmlLink fieldLabel="Series name" plainValue={data.seriesName} richValue={data.seriesNameRichText} allowBold
                       onApply={(plain, rich) => onChange({ ...data, seriesName: plain, seriesNameRichText: rich })} />
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs text-zinc-500">Color</span>
@@ -1390,7 +1280,7 @@ export default function EditorPanel({
                       value={data.listeningCredit}
                       onChange={e => setText('listeningCredit', 'listeningCreditRichText', e.target.value)}
                       placeholder="Assistive listening devices..." />
-                    <ItalicOverrideLink fieldLabel="Listening credit" plainValue={data.listeningCredit} richValue={data.listeningCreditRichText}
+                    <EditHtmlLink fieldLabel="Listening credit" plainValue={data.listeningCredit} richValue={data.listeningCreditRichText} allowBold
                       onApply={(plain, rich) => onChange({ ...data, listeningCredit: plain, listeningCreditRichText: rich })} />
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className="text-xs text-zinc-500">Color</span>
@@ -1524,7 +1414,7 @@ export default function EditorPanel({
                           </div>
                         )}
                         <div className="mt-2">
-                          <FontSizeSlider label={`Image ${i + 1} size (override)`} value={img?.scale || data.staggerSize || 250}
+                          <FontSizeSlider label={`Image ${i + 1} size (override)`} value={effectiveStaggerScale(img, orientation) || effectiveStaggerSize(data, orientation)}
                             onChange={v => updateStaggerScale(i, v)}
                             min={80} max={800}
                             disabled={data.imagesLinkedSize && i === 1}
@@ -1538,7 +1428,7 @@ export default function EditorPanel({
                                 const checked = e.target.checked
                                 const patch: Partial<SlideData> = { imagesLinkedSize: checked }
                                 if (checked) {
-                                  const img0Scale = data.staggerImages?.[0]?.scale || data.staggerSize || 250
+                                  const img0Scale = effectiveStaggerScale(data.staggerImages?.[0], orientation) || effectiveStaggerSize(data, orientation)
                                   const images = [...(data.staggerImages || [])]
                                   const existing1 = images[1]
                                   images[1] = {
@@ -1547,11 +1437,18 @@ export default function EditorPanel({
                                     alt: existing1?.alt ?? 'Image 2',
                                     x: existing1?.x ?? 0,
                                     y: existing1?.y ?? 0,
-                                    scale: img0Scale,
+                                    scale: existing1?.scale ?? 0,
                                     zIndex: existing1?.zIndex ?? 2,
                                     faceCropSuggested: existing1?.faceCropSuggested,
                                     faceCropFinal: existing1?.faceCropFinal,
                                     faceCropWasOverridden: existing1?.faceCropWasOverridden,
+                                    xLandscape: existing1?.xLandscape,
+                                    xPortrait: existing1?.xPortrait,
+                                    yLandscape: existing1?.yLandscape,
+                                    yPortrait: existing1?.yPortrait,
+                                    scaleLandscape: existing1?.scaleLandscape,
+                                    scalePortrait: existing1?.scalePortrait,
+                                    [staggerScaleKey]: img0Scale,
                                   }
                                   patch.staggerImages = images
                                 }
@@ -1561,10 +1458,10 @@ export default function EditorPanel({
                           </label>
                         )}
                         <div className="mt-2">
-                          <FontSizeSlider label={`Image ${i + 1} X`} value={img?.x ?? 0} onChange={v => updateStaggerImage(i, { x: v })} min={-600} max={600} numberInput />
+                          <FontSizeSlider label={`Image ${i + 1} X`} value={effectiveStaggerX(img, orientation)} onChange={v => updateStaggerImage(i, { [staggerXKey]: v })} min={-600} max={600} numberInput />
                         </div>
                         <div className="mt-2">
-                          <FontSizeSlider label={`Image ${i + 1} Y`} value={img?.y ?? 0} onChange={v => updateStaggerImage(i, { y: v })} min={-600} max={600} numberInput />
+                          <FontSizeSlider label={`Image ${i + 1} Y`} value={effectiveStaggerY(img, orientation)} onChange={v => updateStaggerImage(i, { [staggerYKey]: v })} min={-600} max={600} numberInput />
                         </div>
                         <div className="mt-2">
                           <FontSizeSlider label={`Image ${i + 1} layer`} value={img?.zIndex ?? (i + 1)}
@@ -1575,7 +1472,7 @@ export default function EditorPanel({
                     )
                   })}
                   <FieldCard>
-                    <FontSizeSlider label="Image width" value={data.staggerSize ?? 250} onChange={v => set('staggerSize', v)} min={80} max={800} numberInput />
+                    <FontSizeSlider label="Image width" value={effectiveStaggerSize(data, orientation)} onChange={v => onChange({ ...data, [staggerSizeKey]: v })} min={80} max={800} numberInput />
                     <div className="mt-2">
                       <FontSizeSlider label="Overlap" value={data.imageOverlap ?? 30} onChange={v => set('imageOverlap', v)} min={0} max={60} numberInput />
                     </div>
@@ -1616,33 +1513,22 @@ export default function EditorPanel({
 
                 {data.imageMode === 'single' && data.imageUrl && (
                   <FontSizeSlider label="Size" value={effectiveImageSizePx(data, orientation)}
-                    onChange={v => {
-                      setImageSizeOverridden(prev => ({ ...prev, [-1]: true }))
-                      onChange({ ...data, imageSize: v, imageSizeIsPixels: true })
-                    }}
-                    onReset={() => {
-                      setImageSizeOverridden(prev => ({ ...prev, [-1]: false }))
-                      // imageSize/imageSizeIsPixels are typed as always-present
-                      // (every slide created through this app sets them), but
-                      // "no override" is genuinely an absent-field state here --
-                      // same as a slide saved before either field existed.
-                      const resetPatch = { imageSize: undefined, imageSizeIsPixels: undefined } as unknown as Partial<SlideData>
-                      onChange({ ...data, ...resetPatch })
-                    }}
-                    min={MIN_IMAGE_SIZE_PX} max={MAX_IMAGE_SIZE_PX} unit="px" badge={imageSizeOverridden[-1] ? 'manual' : 'auto'} numberInput />
+                    onChange={v => onChange({ ...data, [imageSizeKey]: v })}
+                    onReset={() => onChange({ ...data, [imageSizeKey]: undefined })}
+                    min={MIN_IMAGE_SIZE_PX} max={MAX_IMAGE_SIZE_PX} unit="px" badge={data[imageSizeKey] !== undefined ? 'manual' : 'auto'} numberInput />
                 )}
 
                 {data.imageMode !== 'none' && (
-                  <FontSizeSlider label="X position" value={effectiveImageClusterX(data, naturalImageClusterX(data, orientation))}
-                    onChange={v => set('imageClusterX', v)}
-                    onReset={() => set('imageClusterX', undefined)}
+                  <FontSizeSlider label="X position" value={effectiveImageClusterX(data, orientation, naturalImageClusterX(data, orientation))}
+                    onChange={v => onChange({ ...data, [imageClusterXKey]: v })}
+                    onReset={() => onChange({ ...data, [imageClusterXKey]: undefined })}
                     // Overflow (position past where margin/size would
                     // otherwise constrain it) is intended, not guarded
                     // against -- see lib/imageClusterPosition.ts -- so this
                     // range extends well past both canvas edges in either
                     // direction rather than clamping to [0, canvas width].
                     min={-1000} max={CANVAS_WIDTH[orientation] + 1000} unit="px"
-                    badge={data.imageClusterX !== undefined ? 'manual' : 'auto'} numberInput />
+                    badge={data[imageClusterXKey] !== undefined ? 'manual' : 'auto'} numberInput />
                 )}
 
                 {data.imageMode !== 'none' && (

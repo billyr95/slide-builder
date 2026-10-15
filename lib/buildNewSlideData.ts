@@ -17,24 +17,31 @@ export function buildNewSlideData({ screenType, fields, images }: BuildResult): 
     backgroundColor: fields.backgroundColor,
     label: fields.label,
     labelColor: fields.labelColor,
+    labelRichText: fields.labelRichText,
     title: fields.title,
     accentColor: fields.titleColor, // titleColor maps to accentColor -- see SlideFieldsInput's own comment
+    titleRichText: fields.titleRichText,
     subtitle: fields.subtitle,
     subtitleColor: fields.subtitleColor,
+    subtitleRichText: fields.subtitleRichText,
     subtitle2: fields.subtitle2,
     subtitle2Color: fields.subtitle2Color,
+    subtitle2RichText: fields.subtitle2RichText,
     presenters: fields.presenters,
     presentersFont: fields.presentersFont,
     presentersWeight: fields.presentersWeight,
     presentersItalic: fields.presentersItalic,
     presentersColor: fields.presentersColor,
+    presentersRichText: fields.presentersRichText,
     programTitle: fields.programTitle,
     programTitleFont: fields.programTitleFont,
     programTitleWeight: fields.programTitleWeight,
     programTitleItalic: fields.programTitleItalic,
     programTitleColor: fields.programTitleColor,
+    programTitleRichText: fields.programTitleRichText,
     seriesName: fields.seriesName,
     seriesNameColor: fields.seriesNameColor,
+    seriesNameRichText: fields.seriesNameRichText,
     showSeriesName: !!fields.seriesName,
     textAlign: fields.textAlign,
     titleSize: suggestTitleFontSize(fields.title.length, titleLineCount, screenType, hasSubtitle),
@@ -55,10 +62,11 @@ export function buildNewSlideData({ screenType, fields, images }: BuildResult): 
       newData.imageAlt = images[0].name
       // suggestion.width is a ratio of the full slide width -- a direct
       // pixel conversion. New slides are always created as landscape (see
-      // app/api/slides/route.ts's POST default), hence the fixed
-      // landscape canvas width here rather than a passed-in orientation.
-      newData.imageSize = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH.landscape)))
-      newData.imageSizeIsPixels = true
+      // app/api/slides/route.ts's POST default), hence the fixed landscape
+      // canvas width AND the landscape-specific size field here -- portrait
+      // gets its own fresh auto default if/when the user switches to it,
+      // rather than inheriting this landscape-fit suggestion.
+      newData.imageSizeLandscape = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH.landscape)))
     } else {
       // No auto-sizing for stagger images (scale: 0 -> falls back to the
       // shared staggerSize default): the stagger layout's spacing in

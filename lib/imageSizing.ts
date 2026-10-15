@@ -43,7 +43,17 @@ export const MAX_IMAGE_SIZE_PX = 1000
 // conversion only gets written back permanently once the user actually
 // touches the slider (see EditorPanel's onChange, which sets
 // imageSizeIsPixels: true at that point).
+// Checked first, before the legacy single-value path below: orientation-
+// specific size overrides (SlideData.imageSizeLandscape/imageSizePortrait)
+// are always genuine pixel values (new fields, no legacy percentage format
+// to interpret), and independent of each other -- switching orientation in
+// the editor shows/edits only the matching one. Undefined for the current
+// orientation falls through to the legacy shared field/default below
+// exactly as before, so a slide that hasn't touched Size since this split
+// shipped doesn't move.
 export function effectiveImageSizePx(data: SlideData, orientation: Orientation): number {
+  const override = orientation === 'landscape' ? data.imageSizeLandscape : data.imageSizePortrait
+  if (override !== undefined) return override
   if (data.imageSize === undefined) return DEFAULT_IMAGE_SIZE_PX
   if (data.imageSizeIsPixels) return data.imageSize
   return Math.round((data.imageSize / 100) * LEGACY_COLUMN_WIDTH_FRACTION[orientation] * CANVAS_WIDTH[orientation])

@@ -104,6 +104,12 @@ export const trainingEntries = pgTable('training_entries', {
   programTitle: text('program_title').notNull().default(''),
   programTitleFont: text('program_title_font'),
   programTitleItalic: boolean('program_title_italic').notNull().default(false),
+  // True when any text field carries a rich-text italic/bold override (see
+  // SlideData's *RichText fields and lib/richText.ts) -- lets formatted
+  // slides be told apart in the dataset. Distinct from titleItalic/
+  // presentersItalic/programTitleItalic above, which are the older
+  // field-wide italic toggles, not this per-run override.
+  hasInlineFormatting: boolean('has_inline_formatting').notNull().default(false),
 
   // Which side the image sits on vs. the text block -- see SlideData.imageSide.
   imageSide: text('image_side').notNull().default('left'),
