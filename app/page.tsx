@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import NewSlideFlow from '@/components/NewSlideFlow'
 import SlideCard from '@/components/SlideCard'
-import FolderTreeView, { SlideRow, TreeSelection } from '@/components/FolderTreeView'
+import FolderTreeView, { SlideRow, TreeSelection, GroupFlat } from '@/components/FolderTreeView'
 import SlidePreviewPanel, { PreviewSelection } from '@/components/SlidePreviewPanel'
 import { buildFolderPath, FolderFlat } from '@/lib/folderPath'
 
@@ -16,6 +16,7 @@ export default function Dashboard() {
 
   const [folders, setFolders] = useState<FolderFlat[] | null>(null)
   const [slides, setSlides] = useState<SlideRow[] | null>(null)
+  const [groups, setGroups] = useState<GroupFlat[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showNewFlow, setShowNewFlow] = useState(false)
@@ -26,21 +27,23 @@ export default function Dashboard() {
     Promise.all([
       fetch('/api/folders'),
       fetch('/api/slides'),
+      fetch('/api/slide-groups'),
     ])
-      .then(async ([folderRes, slideRes]) => {
+      .then(async ([folderRes, slideRes, groupRes]) => {
         // A 401 here means the server rejected this session (e.g. a stale
         // sign-in whose user row no longer exists -- see lib/session.ts) --
         // next-auth's own client-side useSession() doesn't know that yet,
         // so without this check the error body (not an array) would get
         // set as state and crash the folders/slides .find()/.filter() calls
         // below instead of just sending them back to a fresh sign-in.
-        if (folderRes.status === 401 || slideRes.status === 401) {
+        if (folderRes.status === 401 || slideRes.status === 401 || groupRes.status === 401) {
           await signOut({ callbackUrl: '/login' })
           return
         }
-        const [f, s] = await Promise.all([folderRes.json(), slideRes.json()])
+        const [f, s, g] = await Promise.all([folderRes.json(), slideRes.json(), groupRes.json()])
         setFolders(f)
         setSlides(s)
+        setGroups(g)
       })
       .finally(() => setLoading(false))
   }, [])
@@ -102,6 +105,33 @@ export default function Dashboard() {
     }
   }
 
+  // Moving a group between folders moves every member together.
+  async function moveGroup(groupId: string, folderId: string) {
+    const memberIds = (slides ?? []).filter(s => s.groupId === groupId).map(s => s.id)
+    try {
+      await Promise.all(memberIds.map(id =>
+        fetch(`/api/slides/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ folderId }),
+        }).then(res => { if (!res.ok) throw new Error(`Move failed (${res.status})`) })
+      ))
+      setSlides(prev => (prev ? prev.map(s => (memberIds.includes(s.id) ? { ...s, folderId } : s)) : prev))
+    } catch (e) {
+      console.error(e)
+      window.alert('Failed to move the group. Please try again.')
+    }
+  }
+
+  // Re-fetches slides + groups (not folders -- nothing here changes those)
+  // after a group-mutating action in SlidePreviewPanel, so the tree and
+  // preview panel both pick up the result without a full page reload.
+  async function refreshSlidesAndGroups() {
+    const [slideRes, groupRes] = await Promise.all([fetch('/api/slides'), fetch('/api/slide-groups')])
+    if (slideRes.ok) setSlides(await slideRes.json())
+    if (groupRes.ok) setGroups(await groupRes.json())
+  }
+
   // Maps the tree's lightweight {kind,id} selection into the full record
   // SlidePreviewPanel needs to render (slide metadata, or a folder's
   // direct-child item count) -- computed here since Dashboard already
@@ -111,7 +141,19 @@ export default function Dashboard() {
     if (selection.kind === 'slide') {
       const slide = slides?.find(s => s.id === selection.id)
       if (!slide) return null
-      return { kind: 'slide', slide: { id: slide.id, title: slide.title, orientation: slide.orientation, updatedAt: slide.updatedAt, ownerEmail: slide.ownerEmail } }
+      return {
+        kind: 'slide',
+        slide: {
+          id: slide.id, title: slide.title, orientation: slide.orientation, screenType: slide.screenType,
+          updatedAt: slide.updatedAt, ownerEmail: slide.ownerEmail, groupId: slide.groupId ?? null,
+        },
+      }
+    }
+    if (selection.kind === 'group') {
+      const group = groups?.find(g => g.id === selection.id)
+      if (!group) return null
+      const members = (slides ?? []).filter(s => s.groupId === group.id)
+      return { kind: 'group', group: { id: group.id, name: group.name, members } }
     }
     const folder = folders?.find(f => f.id === selection.id)
     if (!folder) return null
@@ -119,7 +161,7 @@ export default function Dashboard() {
       (folders?.filter(f => f.parentFolderId === folder.id).length ?? 0) +
       (slides?.filter(s => s.folderId === folder.id).length ?? 0)
     return { kind: 'folder', folder: { id: folder.id, name: folder.name, createdAt: folder.createdAt, itemCount } }
-  }, [selection, folders, slides])
+  }, [selection, folders, slides, groups])
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white" style={{ fontFamily: "'Theinhardt', sans-serif" }}>
@@ -182,20 +224,25 @@ export default function Dashboard() {
             <p className="text-sm text-zinc-500">No slides match your search.</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {searchResults.map(slide => (
-                <SlideCard
-                  key={slide.id}
-                  id={slide.id}
-                  title={slide.title}
-                  orientation={slide.orientation}
-                  updatedAt={slide.updatedAt}
-                  subtitle={folders ? buildFolderPath(folders, slide.folderId) : undefined}
-                  onDeleted={handleDeleted}
-                />
-              ))}
+              {searchResults.map(slide => {
+                const folderPath = folders ? buildFolderPath(folders, slide.folderId) : undefined
+                const groupName = slide.groupId ? groups?.find(g => g.id === slide.groupId)?.name : undefined
+                const subtitle = [folderPath, groupName].filter(Boolean).join(' · ') || undefined
+                return (
+                  <SlideCard
+                    key={slide.id}
+                    id={slide.id}
+                    title={slide.title}
+                    orientation={slide.orientation}
+                    updatedAt={slide.updatedAt}
+                    subtitle={subtitle}
+                    onDeleted={handleDeleted}
+                  />
+                )
+              })}
             </div>
           )
-        ) : loading || !folders || !slides || !rootId ? (
+        ) : loading || !folders || !slides || !groups || !rootId ? (
           <p className="text-sm text-zinc-500">Loading…</p>
         ) : (
           <div className="flex gap-6 items-start">
@@ -203,14 +250,22 @@ export default function Dashboard() {
               <FolderTreeView
                 folders={folders}
                 slides={slides}
+                groups={groups ?? []}
                 rootId={rootId}
                 selection={selection}
                 onSelect={setSelection}
                 onOpenSlide={id => router.push(`/editor/${id}`)}
                 onMoveSlide={moveSlide}
+                onMoveGroup={moveGroup}
               />
             </div>
-            <SlidePreviewPanel selection={previewSelection} onDeleted={handleDeleted} />
+            <SlidePreviewPanel
+              selection={previewSelection}
+              onDeleted={handleDeleted}
+              allSlides={slides.map(s => ({ id: s.id, title: s.title, groupId: s.groupId ?? null }))}
+              onGroupsChanged={refreshSlidesAndGroups}
+              onSelectSlide={id => setSelection({ kind: 'slide', id })}
+            />
           </div>
         )}
       </main>

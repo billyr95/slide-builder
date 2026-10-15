@@ -45,6 +45,12 @@ export default function EditorPage() {
   const [otherEditor, setOtherEditor] = useState<OtherEditor | null>(null)
 
   const [screenType, setScreenType] = useState<ScreenType>('projector')
+  // Read-only here -- group membership is only ever changed from the
+  // Dashboard's preview panel (Create lobby/projector version, Group
+  // with..., Remove from group), never from inside the editor itself. Just
+  // along for live-logging (buildLiveTrainEntry) so paired projector/lobby
+  // entries can be matched back up later.
+  const [groupId, setGroupId] = useState<string | null>(null)
   const [loggingEnabled, setLoggingEnabled] = useState(true)
   const [loggingPrefLoaded, setLoggingPrefLoaded] = useState(false)
   // Bumped whenever a genuinely new slide/template is loaded (not on
@@ -65,12 +71,15 @@ export default function EditorPage() {
   const savedTitleRef = useRef('')
   const savedDataRef = useRef<SlideData>(DEFAULT_SLIDE_DATA)
   const savedOrientationRef = useRef<Orientation>('landscape')
+  const savedScreenTypeRef = useRef<ScreenType>('projector')
   const dataRef = useRef(data)
   const titleRef = useRef(title)
   const orientationRef = useRef(orientation)
+  const screenTypeRef = useRef(screenType)
   dataRef.current = data
   titleRef.current = title
   orientationRef.current = orientation
+  screenTypeRef.current = screenType
 
   function showToast(msg: string) {
     setToast(msg)
@@ -80,6 +89,7 @@ export default function EditorPage() {
   function isDirty() {
     return titleRef.current !== savedTitleRef.current
       || orientationRef.current !== savedOrientationRef.current
+      || screenTypeRef.current !== savedScreenTypeRef.current
       || JSON.stringify(dataRef.current) !== JSON.stringify(savedDataRef.current)
   }
 
@@ -90,13 +100,14 @@ export default function EditorPage() {
       const res = await fetch(`/api/slides/${slideId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: titleRef.current, orientation: orientationRef.current, data: dataRef.current }),
+        body: JSON.stringify({ title: titleRef.current, orientation: orientationRef.current, screenType: screenTypeRef.current, data: dataRef.current }),
       })
       if (!res.ok) throw new Error(`Save failed (${res.status})`)
       const updated = await res.json()
       savedTitleRef.current = titleRef.current
       savedDataRef.current = dataRef.current
       savedOrientationRef.current = orientationRef.current
+      savedScreenTypeRef.current = screenTypeRef.current
       setLastSavedAt(new Date(updated.updatedAt))
       setStatus('saved')
     } catch (e) {
@@ -134,10 +145,13 @@ export default function EditorPage() {
         resetData(slide.data)
         setTitle(slide.title)
         setOrientation(slide.orientation)
+        setScreenType(slide.screenType ?? 'projector')
+        setGroupId(slide.groupId ?? null)
         setOwnerEmail(slide.ownerEmail ?? null)
         savedTitleRef.current = slide.title
         savedDataRef.current = slide.data
         savedOrientationRef.current = slide.orientation
+        savedScreenTypeRef.current = slide.screenType ?? 'projector'
         setLastSavedAt(new Date(slide.updatedAt))
         setSlideRevision(r => r + 1)
         setStatus('saved')
@@ -230,7 +244,7 @@ export default function EditorPage() {
         // surface to them either. buildLiveTrainEntry is async (it reads
         // the placed image's natural dimensions), so this is intentionally
         // NOT awaited here.
-        buildLiveTrainEntry(data, orient, screenType)
+        buildLiveTrainEntry(data, orient, screenType, groupId)
           .then(entry => fetch('/api/training-entries', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

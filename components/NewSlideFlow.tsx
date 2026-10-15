@@ -28,16 +28,19 @@ export default function NewSlideFlow({ initialScreenType, onClose, folderId }: N
   const router = useRouter()
   const [step, setStep] = useState<'content' | 'name'>('content')
   const [pendingData, setPendingData] = useState<SlideData | null>(null)
+  const [pendingScreenType, setPendingScreenType] = useState<ScreenType>(initialScreenType)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   function handleBuild(result: BuildResult) {
     setPendingData(buildNewSlideData(result))
+    setPendingScreenType(result.screenType)
     setStep('name')
   }
 
   function handleSkip() {
     setPendingData(DEFAULT_SLIDE_DATA)
+    setPendingScreenType(initialScreenType)
     setStep('name')
   }
 
@@ -49,7 +52,7 @@ export default function NewSlideFlow({ initialScreenType, onClose, folderId }: N
       const res = await fetch('/api/slides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: name, data: pendingData, folderId }),
+        body: JSON.stringify({ title: name, data: pendingData, screenType: pendingScreenType, folderId }),
       })
       if (!res.ok) throw new Error(`Create failed (${res.status})`)
       const created = await res.json()

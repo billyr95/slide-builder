@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { slides, users, folders } from '@/lib/db/schema'
+import { slides, users, folders, slideGroups } from '@/lib/db/schema'
 import { desc, eq, sql } from 'drizzle-orm'
 import { getRootFolderId } from '@/lib/folderContents'
 
@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
       id: slides.id,
       title: slides.title,
       orientation: slides.orientation,
+      screenType: slides.screenType,
+      groupId: slides.groupId,
       createdAt: slides.createdAt,
       updatedAt: slides.updatedAt,
       userId: slides.userId,
@@ -61,11 +63,22 @@ export async function POST(req: NextRequest) {
     }
     if (!folderId) folderId = await getRootFolderId()
 
+    // Same stale-reference guard as folderId above -- used by "Create lobby
+    // version"/"Create projector version" (lib/slideGroupActions.ts), which
+    // creates the duplicate pre-assigned to the source slide's group.
+    let groupId: string | null = null
+    if (typeof body.groupId === 'string' && body.groupId) {
+      const [match] = await db.select({ id: slideGroups.id }).from(slideGroups).where(eq(slideGroups.id, body.groupId)).limit(1)
+      groupId = match?.id ?? null
+    }
+
     const [created] = await db.insert(slides).values({
       userId: session.user.id,
       folderId,
+      groupId,
       title: (body.title || 'Untitled Slide').trim() || 'Untitled Slide',
       orientation: body.orientation === 'portrait' ? 'portrait' : 'landscape',
+      screenType: body.screenType === 'lobby' ? 'lobby' : 'projector',
       data: body.data,
     }).returning()
 

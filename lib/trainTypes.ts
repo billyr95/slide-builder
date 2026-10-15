@@ -17,6 +17,11 @@ export interface TrainEntry {
   id: string
   createdAt: string
   source: EntrySource
+  // The slide's own group at the time this entry was logged -- undefined
+  // for an ungrouped slide, or any 'upload' entry (those have no slide
+  // record at all). Lets paired projector/lobby live entries be matched
+  // back up later; no access-rule implications.
+  groupId?: string
 
   screenType: ScreenType
   orientation: Orientation  // needed to know the slide's real pixel dimensions (1920x1080 vs 1080x1920)

@@ -71,6 +71,13 @@
       "when": 1792022649490,
       "tag": "0009_new_roughhouse",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792023750119,
+      "tag": "0010_naive_maelstrom",
+      "breakpoints": true
     }
   ]
 }

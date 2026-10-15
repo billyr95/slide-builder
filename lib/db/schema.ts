@@ -35,6 +35,27 @@ export const folders = pgTable('folders', {
   parentFolderIdIdx: index('folders_parent_folder_id_idx').on(table.parentFolderId),
 }))
 
+// A set of slides belonging to the same project -- typically a projector
+// slide plus its lobby-screen version(s). Purely organizational: grouping
+// never syncs content between members, each slide in a group stays fully
+// independent in text/layout, this just lets the file browser show them as
+// one expandable row and lets "Create lobby version"/"Create projector
+// version"/"Group with..." find each other. A group with no remaining
+// members is deleted automatically by application code (see
+// app/api/slide-groups/[id]/route.ts's DELETE and the slide-removal path),
+// not a DB trigger -- there's no cron/constraint enforcing that invariant,
+// so a row COULD in principle end up orphaned by a manual DB edit, but
+// every code path that can drop a group to zero members cleans it up
+// immediately after.
+export const slideGroups = pgTable('slide_groups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdBy: uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const screenTypeEnum = pgEnum('screen_type', ['projector', 'lobby'])
+
 export const slides = pgTable('slides', {
   id: uuid('id').primaryKey().defaultRandom(),
   // Slides are shared/org-wide -- every logged-in user can view and edit
@@ -53,6 +74,18 @@ export const slides = pgTable('slides', {
   // remembered preference so reopening a portrait slide doesn't silently
   // default back to the landscape preview.
   orientation: orientationEnum('orientation').notNull().default('landscape'),
+  // Which kind of screen this slide is meant for -- previously only ever
+  // lived as ephemeral editor state (reset to 'projector' on every load,
+  // used purely to tag live-logged training entries), never actually saved
+  // against the slide itself. Persisted now so the file browser's Type
+  // column and slide groups (a group's members are typically one of each)
+  // have something real to read; "Create lobby version"/"Create projector
+  // version" set this explicitly on the duplicate they create.
+  screenType: screenTypeEnum('screen_type').notNull().default('projector'),
+  // Nullable -- most slides stay ungrouped. onDelete set null: removing a
+  // slide from its group (or the group row itself going away) never
+  // destroys the slide, same safety-net pattern as folderId below.
+  groupId: uuid('group_id').references(() => slideGroups.id, { onDelete: 'set null' }),
   // Full editor state (SlideData) -- text fields, image data URLs, every
   // font/size/position setting. One JSONB blob rather than a flattened
   // column-per-field schema, since SlideData's shape evolves often (new
@@ -72,6 +105,7 @@ export const slides = pgTable('slides', {
 }, (table) => ({
   userIdIdx: index('slides_user_id_idx').on(table.userId),
   folderIdIdx: index('slides_folder_id_idx').on(table.folderId),
+  groupIdIdx: index('slides_group_id_idx').on(table.groupId),
 }))
 
 export const trainingSourceEnum = pgEnum('training_source', ['upload', 'live'])
@@ -227,6 +261,14 @@ export const trainingEntries = pgTable('training_entries', {
   // other fields with no fixed column above (matches TrainEntry.liveStyle).
   images: jsonb('images').notNull().default([]),
   liveStyle: jsonb('live_style'),
+
+  // The slide's own group at the time this entry was logged (null for an
+  // ungrouped slide, or any 'upload' entry -- those have no slide record at
+  // all) -- lets paired projector/lobby live entries be matched back up
+  // later. No FK constraint (training entries are a historical log; a
+  // group being deleted afterward shouldn't retroactively invalidate past
+  // entries the way it would with onDelete set null re-triggering writes).
+  groupId: uuid('group_id'),
 
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

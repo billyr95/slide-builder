@@ -68,7 +68,7 @@ function firstImageWidthRatio(data: SlideData, orientation: Orientation): number
   return Math.max(0, Math.min(1, scalePx / dims.w))
 }
 
-export async function buildLiveTrainEntry(data: SlideData, orientation: Orientation, screenType: ScreenType): Promise<TrainEntry> {
+export async function buildLiveTrainEntry(data: SlideData, orientation: Orientation, screenType: ScreenType, groupId: string | null = null): Promise<TrainEntry> {
   const dims = DIMS[orientation]
   const rawImages = collectRawImages(data)
 
@@ -148,6 +148,7 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     createdAt: new Date().toISOString(),
     source: 'live',
+    groupId: groupId ?? undefined,
 
     screenType,
     orientation,

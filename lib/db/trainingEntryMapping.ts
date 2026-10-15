@@ -55,6 +55,7 @@ export function trainEntryToRow(entry: Partial<TrainEntry>, userId: string): New
   return {
     userId,
     source: entry.source ?? 'live',
+    groupId: entry.groupId ?? null,
     screenType: entry.screenType ?? 'projector',
     orientation: entry.orientation ?? 'landscape',
     hasLabel: entry.hasLabel ?? false,
@@ -131,6 +132,7 @@ export function rowToTrainEntry(row: Row): TrainEntry {
     id: row.id,
     createdAt: row.createdAt.toISOString(),
     source: row.source,
+    groupId: row.groupId ?? undefined,
     screenType: row.screenType as TrainEntry['screenType'],
     orientation: row.orientation as TrainEntry['orientation'],
     hasLabel: row.hasLabel,
