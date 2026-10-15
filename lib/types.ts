@@ -314,6 +314,13 @@ export interface SlideData {
   // Logos
   logos: LogoItem[]
   logoSize: number
+  // The gap ABOVE the logo bar, relative to whatever renders directly above
+  // it (the last visible text block, or the image in 'none' mode with no
+  // text) -- same auto-until-touched/manual-override pattern as every other
+  // margin-top field (lib/textStackGap.ts's effectiveLogoMarginTop), just a
+  // flat default rather than blockOrder-relative, since the logo bar is
+  // pinned after the text stack, never reorderable within it.
+  logoMarginTop?: number
 
   // Footer -- Series Name and Listening Credit both live in their own
   // fixed slot here, never in blockOrder: Series Name always renders

@@ -171,3 +171,13 @@ export function effectiveMarginTop(data: SlideData, key: TextBlockKey): number {
 export function effectiveSeriesNameMarginTop(data: SlideData): number {
   return data.seriesNameMarginTop ?? computeStackGap(data)
 }
+
+// The logo bar's own gap above whatever renders directly above it --
+// same auto-until-touched/manual-override pattern as every other
+// margin-top field, but a flat default (24px, matching the fixed value
+// every logo bar render site used before this control existed) rather
+// than the font-metric-derived stackGap above, since the logo bar isn't
+// text and has no font size of its own to derive a gap from.
+export function effectiveLogoMarginTop(data: SlideData): number {
+  return data.logoMarginTop ?? 24
+}

@@ -2,7 +2,7 @@ import React, { forwardRef } from 'react'
 import { SlideData, Orientation, staggerCount, TextBlockKey } from '@/lib/types'
 import { computeStaggerLayout } from '@/lib/staggerLayout'
 import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } from '@/lib/defaults'
-import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
+import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop, effectiveLogoMarginTop } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMarginSide } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx } from '@/lib/imageSizing'
 import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX, imageFacingInset } from '@/lib/imageClusterPosition'
@@ -353,7 +353,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
             {/* Logo bar */}
             {data.logos && data.logos.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${24 * scale}px`, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${effectiveLogoMarginTop(data) * scale}px`, flexWrap: 'wrap' }}>
                 {data.logos.map(logo => (
                   <img key={logo.id} src={logo.url} alt={logo.alt}
                     style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
@@ -592,7 +592,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
             {/* Logo bar */}
             {data.logos && data.logos.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${32 * scale}px`, marginTop: `${24 * scale}px` }}>
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${32 * scale}px`, marginTop: `${effectiveLogoMarginTop(data) * scale}px` }}>
                 {data.logos.map(logo => (
                   <img key={logo.id} src={logo.url} alt={logo.alt}
                     style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />
@@ -754,7 +754,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
 
         {/* Logo bar */}
         {data.logos && data.logos.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${24 * scale}px` }}>
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${32 * scale}px`, marginTop: `${effectiveLogoMarginTop(data) * scale}px` }}>
             {data.logos.map(logo => (
               <img key={logo.id} src={logo.url} alt={logo.alt}
                 style={{ height: `${(data.logoSize || 60) * scale}px`, maxWidth: `${300 * scale}px`, objectFit: 'contain' }} />

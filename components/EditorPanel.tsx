@@ -8,7 +8,7 @@ import { resizeImageDataUrl } from '@/lib/resizeImage'
 import ColorPalette from './ColorPalette'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from '@/lib/slideHeuristics'
 import { DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } from '@/lib/defaults'
-import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop } from '@/lib/textStackGap'
+import { resolveBlockOrder, isBlockPopulated, effectiveMarginTop, effectiveSeriesNameMarginTop, effectiveLogoMarginTop } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMarginSide, MarginSide } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx, CANVAS_WIDTH, MIN_IMAGE_SIZE_PX, MAX_IMAGE_SIZE_PX } from '@/lib/imageSizing'
 import EditHtmlLink from './EditHtmlField'
@@ -1486,6 +1486,10 @@ export default function EditorPanel({
                 <div className="mt-2">
                   <FontSizeSlider label="Logo height" value={data.logoSize || 60} onChange={v => set('logoSize', v)} min={30} max={200} />
                 </div>
+                {data.logos && data.logos.length > 0 && (
+                  <MarginTopSlider label="Margin top" value={effectiveLogoMarginTop(data)}
+                    onChange={v => set('logoMarginTop', v)} badge={data.logoMarginTop !== undefined ? 'manual' : 'auto'} />
+                )}
               </FieldCard>
             </Section>
           )}

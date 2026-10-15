@@ -275,6 +275,7 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
 
       logoCount: (data.logos || []).length,
       logoSize: data.logoSize,
+      logoMarginTop: data.logoMarginTop,
 
       showSeriesName: data.showSeriesName,
       showListeningCredit: data.showListeningCredit,
