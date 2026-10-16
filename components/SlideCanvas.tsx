@@ -440,12 +440,6 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
       // configuration. Non-flip mode doesn't have this problem (the text's
       // facing side there is its LEFT edge, which left-aligned content
       // already starts flush against).
-      // The footer's own offsets are a distinct, already-asymmetric scheme
-      // (tighter on the image-adjacent side) predating this control --
-      // deliberately left as its own fixed numbers, out of scope for both
-      // contentMargin and imageTextGap.
-      const footerLeft = imageOnRight ? 100 : 20
-      const footerRight = imageOnRight ? 20 : 100
 
       return (
         <div
@@ -600,14 +594,25 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
               </div>
             )}
 
-            {/* Fixed footer -- see the 'none' branch's identical comment
-                above. */}
+            {/* Fixed footer -- pinned to the bottom of this (position:
+                relative) text column, so left/right below are already
+                relative to the text column's own box, not the slide.
+                Anchored to textPadLeft/textPadRight specifically (not 0/0,
+                the column's own far edges) so the footer's own left edge
+                and width exactly match the main text block's -- the same
+                padding that positions Label/Title/etc. within this column
+                -- and therefore automatically move with it whenever Flip,
+                image size, gap, margin, or X position change which side
+                is "facing" and how wide this column ends up. See the
+                'none' branch's matching comment for the no-image case,
+                which has no column to anchor to and keeps its own
+                fixed-margin-based centering. */}
             {hasFooter && (
               <div style={{
                 position: 'absolute',
                 bottom: `${48 * scale}px`,
-                left: `${footerLeft * scale}px`,
-                right: `${footerRight * scale}px`,
+                left: `${textPadLeft}px`,
+                right: `${textPadRight}px`,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: textAlignItems,
