@@ -796,6 +796,21 @@ export default function EditorPanel({
       faceCropSuggested: existing?.faceCropSuggested,
       faceCropFinal: existing?.faceCropFinal,
       faceCropWasOverridden: existing?.faceCropWasOverridden,
+      // Orientation-specific overrides -- preserved as-is for the same
+      // reason as the face-crop fields above. BUG FIX: this function used
+      // to omit these six entirely, so any single-field update (the X
+      // slider, the Y slider, even the zIndex slider) silently dropped
+      // whichever of them weren't in `patch`, making an image's manually
+      // set X disappear the moment Y (or zIndex, or a replace) was touched
+      // next. updateStaggerScale (this function's sibling, used by the
+      // size slider) already preserved them correctly -- this was the one
+      // spot that didn't.
+      xLandscape: existing?.xLandscape,
+      xPortrait: existing?.xPortrait,
+      yLandscape: existing?.yLandscape,
+      yPortrait: existing?.yPortrait,
+      scaleLandscape: existing?.scaleLandscape,
+      scalePortrait: existing?.scalePortrait,
       ...patch,
     }
     set('staggerImages', images)
