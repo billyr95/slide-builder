@@ -7,6 +7,7 @@ import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiv
 import { effectiveImageSizePx } from '@/lib/imageSizing'
 import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX, imageFacingInset } from '@/lib/imageClusterPosition'
 import { sanitizeFormattingHtml } from '@/lib/richText'
+import { PhotoAdjustments, hasNonDefaultAdjustments } from '@/lib/photoAdjust'
 
 interface SlideCanvasProps {
   data: SlideData
@@ -31,6 +32,27 @@ const PORTRAIT = { w: 1080, h: 1920 }
 const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
   ({ data, orientation, scale = 1 }, ref) => {
     const dim = orientation === 'landscape' ? LANDSCAPE : PORTRAIT
+
+    // Image <img> props for a slot that may have non-destructive photo
+    // adjustments (lib/photoAdjust.ts) -- the common case (no adjustments)
+    // renders a plain src exactly as before; otherwise src starts as the
+    // untouched original, tagged with data-adjust/data-raw-src for
+    // whichever caller actually swaps it to the processed result:
+    // applyPhotoAdjustmentsInDom, called from a useEffect in each of this
+    // component's own CLIENT call sites (app/editor/[id]/page.tsx,
+    // SlideThumbnail.tsx) rather than from inside SlideCanvas itself --
+    // this file is also rendered server-side via plain renderToStaticMarkup
+    // for PNG export (lib/renderSlide.ts), which can't have a 'use client'
+    // directive or use hooks without breaking that path (Next's RSC
+    // bundler replaces a 'use client' component with an unresolvable
+    // reference when it's reached from a Route Handler's server bundle,
+    // and effects never fire under plain renderToStaticMarkup regardless).
+    // Export instead runs applyPhotoAdjustmentsInDom directly inside its
+    // own Puppeteer page, after setContent -- see renderSlide.ts.
+    function photoImgProps(url: string, adjustments: PhotoAdjustments | undefined): { src: string; 'data-raw-src'?: string; 'data-adjust'?: string } {
+      if (!url || !hasNonDefaultAdjustments(adjustments)) return { src: url }
+      return { src: url, 'data-raw-src': url, 'data-adjust': JSON.stringify(adjustments) }
+    }
 
     // Text alignment is a single slide-level toggle applied uniformly --
     // text-align is CSS-inherited, so setting it once on each layout's text
@@ -516,7 +538,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                     {images.map((img, i) => (
                       <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: img?.zIndex ?? (i + 1) }}>
                         {img?.url
-                          ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                          ? <img {...photoImgProps(img.url, img.photoAdjustments)} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
                           : placeholderBox(widths[i], widths[i] * 1.35)
                         }
                       </div>
@@ -570,7 +592,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 flexShrink: 0,
               }}>
                 {data.imageUrl
-                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${imgWpx}px`, marginLeft: imgMarginLeftPx, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
+                  ? <img {...photoImgProps(data.imageUrl, data.imagePhotoAdjustments)} alt={data.imageAlt} style={{ width: `${imgWpx}px`, marginLeft: imgMarginLeftPx, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
                   : placeholderBox(400 * scale, 400 * scale)
                 }
               </div>
@@ -688,7 +710,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 {images.map((img, i) => (
                   <div key={img?.id ?? i} style={{ position: 'absolute', top: tops[i], left: lefts[i], width: widths[i], zIndex: img?.zIndex ?? (i + 1) }}>
                     {img?.url
-                      ? <img src={img.url} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                      ? <img {...photoImgProps(img.url, img.photoAdjustments)} alt={img.alt} style={{ width: '100%', height: 'auto', display: 'block' }} />
                       : placeholderBox(widths[i], widths[i] * 1.35)
                     }
                   </div>
@@ -723,7 +745,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
                 flexShrink: 0,
               }}>
                 {data.imageUrl
-                  ? <img src={data.imageUrl} alt={data.imageAlt} style={{ width: `${imgWpx}px`, maxHeight: `${dim.h * 0.5 * scale}px`, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
+                  ? <img {...photoImgProps(data.imageUrl, data.imagePhotoAdjustments)} alt={data.imageAlt} style={{ width: `${imgWpx}px`, maxHeight: `${dim.h * 0.5 * scale}px`, objectFit: 'contain', display: 'block', flexShrink: 0 }} />
                   : placeholderBox(400 * scale, 400 * scale)
                 }
               </div>

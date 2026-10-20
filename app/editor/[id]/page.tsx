@@ -12,6 +12,7 @@ import { exportSlideAsPng } from '@/lib/exportSlide'
 import { useUndoableState } from '@/lib/useUndoableState'
 import { buildLiveTrainEntry } from '@/lib/liveTrainCapture'
 import { ScreenType } from '@/lib/trainTypes'
+import { applyPhotoAdjustmentsInDom } from '@/lib/photoAdjust'
 
 const LOGGING_PREF_KEY = 'slide-builder-live-logging-enabled'
 const AUTOSAVE_INTERVAL_MS = 60000
@@ -206,6 +207,16 @@ export default function EditorPage() {
       console.warn('Failed to save logging preference', e)
     }
   }, [loggingEnabled, loggingPrefLoaded])
+
+  // Swaps any <img data-adjust> the live SlideCanvas below just rendered
+  // over to its processed result (lib/photoAdjust.ts) -- SlideCanvas itself
+  // can't do this (it's also rendered server-side via plain
+  // renderToStaticMarkup for PNG export, which can't use hooks -- see its
+  // own comment), so each of its client call sites runs it instead; the
+  // other is SlideThumbnail.tsx.
+  useEffect(() => {
+    applyPhotoAdjustmentsInDom()
+  }, [data])
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {

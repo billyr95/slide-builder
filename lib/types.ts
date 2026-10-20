@@ -1,3 +1,5 @@
+import { PhotoAdjustments } from './photoAdjust'
+
 export type TheinhardtWeight = 'regular' | 'bold' | 'heavy'
 export type Orientation = 'landscape' | 'portrait'
 export type ImageMode =
@@ -65,6 +67,13 @@ export interface StaggerImage {
   faceCropSuggested?: FaceCropBox
   faceCropFinal?: FaceCropBox
   faceCropWasOverridden?: boolean
+  // Non-destructive photo adjustments (lib/photoAdjust.ts) -- undefined or
+  // all-default means unadjusted. Applied before crop in processing order
+  // (crop/face-detection act on this slot's own `url`, which is whatever
+  // was uploaded/cropped; adjustments are a separate, non-destructive
+  // overlay never baked into `url` itself) and persists when replacing the
+  // photo in this slot, same convention as crop/size on replace.
+  photoAdjustments?: PhotoAdjustments
 }
 
 // Number of images used by a given stagger mode (0 for non-stagger modes).
@@ -331,6 +340,9 @@ export interface SlideData {
   imageFaceCropSuggested?: FaceCropBox
   imageFaceCropFinal?: FaceCropBox
   imageFaceCropWasOverridden?: boolean
+  // Single-image-mode counterpart of StaggerImage.photoAdjustments -- see
+  // its own comment.
+  imagePhotoAdjustments?: PhotoAdjustments
   staggerImages: StaggerImage[]  // used by all multi-image modes (stagger, triangle, squared)
   imageOverlap: number  // 0–60, percentage overlap between consecutive stagger images
   staggerSize: number   // pixels, default width of each image in stagger layout -- LEGACY/fallback, see staggerSizeLandscape/Portrait

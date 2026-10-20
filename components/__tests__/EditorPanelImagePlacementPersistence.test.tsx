@@ -135,6 +135,27 @@ describe('Image placement controls: manual values are never silently reset', () 
     expect(patch.staggerImages[0].yLandscape).toBe(80)
   })
 
+  it('stagger mode: setting Image 1\'s Y preserves its already-set photo adjustments (same bug class as X/Y/crop)', () => {
+    const adjustments = { contrast: 20, saturation: -10, shadows: 5, blackPoint: 10, whitePoint: 240, blackAndWhite: false }
+    const data: SlideData = {
+      ...DEFAULT_SLIDE_DATA,
+      imageMode: 'two-stagger',
+      staggerImages: [
+        { id: 'a', url: 'data:image/png;base64,AAA', alt: 'Image 1', x: 0, y: 0, scale: 0, photoAdjustments: adjustments },
+      ],
+    }
+    const onChange = vi.fn()
+    renderPanel(data, 'landscape', onChange, 'image')
+
+    const yInput = numberInputNear('Image 1 Y')
+    fireEvent.change(yInput, { target: { value: '80' } })
+    fireEvent.blur(yInput)
+
+    expect(onChange).toHaveBeenCalled()
+    const patch = onChange.mock.calls[onChange.mock.calls.length - 1][0]
+    expect(patch.staggerImages[0].photoAdjustments).toEqual(adjustments)
+  })
+
   it('stagger mode: setting Image 1\'s layer (zIndex) preserves its already-set X, Y, and size', () => {
     const data: SlideData = {
       ...DEFAULT_SLIDE_DATA,

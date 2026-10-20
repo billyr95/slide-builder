@@ -117,6 +117,8 @@ export function trainEntryToRow(entry: Partial<TrainEntry>, userId: string): New
     image1FaceCropWasOverridden: entry.faceCropWasOverridden ?? null,
     // Not yet populated -- see schema.ts's own comment on this column.
     image1FaceDetectionMismatch: null,
+    photoAdjustments: entry.photoAdjustments ?? null,
+    hasPhotoAdjustments: entry.hasPhotoAdjustments ?? false,
     titleFontSizeSuggestedPx: entry.titleFontSizeSuggestedPx ?? null,
     titleFontSizeFinalPx: entry.titleFontSizePx ?? null,
     titleFontSizeWasOverridden: entry.titleFontSizeWasOverridden ?? null,
@@ -192,6 +194,8 @@ export function rowToTrainEntry(row: Row): TrainEntry {
     faceCropFinal: (row.image1FaceCropFinal as TrainEntry['faceCropFinal']) ?? undefined,
     faceCropWasOverridden: row.image1FaceCropWasOverridden ?? undefined,
     faceDetectionMismatch: row.image1FaceDetectionMismatch ?? undefined,
+    photoAdjustments: (row.photoAdjustments as TrainEntry['photoAdjustments']) ?? undefined,
+    hasPhotoAdjustments: row.hasPhotoAdjustments,
     liveStyle: (row.liveStyle as Record<string, unknown>) ?? undefined,
   }
 }

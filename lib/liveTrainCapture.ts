@@ -4,6 +4,7 @@ import { getImageDimensions, resizeImageDataUrl } from './resizeImage'
 import { suggestTitleFontSize, suggestSubtitleFontSize, suggestImagePosition } from './slideHeuristics'
 import { effectiveImageSizePx } from './imageSizing'
 import { effectiveStaggerScale, effectiveStaggerSize } from './staggerLayout'
+import { hasNonDefaultAdjustments } from './photoAdjust'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
@@ -146,6 +147,12 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     ? { suggested: data.imageFaceCropSuggested, final: data.imageFaceCropFinal, wasOverridden: data.imageFaceCropWasOverridden }
     : { suggested: firstStaggerImage?.faceCropSuggested, final: firstStaggerImage?.faceCropFinal, wasOverridden: firstStaggerImage?.faceCropWasOverridden }
 
+  // Image 1's non-destructive photo adjustments (lib/photoAdjust.ts) --
+  // same image-1-only convention as the face-crop fields above.
+  const image1PhotoAdjustments = data.imageMode === 'single'
+    ? data.imagePhotoAdjustments
+    : firstStaggerImage?.photoAdjustments
+
   return {
     id: Math.random().toString(36).slice(2) + Date.now().toString(36),
     createdAt: new Date().toISOString(),
@@ -223,6 +230,8 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     faceCropSuggested: image1FaceCrop.suggested,
     faceCropFinal: image1FaceCrop.final,
     faceCropWasOverridden: image1FaceCrop.wasOverridden,
+    photoAdjustments: image1PhotoAdjustments,
+    hasPhotoAdjustments: hasNonDefaultAdjustments(image1PhotoAdjustments),
 
     liveStyle: {
       labelWeight: data.labelWeight,

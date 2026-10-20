@@ -1,4 +1,5 @@
 import { TheinhardtWeight, TitleFont, PresentersFont, Orientation, FaceCropBox, CustomTextLayer } from './types'
+import { PhotoAdjustments } from './photoAdjust'
 
 export type ScreenType = 'projector' | 'lobby'
 // 'upload' = hand-entered via /train from an old/scanned slide (style values
@@ -175,6 +176,13 @@ export interface TrainEntry {
   // flags entries where faceDetected and the model's "face" classification
   // disagree. Always undefined for now.
   faceDetectionMismatch?: boolean
+  // 'live' only: image 1's non-destructive photo adjustments
+  // (lib/photoAdjust.ts), same image-1-only convention as the face-crop
+  // fields above. hasPhotoAdjustments is always populated (true/false),
+  // matching hasInlineFormatting -- photoAdjustments itself is undefined
+  // whenever there's nothing non-default to report.
+  photoAdjustments?: PhotoAdjustments
+  hasPhotoAdjustments: boolean
 
   // Per-stagger-image placement ground truth ('live' only, up to 4 slots --
   // single-image mode has no equivalent, see imageWidthRatio above instead).
@@ -225,5 +233,6 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     images: [{ id: Math.random().toString(36).slice(2), url: '', mediaType: '', name: '' }],
     imageCount: 0,
     customTextLayersCount: 0,
+    hasPhotoAdjustments: false,
   }
 }

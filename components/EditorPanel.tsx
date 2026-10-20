@@ -36,6 +36,7 @@ function staggerSlotLabel(mode: ImageMode, i: number): string {
 }
 
 const CropModal = dynamic(() => import('./CropModal'), { ssr: false })
+const PhotoEditorModal = dynamic(() => import('./PhotoEditorModal'), { ssr: false })
 
 interface EditorPanelProps {
   data: SlideData
@@ -640,6 +641,8 @@ export default function EditorPanel({
   // shows a brief status while the (slow, client-side) model runs.
   const [autoCropRunning, setAutoCropRunning] = useState<number | null>(null)
   const [autoCropNotice, setAutoCropNotice] = useState<{ target: number; text: string } | null>(null)
+  // Which slot's "Edit photo" modal is open -- same -1/>=0 keying as cropTarget.
+  const [photoEditorTarget, setPhotoEditorTarget] = useState<number | null>(null)
 
   // Once the user manually drags a slider (or manually adjusts an image),
   // stop auto-updating that field for the rest of the session on this
@@ -860,6 +863,10 @@ export default function EditorPanel({
       yPortrait: existing?.yPortrait,
       scaleLandscape: existing?.scaleLandscape,
       scalePortrait: existing?.scalePortrait,
+      // Preserved as-is for the same reason as the face-crop fields above --
+      // replacing the photo in this slot keeps its existing adjustments
+      // (lib/photoAdjust.ts), same "survives replace" convention as crop/size.
+      photoAdjustments: existing?.photoAdjustments,
       ...patch,
     }
     set('staggerImages', images)
@@ -888,6 +895,7 @@ export default function EditorPanel({
         faceCropSuggested: existing?.faceCropSuggested,
         faceCropFinal: existing?.faceCropFinal,
         faceCropWasOverridden: existing?.faceCropWasOverridden,
+        photoAdjustments: existing?.photoAdjustments,
         xLandscape: existing?.xLandscape,
         xPortrait: existing?.xPortrait,
         yLandscape: existing?.yLandscape,
@@ -1095,6 +1103,24 @@ export default function EditorPanel({
           onCancel={() => setCropSrc(null)}
         />
       )}
+
+      {photoEditorTarget !== null && (() => {
+        const url = photoEditorTarget >= 0 ? data.staggerImages?.[photoEditorTarget]?.url : data.imageUrl
+        const currentAdjustments = photoEditorTarget >= 0 ? data.staggerImages?.[photoEditorTarget]?.photoAdjustments : data.imagePhotoAdjustments
+        if (!url) return null
+        return (
+          <PhotoEditorModal
+            imageUrl={url}
+            adjustments={currentAdjustments}
+            onCancel={() => setPhotoEditorTarget(null)}
+            onApply={adj => {
+              if (photoEditorTarget >= 0) updateStaggerImage(photoEditorTarget, { photoAdjustments: adj })
+              else set('imagePhotoAdjustments', adj)
+              setPhotoEditorTarget(null)
+            }}
+          />
+        )
+      })()}
 
       <div className="flex gap-0 text-white h-full min-h-0">
 
@@ -1507,6 +1533,12 @@ export default function EditorPanel({
                       >
                         {autoCropRunning === -1 ? 'Detecting…' : 'Auto-crop face'}
                       </button>
+                      <button
+                        onClick={() => setPhotoEditorTarget(-1)}
+                        className="text-xs text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg py-1.5 px-3 transition-colors"
+                      >
+                        Edit photo
+                      </button>
                       {autoCropNotice?.target === -1 && (
                         <span className="text-xs text-zinc-500">{autoCropNotice.text}</span>
                       )}
@@ -1580,6 +1612,12 @@ export default function EditorPanel({
                             >
                               {autoCropRunning === i ? 'Detecting…' : 'Auto-crop face'}
                             </button>
+                            <button
+                              onClick={() => setPhotoEditorTarget(i)}
+                              className="text-xs text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg py-1.5 px-3 transition-colors"
+                            >
+                              Edit photo
+                            </button>
                             {autoCropNotice?.target === i && (
                               <span className="text-xs text-zinc-500">{autoCropNotice.text}</span>
                             )}
@@ -1614,6 +1652,7 @@ export default function EditorPanel({
                                     faceCropSuggested: existing1?.faceCropSuggested,
                                     faceCropFinal: existing1?.faceCropFinal,
                                     faceCropWasOverridden: existing1?.faceCropWasOverridden,
+                                    photoAdjustments: existing1?.photoAdjustments,
                                     xLandscape: existing1?.xLandscape,
                                     xPortrait: existing1?.xPortrait,
                                     yLandscape: existing1?.yLandscape,

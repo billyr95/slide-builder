@@ -212,6 +212,15 @@ export const trainingEntries = pgTable('training_entries', {
   // model's "face" classification disagree.
   image1FaceDetectionMismatch: boolean('image_1_face_detection_mismatch'),
 
+  // Non-destructive photo adjustments (lib/photoAdjust.ts), scoped to image
+  // 1 -- same convention as image1FaceCropSuggested/Final above. 'live'
+  // only. hasPhotoAdjustments is broken out as its own queryable boolean
+  // (matching hasInlineFormatting) rather than requiring every query to
+  // unpack the jsonb object just to filter on whether a slide used this
+  // feature at all.
+  photoAdjustments: jsonb('photo_adjustments'),
+  hasPhotoAdjustments: boolean('has_photo_adjustments').notNull().default(false),
+
   // Per-stagger-image placement ground truth ('live' only, up to 4 slots --
   // single-image mode has no equivalent, see image1WidthRatio/HeightRatio
   // above instead). Unbottled from the old liveStyle.staggerImagePlacements

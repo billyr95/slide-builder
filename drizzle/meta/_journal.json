@@ -85,6 +85,13 @@
       "when": 1792459520101,
       "tag": "0011_equal_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792460684059,
+      "tag": "0012_glorious_ronan",
+      "breakpoints": true
     }
   ]
 }

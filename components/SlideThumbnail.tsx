@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import SlideCanvas from './SlideCanvas'
 import { SlideData, Orientation } from '@/lib/types'
+import { applyPhotoAdjustmentsInDom } from '@/lib/photoAdjust'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
@@ -28,6 +29,16 @@ export default function SlideThumbnail({ data, orientation }: { data: SlideData;
     observer.observe(el)
     return () => observer.disconnect()
   }, [dims.w])
+
+  // Swaps any <img data-adjust> SlideCanvas just rendered over to its
+  // processed result -- SlideCanvas itself can't do this (it's also
+  // rendered server-side via plain renderToStaticMarkup for PNG export,
+  // which can't use hooks -- see its own comment), so each of its CLIENT
+  // call sites (this one, and the live editor canvas in
+  // app/editor/[id]/page.tsx) runs it instead.
+  useEffect(() => {
+    applyPhotoAdjustmentsInDom()
+  }, [data])
 
   return (
     <div

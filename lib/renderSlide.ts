@@ -3,6 +3,7 @@ import path from 'path'
 import React from 'react'
 import SlideCanvas from '@/components/SlideCanvas'
 import { Orientation, SlideData } from '@/lib/types'
+import { applyPhotoAdjustmentsInDom } from '@/lib/photoAdjust'
 
 const DIMS: Record<Orientation, { w: number; h: number }> = {
   landscape: { w: 1920, h: 1080 },
@@ -85,6 +86,15 @@ export async function renderSlideToPng(data: SlideData, orientation: Orientation
     await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 })
     await page.setContent(html, { waitUntil: 'load' })
     await page.evaluate(() => (document as any).fonts?.ready ?? Promise.resolve())
+    await page.waitForFunction(() => Array.from(document.images).every(img => img.complete))
+    // renderToStaticMarkup produces plain HTML with no React/hydration, so
+    // SlideCanvas's own useEffect-based photo-adjustment swap (see its
+    // comment) never runs here -- this runs the exact same processor
+    // directly inside the export's own page instead, at full resolution
+    // (no maxDim cap), so the export matches the live editor/thumbnail
+    // pixel for pixel. Any image it swaps gets its own fresh load, so a
+    // second completeness wait follows.
+    await page.evaluate(applyPhotoAdjustmentsInDom)
     await page.waitForFunction(() => Array.from(document.images).every(img => img.complete))
     const buffer = await page.screenshot({ type: 'png' })
     return buffer as Buffer
