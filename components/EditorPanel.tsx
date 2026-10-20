@@ -623,6 +623,11 @@ export default function EditorPanel({
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   // -1 = the single-image slot; >=0 = index into data.staggerImages
   const [cropTarget, setCropTarget] = useState<number>(-1)
+  // Which slot's "Auto-crop face" button is currently running detection
+  // (same -1/>=0 keying as cropTarget) -- disables that slot's button and
+  // shows a brief status while the (slow, client-side) model runs.
+  const [autoCropRunning, setAutoCropRunning] = useState<number | null>(null)
+  const [autoCropNotice, setAutoCropNotice] = useState<{ target: number; text: string } | null>(null)
 
   // Once the user manually drags a slider (or manually adjusts an image),
   // stop auto-updating that field for the rest of the session on this
@@ -887,7 +892,7 @@ export default function EditorPanel({
     const existingUrl = target >= 0 ? data.staggerImages?.[target]?.url : data.imageUrl
     const isReplace = !!existingUrl
     const reader = new FileReader()
-    reader.onload = async (ev) => {
+    reader.onload = (ev) => {
       const rawUrl = ev.target?.result as string
       if (isReplace) {
         if (target >= 0) {
@@ -897,6 +902,39 @@ export default function EditorPanel({
         }
         return
       }
+      // Uploads are placed uncropped -- face detection no longer runs
+      // automatically here. Auto-sizing (suggestImagePosition) still applies
+      // so the slide isn't left with a tiny/huge default, but any face-crop
+      // is now only applied on demand via the "Auto-crop face" button (see
+      // runAutoCropFace below), which the user can run or skip per image.
+      placeFreshImage(target, rawUrl)
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  function placeFreshImage(target: number, rawUrl: string) {
+    if (target >= 0) {
+      updateStaggerImage(target, { url: rawUrl })
+    } else {
+      const suggestion = suggestImagePosition('other', screenType)
+      const patch: Partial<SlideData> = { imageUrl: rawUrl }
+      if (data[imageSizeKey] === undefined) {
+        patch[imageSizeKey] = Math.max(MIN_IMAGE_SIZE_PX, Math.min(MAX_IMAGE_SIZE_PX, Math.round(suggestion.width * CANVAS_WIDTH[orientation])))
+      }
+      onChange({ ...data, ...patch })
+    }
+  }
+
+  // Explicit, on-demand face-crop: run from the "Auto-crop face" button on
+  // a given slot, using that slot's CURRENT image (whatever is there now --
+  // freshly uploaded, already replaced, or a previous auto-crop result).
+  async function runAutoCropFace(target: number) {
+    const url = target >= 0 ? data.staggerImages?.[target]?.url : data.imageUrl
+    if (!url) return
+    setAutoCropRunning(target)
+    setAutoCropNotice(null)
+    try {
       // Dynamically imported rather than a normal top-level import -- this
       // module pulls in @vladmandic/face-api (and, transitively,
       // @tensorflow/tfjs), which crashed Next's server-side page prerendering
@@ -909,29 +947,19 @@ export default function EditorPanel({
         import('@/lib/faceDetect'),
         import('@/lib/cropImage'),
       ])
-      const detection = await detectFaceCropBox(rawUrl).catch((e: unknown) => {
-        console.warn('Face detection failed, skipping auto-crop', e)
+      const detection = await detectFaceCropBox(url).catch((e: unknown) => {
+        console.warn('Face detection failed', e)
         return null
       })
       if (detection) {
-        // A face was found -- auto-crop immediately with a standard headshot
-        // framing, same "auto-applied but overridable" pattern as font size:
-        // the user can still fine-tune via "Edit crop" afterward (which
-        // shows this already-cropped result as its starting point), but
-        // doesn't have to open the crop modal just to accept a sensible
-        // default for the common case.
-        const croppedUrl = await cropImageByRatioBox(rawUrl, detection.cropBox)
+        const croppedUrl = await cropImageByRatioBox(url, detection.cropBox)
         applyAutoCroppedImage(target, croppedUrl, detection.cropBox)
       } else {
-        // No face detected (book cover, poster, graphic, or detection
-        // failed) -- unchanged from before this feature: open the crop
-        // modal so the user frames it manually.
-        setCropTarget(target)
-        setCropSrc(rawUrl)
+        setAutoCropNotice({ target, text: 'No face detected' })
       }
+    } finally {
+      setAutoCropRunning(null)
     }
-    reader.readAsDataURL(file)
-    e.target.value = ''
   }
 
   function applyAutoCroppedImage(target: number, croppedUrl: string, cropBox: FaceCropBox) {
@@ -1369,6 +1397,20 @@ export default function EditorPanel({
                       </div>
                     </div>
                   )}
+                  {data.imageUrl && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <button
+                        onClick={() => runAutoCropFace(-1)}
+                        disabled={autoCropRunning === -1}
+                        className="text-xs text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg py-1.5 px-3 transition-colors disabled:opacity-60"
+                      >
+                        {autoCropRunning === -1 ? 'Detecting…' : 'Auto-crop face'}
+                      </button>
+                      {autoCropNotice?.target === -1 && (
+                        <span className="text-xs text-zinc-500">{autoCropNotice.text}</span>
+                      )}
+                    </div>
+                  )}
                   {/* Size/X position/Gap/Margin all live together in the
                       Layout tab's "Image placement" group now, not here --
                       see that section. */}
@@ -1426,6 +1468,20 @@ export default function EditorPanel({
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                               <span className="text-white text-xs font-medium">Edit crop</span>
                             </div>
+                          </div>
+                        )}
+                        {img?.url && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              onClick={() => runAutoCropFace(i)}
+                              disabled={autoCropRunning === i}
+                              className="text-xs text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg py-1.5 px-3 transition-colors disabled:opacity-60"
+                            >
+                              {autoCropRunning === i ? 'Detecting…' : 'Auto-crop face'}
+                            </button>
+                            {autoCropNotice?.target === i && (
+                              <span className="text-xs text-zinc-500">{autoCropNotice.text}</span>
+                            )}
                           </div>
                         )}
                         <div className="mt-2">

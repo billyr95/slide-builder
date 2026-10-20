@@ -70,14 +70,13 @@ const PRESENTERS_FONTS: readonly PresentersFont[] = ['Theinhardt', '92NY Text']
 // Compressed once here at add-time (not at export) so the stored/queued
 // entry already holds the small version — downscaled to a max dimension and
 // re-encoded as JPEG, matching what actually gets sent to the vision model.
-// Face detection (and, if a face is found, auto-crop) runs on the raw
-// full-resolution upload first, same as the main editor -- crop quality
-// depends on having enough source resolution to crop into, and running
-// detection after compression would both blur the result and hand the
-// detector a smaller image to work with. Unlike the main editor, there's no
-// crop-editing UI here to override the result afterward -- /train's images
-// are flat reference attachments, not positioned slide content -- so this
-// is detect-and-apply only, no suggested/final tracking.
+// Face detection still runs on the raw full-resolution upload (crop quality
+// would depend on having enough source resolution, and detecting after
+// compression would hand the detector a smaller image), but it's only used
+// to record faceDetected ground truth now -- the crop itself is never
+// applied here, so /train's uploaded images always stay exactly what was
+// uploaded, matching the main editor's on-demand (button-triggered) model
+// instead of auto-applying on upload.
 async function readImageFile(file: File): Promise<{ url: string; mediaType: string; name: string; faceDetected: boolean }> {
   const rawUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -90,16 +89,12 @@ async function readImageFile(file: File): Promise<{ url: string; mediaType: stri
   // prerendering if statically imported (tfjs runs environment setup at
   // module-init time, incompatible with Next's server runtime). See
   // EditorPanel.tsx's matching comment.
-  const [{ detectFaceCropBox }, { cropImageByRatioBox }] = await Promise.all([
-    import('@/lib/faceDetect'),
-    import('@/lib/cropImage'),
-  ])
+  const { detectFaceCropBox } = await import('@/lib/faceDetect')
   const detection = await detectFaceCropBox(rawUrl).catch((e: unknown) => {
-    console.warn('Face detection failed, skipping auto-crop', e)
+    console.warn('Face detection failed', e)
     return null
   })
-  const croppedUrl = detection ? await cropImageByRatioBox(rawUrl, detection.cropBox) : rawUrl
-  const url = await resizeImageDataUrl(croppedUrl, TRAIN_IMAGE_MAX_DIM, TRAIN_IMAGE_QUALITY, 'image/jpeg')
+  const url = await resizeImageDataUrl(rawUrl, TRAIN_IMAGE_MAX_DIM, TRAIN_IMAGE_QUALITY, 'image/jpeg')
   return { url, mediaType: 'image/jpeg', name: file.name, faceDetected: !!detection }
 }
 

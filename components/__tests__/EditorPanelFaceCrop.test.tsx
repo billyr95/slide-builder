@@ -57,11 +57,25 @@ beforeEach(() => {
 })
 
 describe('EditorPanel image upload -- face detection integration', () => {
-  it('auto-crops immediately (no modal) when a face is detected, and records suggested=final, wasOverridden=false', async () => {
-    vi.mocked(detectFaceCropBox).mockResolvedValue({ cropBox: FAKE_CROP_BOX, faceCount: 1 })
+  it('a fresh upload is placed uncropped, with no detection run and no modal opened', async () => {
     const { onChange, container } = renderPanel()
 
     uploadFile(container)
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled())
+    const patch = onChange.mock.calls[0][0]
+    expect(patch.imageUrl).toMatch(/^data:/)
+    expect(patch.imageUrl).not.toMatch(/^cropped:/)
+    expect(patch.imageFaceCropSuggested).toBeUndefined()
+    expect(detectFaceCropBox).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument()
+  })
+
+  it('"Auto-crop face" detects and crops on demand, recording suggested=final, wasOverridden=false', async () => {
+    vi.mocked(detectFaceCropBox).mockResolvedValue({ cropBox: FAKE_CROP_BOX, faceCount: 1 })
+    const { onChange, container } = renderPanel({ imageUrl: 'data:image/png;base64,AAA' })
+
+    fireEvent.click(screen.getByText('Auto-crop face'))
 
     await waitFor(() => expect(onChange).toHaveBeenCalled())
     const patch = onChange.mock.calls[0][0]
@@ -72,23 +86,24 @@ describe('EditorPanel image upload -- face detection integration', () => {
     expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument()
   })
 
-  it('opens the crop modal (no auto-crop) when no face is detected', async () => {
+  it('"Auto-crop face" shows a notice and applies no crop when no face is detected', async () => {
     vi.mocked(detectFaceCropBox).mockResolvedValue(null)
-    const { onChange, container } = renderPanel()
+    const { onChange } = renderPanel({ imageUrl: 'data:image/png;base64,AAA' })
 
-    uploadFile(container)
+    fireEvent.click(screen.getByText('Auto-crop face'))
 
-    await waitFor(() => expect(screen.getByTestId('crop-modal')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('No face detected')).toBeInTheDocument())
     expect(onChange).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('crop-modal')).not.toBeInTheDocument()
   })
 
-  it('opens the crop modal when detection itself throws, same as no-face-found', async () => {
+  it('"Auto-crop face" shows the no-face notice when detection itself throws', async () => {
     vi.mocked(detectFaceCropBox).mockRejectedValue(new Error('model failed to load'))
-    const { container } = renderPanel()
+    renderPanel({ imageUrl: 'data:image/png;base64,AAA' })
 
-    uploadFile(container)
+    fireEvent.click(screen.getByText('Auto-crop face'))
 
-    await waitFor(() => expect(screen.getByTestId('crop-modal')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('No face detected')).toBeInTheDocument())
   })
 
   it('flags wasOverridden=true when the user manually re-crops an already auto-cropped image', async () => {

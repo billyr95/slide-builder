@@ -60,6 +60,9 @@ export function buildNewSlideData({ screenType, fields, images }: BuildResult): 
       const suggestion = suggestImagePosition('other', screenType)
       newData.imageUrl = images[0].url
       newData.imageAlt = images[0].name
+      newData.imageFaceCropSuggested = images[0].faceCropSuggested
+      newData.imageFaceCropFinal = images[0].faceCropFinal
+      newData.imageFaceCropWasOverridden = images[0].faceCropWasOverridden
       // suggestion.width is a ratio of the full slide width -- a direct
       // pixel conversion. New slides are always created as landscape (see
       // app/api/slides/route.ts's POST default), hence the fixed landscape
@@ -77,7 +80,12 @@ export function buildNewSlideData({ screenType, fields, images }: BuildResult): 
       // matching comment in EditorPanel.tsx's handleCropComplete.
       const mode: ImageMode = images.length === 2 ? 'two-stagger' : images.length === 3 ? 'three-stagger' : 'four-stagger'
       newData.imageMode = mode
-      newData.staggerImages = images.slice(0, 4).map((img, i) => ({ id: img.id, url: img.url, alt: img.name, y: 0, scale: 0, zIndex: i + 1 }))
+      newData.staggerImages = images.slice(0, 4).map((img, i) => ({
+        id: img.id, url: img.url, alt: img.name, y: 0, scale: 0, zIndex: i + 1,
+        faceCropSuggested: img.faceCropSuggested,
+        faceCropFinal: img.faceCropFinal,
+        faceCropWasOverridden: img.faceCropWasOverridden,
+      }))
     }
   }
 

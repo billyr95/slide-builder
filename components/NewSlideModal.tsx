@@ -9,7 +9,7 @@
 
 import { useRef, useState } from 'react'
 import { ScreenType } from '@/lib/trainTypes'
-import { PresentersFont, TheinhardtWeight } from '@/lib/types'
+import { PresentersFont, TheinhardtWeight, FaceCropBox } from '@/lib/types'
 import { resizeImageDataUrl } from '@/lib/resizeImage'
 import { DEFAULT_SLIDE_DATA } from '@/lib/defaults'
 import ColorPalette from '@/components/ColorPalette'
@@ -21,13 +21,12 @@ export interface DroppedImage {
   id: string
   url: string
   name: string
-  // Per-image override for face-detection auto-crop (lib/faceDetect.ts),
-  // default true. Settable right after the image is added and up until
-  // Build is clicked, since that's when the crop actually runs here (see
-  // handleBuild) -- there's no pre-existing per-slot UI in this drop-first
-  // flow to make it settable before the image even exists the way
-  // EditorPanel's fixed upload slots could.
-  autoCropEnabled: boolean
+  // Set only once the "Auto-crop face" button (see runAutoCropFace) has
+  // been run on this image -- face detection no longer runs automatically
+  // on drop or at Build time, matching EditorPanel's own on-demand model.
+  faceCropSuggested?: FaceCropBox
+  faceCropFinal?: FaceCropBox
+  faceCropWasOverridden?: boolean
 }
 
 export interface SlideFieldsInput {
@@ -168,6 +167,8 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
   const [images, setImages] = useState<DroppedImage[]>([])
   const [dragActive, setDragActive] = useState(false)
   const [building, setBuilding] = useState(false)
+  const [autoCroppingId, setAutoCroppingId] = useState<string | null>(null)
+  const [autoCropNotice, setAutoCropNotice] = useState<{ id: string; text: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function addFiles(files: FileList | File[]) {
@@ -178,7 +179,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
         try {
           const raw = ev.target?.result as string
           const url = await resizeImageDataUrl(raw, MAX_IMAGE_DIM, 0.9)
-          resolve({ id: Math.random().toString(36).slice(2), url, name: file.name.replace(/\.[^.]+$/, ''), autoCropEnabled: true })
+          resolve({ id: Math.random().toString(36).slice(2), url, name: file.name.replace(/\.[^.]+$/, '') })
         } catch (err) {
           reject(err)
         }
@@ -194,17 +195,44 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
     setImages(prev => prev.filter(i => i.id !== id))
   }
 
-  function toggleAutoCrop(id: string) {
-    setImages(prev => prev.map(img => img.id === id ? { ...img, autoCropEnabled: !img.autoCropEnabled } : img))
+  // On-demand face crop -- run per image via its "Auto-crop face" button.
+  // Detection runs on whatever's in the slot right now (freshly dropped, or
+  // a previous auto-crop result); no toggle and no automatic run at drop or
+  // Build time any more.
+  async function runAutoCropFace(id: string) {
+    const img = images.find(i => i.id === id)
+    if (!img) return
+    setAutoCroppingId(id)
+    setAutoCropNotice(null)
+    try {
+      const [{ detectFaceCropBox }, { cropImageByRatioBox }] = await Promise.all([
+        import('@/lib/faceDetect'),
+        import('@/lib/cropImage'),
+      ])
+      const detection = await detectFaceCropBox(img.url).catch((e: unknown) => {
+        console.warn('Face detection failed', e)
+        return null
+      })
+      if (detection) {
+        const url = await cropImageByRatioBox(img.url, detection.cropBox)
+        setImages(prev => prev.map(i => i.id === id
+          ? { ...i, url, faceCropSuggested: detection.cropBox, faceCropFinal: detection.cropBox, faceCropWasOverridden: false }
+          : i))
+      } else {
+        setAutoCropNotice({ id, text: 'No face detected' })
+      }
+    } finally {
+      setAutoCroppingId(null)
+    }
   }
 
-  // Swaps this slot's image in place (same id, same position in the array,
-  // same autoCropEnabled toggle) rather than removing it and adding a new
-  // one -- that would move it to the end (breaking the "assigned in the
-  // order added" slot ordering) and silently reset autoCropEnabled back to
-  // its default. No size/position/crop to carry over here (unlike the main
-  // editor's slots) since none of that exists yet at this pre-Build stage --
-  // it's only computed once Build actually runs.
+  // Swaps this slot's image in place (same id, same position in the array)
+  // rather than removing it and adding a new one -- that would move it to
+  // the end (breaking the "assigned in the order added" slot ordering).
+  // Keeps whatever face-crop fields this slot already had, matching the
+  // same replace-image rule EditorPanel uses (see its handleImageUpload
+  // comment): swapping the photo underneath doesn't re-run detection or
+  // discard an existing crop automatically.
   function replaceImage(id: string, file: File) {
     const reader = new FileReader()
     reader.onload = async (ev) => {
@@ -219,33 +247,13 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
     reader.readAsDataURL(file)
   }
 
-  async function handleBuild() {
+  function handleBuild() {
     setBuilding(true)
     try {
-      // Face-detection auto-crop (lib/faceDetect.ts) runs here, per image,
-      // right before building the slide -- not at drop time -- specifically
-      // so the "Auto-crop this image" toggle below has already had a chance
-      // to be set. Images with it off pass through unchanged (covers movie
-      // posters/promo art that happen to feature a face prominently but
-      // shouldn't be cropped to a headshot). Dynamically imported: this
-      // pulls in @vladmandic/face-api and, transitively, @tensorflow/tfjs,
-      // which crashes Next's server-side page prerendering if statically
-      // imported (see EditorPanel.tsx's matching comment).
-      const [{ detectFaceCropBox }, { cropImageByRatioBox }] = await Promise.all([
-        import('@/lib/faceDetect'),
-        import('@/lib/cropImage'),
-      ])
-      const builtImages = await Promise.all(images.map(async img => {
-        if (!img.autoCropEnabled) return img
-        const detection = await detectFaceCropBox(img.url).catch((e: unknown) => {
-          console.warn('Face detection failed, skipping auto-crop', e)
-          return null
-        })
-        if (!detection) return img
-        const url = await cropImageByRatioBox(img.url, detection.cropBox)
-        return { ...img, url }
-      }))
-
+      // Images are built exactly as they sit in `images` -- uncropped unless
+      // the user explicitly ran "Auto-crop face" on a given slot (see
+      // runAutoCropFace), which already applied the crop and recorded its
+      // faceCrop* fields at that point. No detection runs here any more.
       onBuild({
         screenType,
         fields: {
@@ -282,7 +290,7 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
           seriesNameRichText,
           textAlign,
         },
-        images: builtImages,
+        images,
       })
     } finally {
       setBuilding(false)
@@ -482,10 +490,18 @@ export default function NewSlideModal({ initialScreenType, onBuild, onSkip, onCa
                           onChange={e => { const file = e.target.files?.[0]; if (file) replaceImage(img.id, file); e.target.value = '' }} />
                       </label>
                     </div>
-                    <label className="mt-1 flex items-center justify-center gap-1 cursor-pointer" title="Auto-crop this image (face detection)">
-                      <input type="checkbox" checked={img.autoCropEnabled} onChange={() => toggleAutoCrop(img.id)} className="rounded w-3 h-3" />
-                      <span className="text-[9px] text-zinc-500 leading-none">Auto-crop</span>
-                    </label>
+                    <button
+                      type="button"
+                      onClick={() => runAutoCropFace(img.id)}
+                      disabled={autoCroppingId === img.id}
+                      title="Run face detection and crop to a headshot"
+                      className="mt-1 w-full text-center text-[9px] text-zinc-500 hover:text-white leading-none py-0.5 disabled:opacity-60"
+                    >
+                      {autoCroppingId === img.id ? 'Detecting…' : 'Auto-crop face'}
+                    </button>
+                    {autoCropNotice?.id === img.id && (
+                      <p className="text-[9px] text-zinc-600 text-center leading-tight">{autoCropNotice.text}</p>
+                    )}
                   </div>
                 ))}
               </div>
