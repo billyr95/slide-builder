@@ -305,8 +305,8 @@ export default function EditorPage() {
         {/* Center: Slide name input + status dot. Orientation now lives only
             in the Background section of the editor panel (this top bar used
             to duplicate that toggle). */}
-        <div className="flex items-center gap-4 flex-1 justify-center">
-          <div className="flex items-center gap-2 max-w-xs">
+        <div className="flex items-center gap-4 flex-1 justify-center min-w-0 px-2">
+          <div className="flex items-center gap-2 min-w-0 max-w-md">
             <span
               title={saveStatusText || 'Untitled'}
               className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
@@ -321,11 +321,15 @@ export default function EditorPage() {
               value={title}
               onChange={e => setTitle(e.target.value)}
               onBlur={() => { if (isDirty()) saveNow() }}
-              className="bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-400 px-1 py-1 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors"
+              title={title || 'Untitled'}
+              className="bg-transparent border-b border-transparent hover:border-zinc-700 focus:border-zinc-400 px-1 py-1 text-sm text-white placeholder-zinc-500 focus:outline-none transition-colors min-w-0 flex-1 truncate"
               placeholder="Untitled"
             />
             {ownerEmail && (
-              <span className="text-xs text-zinc-600 flex-shrink-0" title="Slides are shared -- everyone can view and edit this">
+              <span
+                className="text-xs text-zinc-600 flex-shrink-0 truncate max-w-[9rem]"
+                title={`by ${ownerEmail} -- slides are shared, everyone can view and edit this`}
+              >
                 by {ownerEmail}
               </span>
             )}

@@ -199,7 +199,7 @@ export default function FolderTreeView({ folders, slides, groups, rootId, select
   }
 
   return (
-    <table className="w-full text-sm border-collapse">
+    <table className="w-full text-sm border-collapse table-fixed">
       <thead>
         <tr className="text-left text-xs text-zinc-500 border-b border-zinc-800">
           <th className="font-medium py-2 pr-4">Name</th>
@@ -226,8 +226,8 @@ export default function FolderTreeView({ folders, slides, groups, rootId, select
                   isDragOver ? 'bg-blue-900/50 ring-1 ring-inset ring-blue-500' : isSelected ? 'bg-blue-900/40' : 'hover:bg-zinc-900'
                 }`}
               >
-                <td className="py-1.5 pr-4">
-                  <div className="flex items-center gap-1.5" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX }}>
+                <td className="py-1.5 pr-4 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX }}>
                     <button
                       onClick={e => { e.stopPropagation(); toggleExpanded(row.folder.id) }}
                       onDoubleClick={e => e.stopPropagation()}
@@ -236,7 +236,7 @@ export default function FolderTreeView({ folders, slides, groups, rootId, select
                       <Chevron expanded={isExpanded} />
                     </button>
                     <FolderIcon className="text-zinc-400 flex-shrink-0" />
-                    <span className="truncate text-zinc-200">{row.folder.name}</span>
+                    <span className="truncate text-zinc-200 min-w-0 flex-1" title={row.folder.name}>{row.folder.name}</span>
                   </div>
                 </td>
                 <td className="py-1.5 pr-4 text-zinc-500">{timeAgo(new Date(row.folder.createdAt ?? Date.now()).toISOString())}</td>
@@ -263,8 +263,8 @@ export default function FolderTreeView({ folders, slides, groups, rootId, select
                   isDragOver ? 'bg-blue-900/50 ring-1 ring-inset ring-blue-500' : isSelected ? 'bg-blue-900/40' : 'hover:bg-zinc-900'
                 }`}
               >
-                <td className="py-1.5 pr-4">
-                  <div className="flex items-center gap-1.5" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX }}>
+                <td className="py-1.5 pr-4 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX }}>
                     <button
                       onClick={e => { e.stopPropagation(); toggleExpanded(row.group.id) }}
                       onDoubleClick={e => e.stopPropagation()}
@@ -273,7 +273,7 @@ export default function FolderTreeView({ folders, slides, groups, rootId, select
                       <Chevron expanded={isExpanded} />
                     </button>
                     <GroupIcon className="text-zinc-400 flex-shrink-0" />
-                    <span className="truncate text-zinc-200">{row.group.name}</span>
+                    <span className="truncate text-zinc-200 min-w-0 flex-1" title={row.group.name}>{row.group.name}</span>
                   </div>
                 </td>
                 <td className="py-1.5 pr-4 text-zinc-500">{timeAgo(row.members[0]?.updatedAt ?? new Date().toISOString())}</td>
@@ -295,10 +295,10 @@ export default function FolderTreeView({ folders, slides, groups, rootId, select
               onDoubleClick={() => onOpenSlide(slide.id)}
               className={`cursor-pointer border-b border-zinc-900 transition-colors ${isSelected ? 'bg-blue-900/40' : 'hover:bg-zinc-900'}`}
             >
-              <td className="py-1.5 pr-4">
-                <div className="flex items-center gap-1.5" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX + 20 }}>
+              <td className="py-1.5 pr-4 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0" style={{ paddingLeft: BASE_PAD_PX + row.depth * INDENT_PX + 20 }}>
                   <SlideIcon className="text-zinc-500 flex-shrink-0" />
-                  <span className="truncate text-zinc-300">{slide.title}</span>
+                  <span className="truncate text-zinc-300 min-w-0 flex-1" title={slide.title}>{slide.title}</span>
                 </div>
               </td>
               <td className="py-1.5 pr-4 text-zinc-500">{timeAgo(slide.updatedAt)}</td>

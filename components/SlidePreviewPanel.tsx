@@ -266,7 +266,7 @@ export default function SlidePreviewPanel({ selection, onDeleted, allSlides, onG
           </div>
         )}
       </div>
-      <p className="text-sm font-medium truncate">{slide.title}</p>
+      <p className="text-sm font-medium break-words">{slide.title}</p>
       <p className="text-xs text-zinc-500 mt-1 truncate">Created by {slide.ownerEmail}</p>
       <p className="text-xs text-zinc-600 mt-0.5">Updated {timeAgo(slide.updatedAt)}</p>
       <div className="flex gap-2 mt-4">
