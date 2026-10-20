@@ -1,4 +1,4 @@
-import { TheinhardtWeight, TitleFont, PresentersFont, Orientation, FaceCropBox, TextBlockKey } from './types'
+import { TheinhardtWeight, TitleFont, PresentersFont, Orientation, FaceCropBox, CustomTextLayer } from './types'
 
 export type ScreenType = 'projector' | 'lobby'
 // 'upload' = hand-entered via /train from an old/scanned slide (style values
@@ -66,8 +66,16 @@ export interface TrainEntry {
   presentersMatchTitleSize?: boolean
   programTitleMatchTitleSize?: boolean
   // Vertical render order of the text blocks (SlideData.blockOrder) --
-  // same live-only convention as the fields above.
-  blockOrder?: TextBlockKey[]
+  // same live-only convention as the fields above. string[] (not
+  // TextBlockKey[]) since an entry can be a customTextLayers[].id too --
+  // see SlideData.blockOrder's own comment.
+  blockOrder?: string[]
+  // User-added text layers beyond the fixed fields above -- 'live' only,
+  // same convention as blockOrder. customTextLayersCount is broken out
+  // separately (matching imageCount) so it's always populated and
+  // queryable even when the array itself is undefined/empty.
+  customTextLayers?: CustomTextLayer[]
+  customTextLayersCount: number
 
   seriesName: string       // '' = unused
   hasQrCode: boolean
@@ -216,5 +224,6 @@ export function createBlankEntry(overrides?: Partial<Pick<TrainEntry, 'screenTyp
     textColor: '',
     images: [{ id: Math.random().toString(36).slice(2), url: '', mediaType: '', name: '' }],
     imageCount: 0,
+    customTextLayersCount: 0,
   }
 }

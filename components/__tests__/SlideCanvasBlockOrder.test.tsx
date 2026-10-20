@@ -67,4 +67,36 @@ describe('SlideCanvas blockOrder rendering', () => {
     expect(screen.getAllByText('A Talk')).toHaveLength(1)
     expect(screen.getAllByText('Some Work')).toHaveLength(1)
   })
+
+  it('renders a custom text layer at its own position in blockOrder, in its own font/size/color', () => {
+    const data: SlideData = {
+      ...DEFAULT_SLIDE_DATA,
+      label: 'TONIGHT', title: 'A Talk', presenters: 'Jane Doe', programTitle: '', subtitle: '', subtitle2: '',
+      customTextLayers: [{ id: 'layer-1', text: 'Custom layer text', font: '92NY Text', weight: 'bold', italic: true, color: '#ff0000', size: 33 }],
+      blockOrder: ['label', 'title', 'layer-1', 'presenters', 'subtitle', 'subtitle2', 'programTitle'],
+    }
+    const { container } = render(<SlideCanvas data={data} orientation="landscape" />)
+
+    const el = screen.getByText('Custom layer text')
+    expect(el).toBeInTheDocument()
+    const style = (el.closest('div') as HTMLElement).style
+    expect(style.fontSize).toBe('33px')
+    expect(style.color).toBe('rgb(255, 0, 0)')
+    expect(style.fontStyle).toBe('italic')
+
+    // Position: between Title and Presenters, per blockOrder above.
+    const text = container.textContent || ''
+    expect(text.indexOf('A Talk')).toBeLessThan(text.indexOf('Custom layer text'))
+    expect(text.indexOf('Custom layer text')).toBeLessThan(text.indexOf('Jane Doe'))
+  })
+
+  it('an empty custom text layer is not rendered and is excluded from the reorderable stack', () => {
+    const data: SlideData = {
+      ...DEFAULT_SLIDE_DATA,
+      customTextLayers: [{ id: 'layer-1', text: '   ', font: 'Theinhardt', weight: 'regular', italic: false, size: 48 }],
+      blockOrder: [...(DEFAULT_SLIDE_DATA.blockOrder ?? []), 'layer-1'],
+    }
+    render(<SlideCanvas data={data} orientation="landscape" />)
+    expect(screen.queryByText('layer-1')).not.toBeInTheDocument()
+  })
 })

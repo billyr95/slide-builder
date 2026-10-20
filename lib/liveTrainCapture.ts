@@ -37,13 +37,15 @@ async function toCompressedTrainImage(raw: { url: string; name: string }): Promi
   }
 }
 
-// True when any of the 8 text fields carries a rich-text italic/bold
-// override (lib/types.ts's *RichText fields) -- lets formatted slides be
-// told apart in the training dataset (TrainEntry.hasInlineFormatting).
+// True when any of the 8 fixed text fields, or any custom text layer,
+// carries a rich-text italic/bold override (lib/types.ts's *RichText
+// fields) -- lets formatted slides be told apart in the training dataset
+// (TrainEntry.hasInlineFormatting).
 function hasInlineFormatting(data: SlideData): boolean {
   return !!(
     data.labelRichText || data.titleRichText || data.subtitleRichText || data.subtitle2RichText ||
-    data.presentersRichText || data.programTitleRichText || data.seriesNameRichText || data.listeningCreditRichText
+    data.presentersRichText || data.programTitleRichText || data.seriesNameRichText || data.listeningCreditRichText ||
+    data.customTextLayers?.some(l => l.richText)
   )
 }
 
@@ -175,6 +177,8 @@ export async function buildLiveTrainEntry(data: SlideData, orientation: Orientat
     presentersMatchTitleSize: data.presentersMatchTitleSize,
     programTitleMatchTitleSize: data.programTitleMatchTitleSize,
     blockOrder: data.blockOrder,
+    customTextLayers: data.customTextLayers,
+    customTextLayersCount: data.customTextLayers?.length ?? 0,
 
     seriesName: data.showSeriesName ? data.seriesName : '',
     // TODO: the main editor has no QR code feature yet -- always false

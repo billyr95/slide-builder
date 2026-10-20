@@ -25,6 +25,14 @@ function commonKnownLines(entry: TrainEntry): string[] {
   if (entry.blockOrder && entry.blockOrder.length > 0) {
     known.push(`Block order: ${entry.blockOrder.join(', ')}`)
   }
+  if (entry.customTextLayers && entry.customTextLayers.length > 0) {
+    known.push(`Custom text layers: ${entry.customTextLayersCount}`)
+    entry.customTextLayers.forEach((layer, i) => {
+      known.push(
+        `Custom text layer ${i + 1}: "${layer.text}" (font: ${layer.font}, weight: ${layer.weight}, italic: ${layer.italic}, size: ${layer.size}px${layer.color ? `, color: ${layer.color}` : ''})`
+      )
+    })
+  }
   if (entry.hasLabel && entry.label) known.push(`Label: "${entry.label}"`)
   if (entry.title) known.push(`Title: "${entry.title}"`)
   known.push(`Title font: ${entry.titleFont}`)

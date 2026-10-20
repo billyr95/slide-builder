@@ -257,6 +257,15 @@ export const trainingEntries = pgTable('training_entries', {
   subtitleFontSizeWasOverridden: boolean('subtitle_font_size_was_overridden'),
   subtitle2FontSizeFinalPx: integer('subtitle2_font_size_final_px'),
 
+  // User-added text layers beyond the fixed fields above (SlideData.
+  // customTextLayers) -- 'live' only, same convention as blockOrder above.
+  // An array of {id,text,font,weight,italic,color,size,marginTop}; count is
+  // broken out as its own queryable column (matching imageCount) rather
+  // than requiring every query to unpack the jsonb array just to filter/
+  // aggregate on how many layers a slide had.
+  customTextLayers: jsonb('custom_text_layers'),
+  customTextLayersCount: integer('custom_text_layers_count').notNull().default(0),
+
   // Attached image files (base64 data URLs) for 'upload' entries, and any
   // other fields with no fixed column above (matches TrainEntry.liveStyle).
   images: jsonb('images').notNull().default([]),

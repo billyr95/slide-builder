@@ -78,6 +78,13 @@
       "when": 1792023750119,
       "tag": "0010_naive_maelstrom",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792459520101,
+      "tag": "0011_equal_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

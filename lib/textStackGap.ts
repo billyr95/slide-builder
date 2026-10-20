@@ -9,8 +9,22 @@
 // overridden line-height (leaking a field-internal setting into the shared
 // gap). Putting the whole system in one place removes the ability for that
 // class of bug to happen a third time.
-import { SlideData, TextBlockKey } from './types'
+import { SlideData, TextBlockKey, CustomTextLayer } from './types'
 import { DEFAULT_BLOCK_ORDER, DEFAULT_STACK_LINE_HEIGHT } from './defaults'
+
+// A blockOrder entry is either a fixed TextBlockKey or a customTextLayers[]
+// entry's own id (see SlideData.blockOrder/CustomTextLayer's comments) --
+// every function below that used to take a TextBlockKey now takes this
+// wider type and branches on isTextBlockKey/getCustomLayer internally.
+export type BlockKey = string
+
+function isTextBlockKey(key: BlockKey): key is TextBlockKey {
+  return (DEFAULT_BLOCK_ORDER as readonly string[]).includes(key)
+}
+
+export function getCustomLayer(data: SlideData, key: BlockKey): CustomTextLayer | undefined {
+  return data.customTextLayers?.find(l => l.id === key)
+}
 
 // A diacritic/accent mark that extends ABOVE the base letter (acute,
 // grave, circumflex, tilde, diaeresis, ring, macron, breve, caron, dot
@@ -72,31 +86,43 @@ export function accentClearanceRatio(font: string): number {
 // fallback twice (once per filter) previously let the two disagree on what
 // "the base order" even was whenever data.blockOrder was undefined,
 // duplicating every single key.
-export function resolveBlockOrder(stored: TextBlockKey[] | undefined): TextBlockKey[] {
-  const base = stored ?? DEFAULT_BLOCK_ORDER
+// `data` (not just the stored array) is needed now so a customTextLayers
+// entry with no blockOrder position yet (just added) gets appended at the
+// end, same treatment DEFAULT_BLOCK_ORDER's own missing-key fallback below
+// already gives a fixed field.
+export function resolveBlockOrder(data: SlideData): BlockKey[] {
+  const customIds = (data.customTextLayers ?? []).map(l => l.id)
+  const known = new Set<BlockKey>([...DEFAULT_BLOCK_ORDER, ...customIds])
+  const base = data.blockOrder ?? DEFAULT_BLOCK_ORDER
   return [
-    ...base.filter((k): k is TextBlockKey => DEFAULT_BLOCK_ORDER.includes(k)),
+    ...base.filter(k => known.has(k)),
     ...DEFAULT_BLOCK_ORDER.filter(k => !base.includes(k)),
+    ...customIds.filter(id => !base.includes(id)),
   ]
 }
 
 // Whether a block currently has something to show -- an empty/unpopulated
-// field simply isn't part of the rendered (or reorderable) stack.
-export function isBlockPopulated(data: SlideData, key: TextBlockKey): boolean {
-  switch (key) {
+// field simply isn't part of the rendered (or reorderable) stack. A custom
+// layer counts as populated once it has any non-whitespace text, same bar
+// as every fixed text field's own `!!data.xyz` check.
+export function isBlockPopulated(data: SlideData, key: BlockKey): boolean {
+  const layer = getCustomLayer(data, key)
+  if (layer) return !!layer.text.trim()
+  switch (key as TextBlockKey) {
     case 'label': return !!data.label
     case 'title': return true
     case 'subtitle': return !!(data.subtitle && !data.subtitleInline)
     case 'subtitle2': return !!data.subtitle2
     case 'presenters': return !!data.presenters
     case 'programTitle': return !!data.programTitle
+    default: return false
   }
 }
 
 // The currently-visible render order: resolveBlockOrder filtered down to
 // populated blocks only.
-export function visibleBlockOrder(data: SlideData): TextBlockKey[] {
-  return resolveBlockOrder(data.blockOrder).filter(k => isBlockPopulated(data, k))
+export function visibleBlockOrder(data: SlideData): BlockKey[] {
+  return resolveBlockOrder(data).filter(k => isBlockPopulated(data, k))
 }
 
 // The ONE gap value every block-to-block transition in the stack is based
@@ -120,7 +146,7 @@ export function computeStackGap(data: SlideData): number {
 // hardcoded to "Title's gap" vs. "Presenters' gap". Returns 0 for a block
 // with nothing rendering above it (first in the visible order, or not
 // visible at all).
-export function computeAutoMarginTop(data: SlideData, key: TextBlockKey): number {
+export function computeAutoMarginTop(data: SlideData, key: BlockKey): number {
   const order = visibleBlockOrder(data)
   const idx = order.indexOf(key)
   if (idx <= 0) return 0
@@ -154,9 +180,12 @@ export function marginTopField(key: TextBlockKey): keyof SlideData {
 
 // The margin-top that actually renders above `key` -- its own manual
 // override if the user set one (takes precedence over the automatic
-// calculation for THAT gap specifically), else the automatic value.
-export function effectiveMarginTop(data: SlideData, key: TextBlockKey): number {
-  const override = data[marginTopField(key)] as number | undefined
+// calculation for THAT gap specifically), else the automatic value. A
+// custom layer's override lives on the layer object itself (marginTop),
+// not a fixed SlideData key -- see CustomTextLayer's comment.
+export function effectiveMarginTop(data: SlideData, key: BlockKey): number {
+  const layer = getCustomLayer(data, key)
+  const override = layer ? layer.marginTop : (data[marginTopField(key as TextBlockKey)] as number | undefined)
   return override !== undefined ? override : computeAutoMarginTop(data, key)
 }
 

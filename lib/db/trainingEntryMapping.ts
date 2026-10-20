@@ -81,6 +81,8 @@ export function trainEntryToRow(entry: Partial<TrainEntry>, userId: string): New
     presentersMatchTitleSize: entry.presentersMatchTitleSize ?? null,
     programTitleMatchTitleSize: entry.programTitleMatchTitleSize ?? null,
     blockOrder: entry.blockOrder ?? null,
+    customTextLayers: entry.customTextLayers ?? null,
+    customTextLayersCount: entry.customTextLayersCount ?? 0,
     ...flattenImagePlacements(entry.imagePlacements),
     // Not yet populated by any code path -- see schema.ts's own comment on
     // these columns. Written as null here so a future results-parsing step
@@ -158,6 +160,8 @@ export function rowToTrainEntry(row: Row): TrainEntry {
     presentersMatchTitleSize: row.presentersMatchTitleSize ?? undefined,
     programTitleMatchTitleSize: row.programTitleMatchTitleSize ?? undefined,
     blockOrder: (row.blockOrder as TrainEntry['blockOrder']) ?? undefined,
+    customTextLayers: (row.customTextLayers as TrainEntry['customTextLayers']) ?? undefined,
+    customTextLayersCount: row.customTextLayersCount,
     imagePlacements: unflattenImagePlacements(row),
     seriesName: row.seriesName,
     listeningCredit: row.listeningCredit,

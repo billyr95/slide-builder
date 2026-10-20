@@ -1,6 +1,6 @@
 'use client'
 
-import { SlideData, TheinhardtWeight, PresentersFont, LogoItem, StaggerImage, ImageMode, Orientation, FaceCropBox, TextBlockKey, staggerCount } from '@/lib/types'
+import { SlideData, TheinhardtWeight, PresentersFont, LogoItem, StaggerImage, ImageMode, Orientation, FaceCropBox, TextBlockKey, CustomTextLayer, staggerCount } from '@/lib/types'
 import { ScreenType } from '@/lib/trainTypes'
 import { useRef, useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
@@ -518,17 +518,29 @@ function LogoUploader({ logos, onChange }: { logos: LogoItem[]; onChange: (logos
 // just the visible subset, so a hidden block's relative position is
 // preserved rather than getting silently reshuffled the next time it's
 // populated.
-function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order: TextBlockKey[]) => void }) {
-  const [draggedKey, setDraggedKey] = useState<TextBlockKey | null>(null)
-  const [dragOverKey, setDragOverKey] = useState<TextBlockKey | null>(null)
+// A block's display label in the reorder list -- the fixed lookup for the
+// 6 built-in fields, or a short preview of a custom layer's own text (it
+// has no fixed field name to look a label up by).
+function blockLabel(data: SlideData, key: string): string {
+  const layer = data.customTextLayers?.find(l => l.id === key)
+  if (layer) {
+    const preview = layer.text.split('\n')[0]?.trim().slice(0, 24) ?? ''
+    return preview || 'Text layer'
+  }
+  return TEXT_BLOCK_LABELS[key as TextBlockKey] ?? key
+}
 
-  const fullOrder = resolveBlockOrder(data.blockOrder)
+function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order: string[]) => void }) {
+  const [draggedKey, setDraggedKey] = useState<string | null>(null)
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null)
+
+  const fullOrder = resolveBlockOrder(data)
   const visibleKeys = fullOrder.filter(k => isBlockPopulated(data, k))
 
   // Both the drag handle and the up/down buttons below ultimately go
   // through this one function -- neither can desync from the other since
   // there's only one place that actually computes a new order.
-  function moveBefore(key: TextBlockKey, targetKey: TextBlockKey) {
+  function moveBefore(key: string, targetKey: string) {
     if (key === targetKey) return
     const without = fullOrder.filter(k => k !== key)
     const targetIdx = without.indexOf(targetKey)
@@ -536,7 +548,7 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
     onChange(without)
   }
 
-  function handleDrop(targetKey: TextBlockKey) {
+  function handleDrop(targetKey: string) {
     setDragOverKey(null)
     if (!draggedKey) return
     moveBefore(draggedKey, targetKey)
@@ -547,7 +559,7 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
   // given direction. Reuses moveBefore against the full order (not just
   // the visible subset), so a hidden/unpopulated block sitting between
   // them keeps its own relative position instead of getting shuffled.
-  function moveStep(key: TextBlockKey, direction: -1 | 1) {
+  function moveStep(key: string, direction: -1 | 1) {
     const idx = visibleKeys.indexOf(key)
     const neighborIdx = idx + direction
     if (neighborIdx < 0 || neighborIdx >= visibleKeys.length) return
@@ -584,7 +596,7 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
           }`}
         >
           <span className="text-zinc-500 select-none" aria-hidden>⠿</span>
-          <span className="flex-1">{TEXT_BLOCK_LABELS[key]}</span>
+          <span className="flex-1 truncate">{blockLabel(data, key)}</span>
           <div className="flex items-center gap-0.5 flex-shrink-0">
             <button
               type="button"
@@ -592,7 +604,7 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
               onDragStart={e => e.stopPropagation()}
               onClick={() => moveStep(key, -1)}
               disabled={i === 0}
-              title={`Move ${TEXT_BLOCK_LABELS[key]} up`}
+              title={`Move ${blockLabel(data, key)} up`}
               className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
             >
               ▲
@@ -603,7 +615,7 @@ function BlockOrderList({ data, onChange }: { data: SlideData; onChange: (order:
               onDragStart={e => e.stopPropagation()}
               onClick={() => moveStep(key, 1)}
               disabled={i === visibleKeys.length - 1}
-              title={`Move ${TEXT_BLOCK_LABELS[key]} down`}
+              title={`Move ${blockLabel(data, key)} down`}
               className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
             >
               ▼
@@ -658,6 +670,38 @@ export default function EditorPanel({
 
   function set<K extends keyof SlideData>(key: K, value: SlideData[K]) {
     onChange({ ...data, [key]: value })
+  }
+
+  const MAX_CUSTOM_TEXT_LAYERS = 10
+
+  // Adds a new, empty custom text layer and appends its id to blockOrder in
+  // the SAME onChange call (not two separate set() calls, which would each
+  // read this render's now-stale `data` and the second would silently
+  // overwrite the first's change) -- lands it at the end of the stack by
+  // construction, since resolveBlockOrder(data) is the full current order
+  // and the new id is appended after it.
+  function addTextLayer() {
+    const layers = data.customTextLayers ?? []
+    if (layers.length >= MAX_CUSTOM_TEXT_LAYERS) return
+    const newLayer: CustomTextLayer = {
+      id: Math.random().toString(36).slice(2),
+      text: '', font: 'Theinhardt', weight: 'regular', italic: false, size: 48,
+    }
+    onChange({ ...data, customTextLayers: [...layers, newLayer], blockOrder: [...resolveBlockOrder(data), newLayer.id] })
+  }
+
+  function updateTextLayer(id: string, patch: Partial<CustomTextLayer>) {
+    set('customTextLayers', (data.customTextLayers ?? []).map(l => (l.id === id ? { ...l, ...patch } : l)))
+  }
+
+  // Removing a layer also drops its id from blockOrder -- same single-
+  // onChange reasoning as addTextLayer above.
+  function removeTextLayer(id: string) {
+    onChange({
+      ...data,
+      customTextLayers: (data.customTextLayers ?? []).filter(l => l.id !== id),
+      blockOrder: resolveBlockOrder(data).filter(k => k !== id),
+    })
   }
 
   // Same as set(), but also clears a field's rich-text italic override
@@ -1337,6 +1381,63 @@ export default function EditorPanel({
                   </>
                 )}
               </FieldCard>
+
+              {(data.customTextLayers ?? []).map(layer => (
+                <FieldCard key={layer.id}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={labelCls}>Text layer</label>
+                    <button
+                      onClick={() => { if (window.confirm('Delete this text layer? This can\'t be undone.')) removeTextLayer(layer.id) }}
+                      className="text-xs text-zinc-500 hover:text-red-400 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                  <textarea className={inputCls + ' resize-none'} rows={3} value={layer.text}
+                    onChange={e => updateTextLayer(layer.id, { text: e.target.value, richText: undefined })}
+                    placeholder="Custom text" />
+                  <EditHtmlLink fieldLabel="Text layer" plainValue={layer.text} richValue={layer.richText} allowBold={layer.font !== '92NY Text'}
+                    onApply={(plain, rich) => updateTextLayer(layer.id, { text: plain, richText: rich })} />
+                  <div className="mt-1.5 flex gap-1.5">
+                    {(['Theinhardt', '92NY Text'] as const).map(font => (
+                      <button key={font}
+                        onClick={() => updateTextLayer(layer.id, { font, ...(font === '92NY Text' && layer.weight !== 'regular' ? { weight: 'regular' as TheinhardtWeight } : {}) })}
+                        className={`flex-1 text-xs py-1.5 rounded-md border transition-colors ${
+                          layer.font === font
+                            ? 'bg-white text-black border-white font-medium'
+                            : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500'
+                        }`}>
+                        {font}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <input type="checkbox" id={`textLayerItalic-${layer.id}`} checked={layer.italic}
+                      onChange={e => updateTextLayer(layer.id, { italic: e.target.checked })} className="rounded" />
+                    <label htmlFor={`textLayerItalic-${layer.id}`} className="text-sm text-zinc-300">Italic</label>
+                  </div>
+                  <div className="mt-1.5">
+                    <WeightPicker value={layer.weight} onChange={v => updateTextLayer(layer.id, { weight: v })}
+                      disabled={layer.font === '92NY Text'} />
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">Color</span>
+                    <ColorPalette value={layer.color ?? data.textColor} onChange={v => updateTextLayer(layer.id, { color: v })} />
+                  </div>
+                  <FontSizeSlider label="Font size" value={layer.size}
+                    onChange={v => updateTextLayer(layer.id, { size: v })} min={12} max={250} numberInput />
+                  <MarginTopSlider label="Margin top" value={effectiveMarginTop(data, layer.id)}
+                    onChange={v => updateTextLayer(layer.id, { marginTop: v })} badge={layer.marginTop !== undefined ? 'manual' : 'auto'} />
+                </FieldCard>
+              ))}
+
+              <button
+                onClick={addTextLayer}
+                disabled={(data.customTextLayers ?? []).length >= MAX_CUSTOM_TEXT_LAYERS}
+                className="w-full text-sm text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 border-dashed rounded-lg py-2.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {(data.customTextLayers ?? []).length >= MAX_CUSTOM_TEXT_LAYERS ? `Maximum ${MAX_CUSTOM_TEXT_LAYERS} text layers` : '+ Add text layer'}
+              </button>
             </Section>
           )}
 

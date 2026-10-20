@@ -2,7 +2,7 @@ import React, { forwardRef } from 'react'
 import { SlideData, Orientation, staggerCount, TextBlockKey } from '@/lib/types'
 import { computeStaggerLayout } from '@/lib/staggerLayout'
 import { DEFAULT_STACK_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_LINE_HEIGHT, DEFAULT_LISTENING_CREDIT_SIZE } from '@/lib/defaults'
-import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop, effectiveLogoMarginTop } from '@/lib/textStackGap'
+import { visibleBlockOrder, effectiveMarginTop, effectiveSeriesNameMarginTop, effectiveLogoMarginTop, getCustomLayer, BlockKey } from '@/lib/textStackGap'
 import { effectiveImageTextGapLandscape, effectiveImageTextGapPortrait, effectiveContentMarginSide } from '@/lib/layoutDefaults'
 import { effectiveImageSizePx } from '@/lib/imageSizing'
 import { effectiveImageClusterX, naturalLandscapeClusterX, naturalPortraitClusterX, imageFacingInset } from '@/lib/imageClusterPosition'
@@ -89,7 +89,7 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // value) takes precedence for this gap specifically; nothing else
     // (that field's own internal line-height, or the gap below it, owned
     // by whatever renders after it) is affected either way.
-    function marginBefore(key: TextBlockKey) {
+    function marginBefore(key: BlockKey) {
       if (visibleBlocks.indexOf(key) <= 0) return undefined
       return { marginTop: `${effectiveMarginTop(data, key) * scale}px` }
     }
@@ -179,8 +179,20 @@ const SlideCanvas = forwardRef<HTMLDivElement, SlideCanvasProps>(
     // from all three layout branches below (imageMode 'none', landscape,
     // portrait) so blockOrder only has to be resolved once and each block's
     // markup exists in exactly one place, not triplicated per layout.
-    function renderBlock(key: TextBlockKey): React.ReactNode {
-      switch (key) {
+    function renderBlock(key: BlockKey): React.ReactNode {
+      const layer = getCustomLayer(data, key)
+      if (layer) {
+        return (
+          <div key={key} style={{
+            fontSize: `${layer.size * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, whiteSpace: 'pre-line',
+            ...fontSwitchableStyle(layer.font, layer.italic, layer.weight, layer.size, layer.color ?? data.textColor),
+            ...trimEdges, ...marginBefore(key),
+          }}>
+            {richOrPlain(layer.text, layer.richText)}
+          </div>
+        )
+      }
+      switch (key as TextBlockKey) {
         case 'label':
           return data.label ? (
             <div key="label" style={{ fontSize: `${labelSize * scale}px`, lineHeight: DEFAULT_STACK_LINE_HEIGHT, ...bodyStyle(data.labelWeight, labelSize, data.labelColor ?? data.textColor), ...trimEdges, ...marginBefore('label') }}>

@@ -86,6 +86,28 @@ export function staggerCount(mode: ImageMode): number {
 export const TEXT_BLOCK_KEYS = ['label', 'title', 'subtitle', 'subtitle2', 'presenters', 'programTitle'] as const
 export type TextBlockKey = typeof TEXT_BLOCK_KEYS[number]
 
+// A user-added text block, alongside the fixed TEXT_BLOCK_KEYS fields --
+// unlike those (one hardcoded SlideData field per block), there can be any
+// number of these (capped at 10 in EditorPanel), so each one carries its own
+// full style on the object itself rather than a fixed `*Weight`/`*Size`/...
+// field name. Joins blockOrder by `id` exactly like a TextBlockKey joins it
+// by name (see lib/textStackGap.ts, which treats blockOrder entries as
+// `string` for this reason) -- SlideCanvas/EditorPanel resolve a blockOrder
+// entry to either a TextBlockKey or a customTextLayers[].id at render/list
+// time. Same manual-margin-or-auto-stack-gap pattern as the fixed fields
+// (see effectiveCustomLayerMarginTop in lib/textStackGap.ts).
+export interface CustomTextLayer {
+  id: string
+  text: string
+  richText?: string
+  font: PresentersFont
+  weight: TheinhardtWeight
+  italic: boolean
+  color?: string
+  size: number
+  marginTop?: number
+}
+
 // Optional per-field MARGIN-TOP overrides -- the gap ABOVE that field,
 // relative to whichever block currently renders before it in blockOrder
 // (see lib/textStackGap.ts, the single shared source of truth for both
@@ -200,7 +222,17 @@ export interface SlideData {
   // known key ships in DEFAULT_BLOCK_ORDER, but keeps this forward-
   // compatible if a future block type needs the same append-only treatment
   // blockVisible-style flags already get elsewhere in this codebase.
-  blockOrder?: TextBlockKey[]
+  // string rather than TextBlockKey[] specifically so a customTextLayers
+  // entry's own `id` can sit in this same array (see CustomTextLayer above)
+  // -- every TextBlockKey is still a valid string, so nothing about the
+  // fixed-field path changes.
+  blockOrder?: string[]
+  // User-added text blocks beyond the fixed ones above (capped at 10 in
+  // EditorPanel) -- see CustomTextLayer's own comment. A layer's position
+  // in the stack comes from its `id` appearing in blockOrder, same as any
+  // TextBlockKey; a freshly-added layer is appended to blockOrder (so it
+  // lands at the end of the stack) rather than inserted anywhere else.
+  customTextLayers?: CustomTextLayer[]
 
   // The horizontal gap between the image block and the text block, in
   // landscape mode (image and text sit side by side) vs. portrait mode
